@@ -1,0 +1,365 @@
+/* ═══════════════════════════════════════════════════════
+   VISUALIZAR OP — CSS
+   Tela + Impressão/PDF (A4)
+═══════════════════════════════════════════════════════ */
+
+:root {
+  --cor-primaria: #2563eb;
+  --cor-secundaria: #1e40af;
+  --cor-fundo: #f1f5f9;
+  --cor-card: #ffffff;
+  --cor-texto: #1f2933;
+  --cor-borda: #e5e7eb;
+  --header-bg: #1f2a6f;
+  --header-text: #f8fafc;
+  --header-shadow: rgba(15, 23, 42, 0.18);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 30px;
+  font-family: 'Segoe UI', Tahoma, sans-serif;
+  background: var(--cor-fundo);
+  color: var(--cor-texto);
+}
+
+/* ═══════ HEADER ═══════ */
+.header {
+  background: var(--header-bg);
+  padding: 16px 24px;
+  border-radius: 16px;
+  margin-bottom: 30px;
+  box-shadow: 0 12px 30px var(--header-shadow);
+  position: sticky;
+  top: 16px;
+  z-index: 10;
+}
+
+.header-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.header-text {
+  color: var(--header-text);
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.logo {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  color: var(--header-text);
+  font-size: 13px;
+  letter-spacing: 0.5px;
+}
+
+/* ═══════ BOTÕES HEADER ═══════ */
+.btn-voltar,
+.btn-pdf {
+  padding: 10px 16px;
+  border-radius: 12px;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+
+.btn-voltar {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--header-text);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.btn-voltar:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+}
+
+.btn-pdf {
+  background: #16a34a;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(22, 163, 74, 0.3);
+}
+
+.btn-pdf:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.08);
+}
+
+/* ═══════ DOCUMENTO ═══════ */
+.document {
+  max-width: 1100px;
+  margin: 0 auto;
+  background: var(--cor-card);
+  padding: 25px;
+  border-radius: 14px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+}
+
+.topo {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  border-bottom: 2px solid var(--cor-borda);
+  padding-bottom: 18px;
+  margin-bottom: 18px;
+}
+
+.empresa { max-width: 70%; }
+.empresa h2 { margin: 0; font-size: 22px; }
+.empresa p { margin: 4px 0; font-size: 14px; color: #374151; }
+
+.nfe { text-align: right; }
+.nfe .titulo { font-weight: 700; font-size: 16px; color: var(--cor-secundaria); }
+.nfe .info { font-size: 13px; margin-top: 6px; }
+
+.blocos {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+.bloco {
+  background: #f8fafc;
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid var(--cor-borda);
+}
+
+.bloco h4 {
+  margin: 0 0 10px 0;
+  font-size: 14px;
+  color: var(--cor-secundaria);
+}
+
+.bloco p {
+  margin: 4px 0;
+  font-size: 13px;
+}
+
+/* ═══════ TABELAS ═══════ */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+
+th, td {
+  padding: 8px 10px;
+  border: 1px solid var(--cor-borda);
+  font-size: 12px;
+  text-align: center;
+}
+
+thead {
+  background: var(--cor-primaria);
+  color: white;
+}
+
+thead th {
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+/* ═══════ RODAPÉ DO DOCUMENTO ═══════ */
+.document-footer {
+  margin-top: 24px;
+  padding-top: 12px;
+}
+
+.footer-line {
+  height: 2px;
+  background: linear-gradient(to right, var(--cor-primaria), var(--cor-borda));
+  margin-bottom: 8px;
+}
+
+.footer-content {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: #94a3b8;
+}
+
+/* ═══════ HELPERS ═══════ */
+.print-only { display: none; }
+
+
+/* ═══════════════════════════════════════════════════════
+   @MEDIA PRINT — Otimizado para A4 (PDF)
+═══════════════════════════════════════════════════════ */
+@media print {
+
+  /* ── Reset de página ── */
+  @page {
+    size: A4 portrait;
+    margin: 12mm 10mm 10mm 10mm;
+  }
+
+  /* ── Esconde o que não vai no PDF ── */
+  .no-print {
+    display: none !important;
+  }
+
+  /* ── Mostra o rodapé ── */
+  .print-only {
+    display: block !important;
+  }
+
+  /* ── Body limpo ── */
+  body {
+    background: white !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    font-size: 11px !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  /* ── Documento ocupa tudo ── */
+  .document {
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: white !important;
+  }
+
+  /* ── Topo compacto ── */
+  .topo {
+    padding-bottom: 10px !important;
+    margin-bottom: 10px !important;
+  }
+
+  .empresa h2 { font-size: 18px !important; }
+  .empresa p { font-size: 11px !important; margin: 2px 0 !important; }
+  .nfe .titulo { font-size: 14px !important; }
+  .nfe .info { font-size: 11px !important; }
+
+  /* ── Blocos compactos ── */
+  .blocos {
+    gap: 10px !important;
+  }
+
+  .bloco {
+    padding: 8px 10px !important;
+    border-radius: 6px !important;
+    background: #f8fafc !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .bloco h4 {
+    font-size: 12px !important;
+    margin-bottom: 6px !important;
+    color: var(--cor-secundaria) !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .bloco p {
+    font-size: 11px !important;
+    margin: 2px 0 !important;
+  }
+
+  /* ── Tabelas compactas ── */
+  th, td {
+    padding: 4px 6px !important;
+    font-size: 10px !important;
+    border-color: #d1d5db !important;
+  }
+
+  thead {
+    background: var(--cor-primaria) !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  thead th {
+    color: white !important;
+    font-size: 9px !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  table {
+    margin-top: 6px !important;
+  }
+
+  /* ── Espaçamentos entre seções ── */
+  .blocos + .blocos { margin-top: 10px !important; }
+  .bloco + .bloco { margin-top: 0 !important; }
+  [style*="margin-top: 18px"] { margin-top: 10px !important; }
+
+  /* ── Evitar quebra no meio de blocos ── */
+  .bloco {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  table {
+    break-inside: auto !important;
+  }
+
+  thead {
+    display: table-header-group !important;
+  }
+
+  tr {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* ── Rodapé do documento ── */
+  .document-footer {
+    margin-top: 14px !important;
+    padding-top: 8px !important;
+  }
+
+  .footer-line {
+    height: 1px !important;
+    background: #94a3b8 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .footer-content {
+    font-size: 9px !important;
+    color: #64748b !important;
+  }
+
+  /* ── Links sem decoração ── */
+  a { text-decoration: none !important; color: inherit !important; }
+}

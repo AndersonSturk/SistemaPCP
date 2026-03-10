@@ -1,0 +1,33 @@
+{
+  "name": "sistema-pcp",
+  "version": "1.0.0",
+  "description": "Sistema web de Planejamento e Controle da Produção (PCP) — gerenciamento de OPs, pedidos, estoque e fornecedores",
+  "main": "server.js",
+  "author": "Anderson Sturk",
+  "license": "MIT",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "keywords": [
+    "pcp",
+    "producao",
+    "estoque",
+    "erp",
+    "nodejs",
+    "express",
+    "mysql"
+  ],
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "cors": "^2.8.6",
+    "dotenv": "^16.6.1",
+    "exceljs": "^4.4.0",
+    "express": "^5.2.1",
+    "express-rate-limit": "^7.5.1",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^2.1.0",
+    "mysql2": "^3.16.3"
+  }
+}

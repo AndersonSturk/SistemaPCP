@@ -1,0 +1,53 @@
+# Environment variables (nunca versionar .env com dados reais)
+.env
+.env.local
+.env.*.local
+
+# Node modules
+node_modules/
+API/node_modules/
+npm-debug.log
+yarn-error.log
+yarn.lock
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Database backups (arquivos SQL com dados reais)
+*.sql
+*.sql.bak
+*.sql.backup
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# System files
+.history/
+
+# Dependencies
+dist/
+build/
+
+# Testing
+coverage/
+.nyc_output/
+
+# IDE specific
+*.code-workspace

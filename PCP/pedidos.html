@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Controle de Pedidos</title>
+
+      <link rel="stylesheet" href="../Styles/shared-style.css">
+</head>
+
+<body>
+
+  <header class="header">
+    <div class="header-content">
+      <div class="header-left">
+        <div class="logo">PCP</div>
+        <h2 class="header-text">Controle de Pedidos</h2>
+      </div>
+      <button class="btn btn-voltar" onclick="voltarHub()">← Voltar</button>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <!-- FILTROS -->
+    <section class="card filtros">
+      <input type="text" id="filtroCliente" placeholder="Buscar por cliente">
+      <select id="filtroStatus">
+        <option value="">Status</option>
+        <option value="Item em Produção">Item em Produção</option>
+        <option value="Curso normal">Curso normal</option>
+        <option value="Pedido atrasado">Pedido atrasado</option>
+        <option value="Entrega com Atraso">Entrega com Atraso</option>
+        <option value="Entregue">Entregue</option>
+      </select>
+      <button class="btn btn-primary" id="btnFiltrar">Filtrar</button>
+      <button id="btnNovoPedido" class="btn btn-success">+ Novo Pedido</button>
+    </section>
+
+    <!-- TABELA -->
+    <section class="card">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Cliente</th>
+            <th>Pedido Venda</th>
+            <th>Qtde</th>
+            <th>Status</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody id="tabelaPedidos"></tbody>
+      </table>
+    </section>
+
+  </main>
+
+  <!-- ═══════════ MODAL PEDIDO ═══════════ -->
+  <div id="modalPedido" class="modal-overlay hidden">
+    <div class="modal-pedido">
+
+      <!-- Header do modal -->
+      <div class="modal-pedido-header">
+        <h3 id="modalTitle">Novo Pedido</h3>
+        <button class="modal-close-btn" onclick="fecharModal()" title="Fechar">✕</button>
+      </div>
+
+      <!-- Body do modal -->
+      <div class="modal-pedido-body">
+        <input type="hidden" id="pedidoId">
+
+        <!-- Linha 1: Pedido + Ordem -->
+        <div class="form-row">
+          <div class="form-group">
+            <label for="pedido_venda">Pedido de Venda</label>
+            <input type="text" id="pedido_venda" placeholder="Ex: 224590">
+          </div>
+          <div class="form-group">
+            <label for="ordem_compra">Ordem de Compra</label>
+            <input type="text" id="ordem_compra" placeholder="Ex: OC-00123">
+          </div>
+        </div>
+
+        <!-- Linha 2: Cliente + Estado -->
+        <div class="form-row">
+          <div class="form-group flex-2">
+            <label for="cliente">Cliente</label>
+            <input type="text" id="cliente" placeholder="Nome / Razão Social">
+          </div>
+          <div class="form-group flex-1">
+            <label for="estado">UF</label>
+            <input type="text" id="estado" placeholder="SP" maxlength="2">
+          </div>
+        </div>
+
+        <!-- Linha 3: Código Cliente + ZERB (auto) -->
+        <div class="form-row">
+          <div class="form-group">
+            <label for="codigo_cliente">Código do Cliente</label>
+            <input type="number" id="codigo_cliente" placeholder="Ex: 450236">
+          </div>
+          <div class="form-group">
+            <label for="zerb_display">Código ZERB <span class="label-auto">(automático)</span></label>
+            <input type="text" id="zerb_display" placeholder="—" readonly class="input-readonly">
+          </div>
+        </div>
+
+        <!-- Linha 3b: Controle -->
+        <div class="form-row">
+          <div class="form-group" style="flex:1">
+            <label for="controle">Controle</label>
+            <select id="controle">
+              <option value="">— Automático —</option>
+              <option value="Item de Estoque">Item de Estoque</option>
+              <option value="Produção Necessária">Produção Necessária</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Info Material (auto-preenchido pelo código do cliente) -->
+        <div id="infoMaterial" class="info-material-card">
+          <div class="info-material-icon">📦</div>
+          <div class="info-material-content">
+            <div class="info-material-row">
+              <span class="info-label">Material:</span>
+              <span id="matDesc" class="info-value">—</span>
+            </div>
+            <div class="info-material-row">
+              <span class="info-label">ZERB:</span>
+              <span id="matZerb" class="info-value">—</span>
+            </div>
+            <div class="info-material-row">
+              <span class="info-label">Custo:</span>
+              <span id="matCusto" class="info-value">—</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Separador -->
+        <div class="form-divider">
+          <span>Quantidades e Datas</span>
+        </div>
+
+        <!-- Linha 4: Qtdes -->
+        <div class="form-row">
+          <div class="form-group">
+            <label for="qtde_solicitada">Qtde Solicitada</label>
+            <input type="number" id="qtde_solicitada" placeholder="0">
+          </div>
+          <div class="form-group">
+            <label for="qtde_produzida">Qtde Produzida</label>
+            <input type="number" id="qtde_produzida" placeholder="0">
+          </div>
+        </div>
+
+        <!-- Linha 5: Datas -->
+        <div class="form-row">
+          <div class="form-group">
+            <label for="data_contratual">Data Contratual</label>
+            <input type="date" id="data_contratual">
+          </div>
+          <div class="form-group">
+            <label for="data_finalizada">Data Finalizada</label>
+            <input type="date" id="data_finalizada">
+          </div>
+        </div>
+
+        <!-- Linha 6: Status -->
+        <div class="form-row">
+          <div class="form-group" style="flex:1">
+            <label for="status_producao">Status Produção</label>
+            <select id="status_producao">
+              <option value="Curso normal">Curso normal</option>
+              <option value="Item em Produção">Item em Produção</option>
+              <option value="Pedido atrasado">Pedido atrasado</option>
+              <option value="Entrega com Atraso">Entrega com Atraso</option>
+              <option value="Entregue">Entregue</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer do modal -->
+      <div class="modal-pedido-footer">
+        <button class="btn btn-cancel" onclick="fecharModal()">Cancelar</button>
+        <button class="btn btn-primary" onclick="salvarPedido()">Salvar Pedido</button>
+      </div>
+
+    </div>
+  </div>
+
+  <script type="module" src="../Scripts/pedidos.js"></script>
+</body>
+</html>

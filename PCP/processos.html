@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Processos</title>
+
+  <link rel="stylesheet" href="../Styles/shared-style.css">
+  <link rel="stylesheet" href="../Styles/processos-style.css">
+</head>
+
+<body>
+
+<!-- ================= HEADER ================= -->
+<header class="header">
+    <div class="header-content">
+      <div class="header-left">
+        <div class="logo">PCP</div>
+        <h2 class="header-text">Gerar Ordem de Produção</h2>
+      </div>
+      <div class="header-right">
+        <span id="userInfo"></span>
+        <button class="btn-voltar" onclick="window.location.href='index.html'">← Voltar</button>
+      </div>
+    </div>
+  </header>
+
+<!-- ================= CONTEÚDO ================= -->
+<main class="page-container">
+
+  <div class="card">
+    <div class="card-header">
+      <input type="text" id="buscaOP" placeholder="Buscar OP...">
+    </div>
+
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Nº OP</th>
+            <th>Material</th>
+            <th>Quantidade</th>
+            <th>Status</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody id="tabelaOPs"></tbody>
+      </table>
+    </div>
+  </div>
+
+</main>
+
+<!-- =====================================================
+                     MODAL GERENCIAR OP
+===================================================== -->
+<div id="modalGerenciarOP" class="modal-overlay hidden">
+
+  <div class="modal-gerenciar">
+
+    <!-- HEADER -->
+    <div class="modal-header">
+      <div>
+        <h2>Gerenciar OP</h2>
+        <span>OP nº <span id="label_numero_op">—</span></span>
+      </div>
+      <button id="btnFecharModal" onclick="fecharModalOP()">✕</button>
+    </div>
+
+    <!-- STEPPER -->
+    <div class="status-stepper">
+      <div id="step-aberta" class="step">
+        <div class="step-circle">1</div>
+        <span>Aberta</span>
+      </div>
+      <div id="step-emproducao" class="step">
+        <div class="step-circle">2</div>
+        <span>Em Produção</span>
+      </div>
+      <div id="step-concluida" class="step">
+        <div class="step-circle">3</div>
+        <span>Concluída</span>
+      </div>
+    </div>
+
+    <form id="formGerenciarOP" class="modal-body">
+
+      <!-- GRID 2 COLUNAS -->
+      <div class="modal-cols">
+
+        <div class="modal-section">
+          <h3>Dados Editáveis</h3>
+
+          <label>Material</label>
+          <input id="material_id">
+
+          <label>Quantidade</label>
+          <input type="number" id="quantidade">
+
+          <label>Unidade</label>
+          <input id="unidade_medida">
+
+          <label>Observações</label>
+          <textarea id="observacoes"></textarea>
+        </div>
+
+        <div class="modal-section">
+          <h3>Informações</h3>
+
+          <label>Número OP</label>
+          <input id="numero_op" disabled>
+
+          <label>Status</label>
+          <input id="status" disabled>
+
+          <label>Custo Unitário</label>
+          <input id="custo_unitario" disabled>
+
+          <label>Custo Total</label>
+          <input id="custo_total" disabled>
+
+          <label>Data Criação</label>
+          <input id="data_criacao" disabled>
+        </div>
+
+      </div>
+
+      <!-- ================= PEDIDOS ================= -->
+      <div class="modal-section">
+        <h3>Pedidos Vinculados</h3>
+
+        <div id="pedidosContador" class="contador-box">
+          OP: <span id="ctrQtdeOP"></span> |
+          Selecionado: <span id="ctrQtdeSel">0</span> |
+          Saldo: <span id="ctrSaldo">0</span>
+          <span id="ctrAviso" style="display:none;color:#dc2626;">Excede quantidade</span>
+        </div>
+
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th id="thCheck">
+                  <input type="checkbox" id="checkTodosPedidos">
+                </th>
+                <th>Pedido</th>
+                <th>OC</th>
+                <th>Cliente</th>
+                <th>Estado</th>
+                <th>Código Cliente</th>
+                <th>Qtde</th>
+                <th id="thQtdeAtend">Qtde Atender</th>
+                <th>Data</th>
+              </tr>
+            </thead>
+            <tbody id="tabelaPedidosModalBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ================= INSUMOS ================= -->
+      <div class="modal-section">
+        <h3>Matéria Prima / Insumos</h3>
+        <p style="font-size:12px;color:#94a3b8;margin-bottom:12px;">
+          Insumos calculados automaticamente pela ficha técnica do material.
+        </p>
+
+        <div id="insumosSemItens" style="color:#94a3b8;font-size:13px;padding:8px 0;">Carregando insumos...</div>
+
+        <div id="insumosTabelaWrap" class="table-wrapper" style="display:none;">
+          <table>
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Descrição</th>
+                <th>Qtde (FT)</th>
+                <th>Qtde Total</th>
+                <th>Un</th>
+                <th>Custo Unit.</th>
+                <th>Subtotal</th>
+              </tr>
+            </thead>
+            <tbody id="insumosTbody"></tbody>
+          </table>
+        </div>
+
+        <div class="total-box">
+          Total Insumos: <span id="insumosTotalCusto">R$ 0,00</span>
+        </div>
+      </div>
+
+      <!-- ================= PRESTADORES ================= -->
+      <div class="modal-section" id="secaoPrestadores">
+        <h3>Prestadores de Serviço</h3>
+
+        <div class="insumo-form" style="flex-wrap:wrap;gap:8px;">
+          <select id="prestadorSelect" style="flex:2;min-width:160px;">
+            <option value="">— Selecionar prestador —</option>
+          </select>
+          <input type="text" id="prestadorMaterial" placeholder="Material/descrição" style="flex:2;min-width:140px;">
+          <input type="number" id="prestadorQtde" placeholder="Qtde" style="flex:1;min-width:80px;">
+          <input type="text" id="prestadorObs" placeholder="Observações (opcional)" style="flex:2;min-width:140px;">
+          <button type="button" id="btnAddPrestador" class="btn-primary">Adicionar</button>
+          <button type="button" id="btnNovoPrestador" class="btn-secondary" style="background:#64748b;color:#fff;">+ Novo Prestador</button>
+        </div>
+
+        <div id="prestadoresSemItens" style="color:#94a3b8;font-size:13px;padding:12px 0;">Nenhum prestador vinculado.</div>
+
+        <div id="prestadoresTabelaWrap" class="table-wrapper" style="display:none;">
+          <table>
+            <thead>
+              <tr>
+                <th>Prestador</th>
+                <th>Serviço</th>
+                <th>Material Enviado</th>
+                <th>Qtde</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="prestadoresTbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ================= FOOTER ================= -->
+      <div class="modal-footer">
+        <button type="button" id="btnIniciarProducao" class="btn-primary">
+          ▶ Iniciar Produção
+        </button>
+
+        <span id="tipFinalizar" class="tip-text"></span>
+
+        <button type="button" id="btnFinalizarProducao" class="btn-success">
+          ✔ Finalizar Produção
+        </button>
+
+        <button type="submit" class="btn-primary">
+          💾 Salvar alterações
+        </button>
+      </div>
+
+    </form>
+
+  </div>
+</div>
+
+<!-- ================= MINI MODAIS ================= -->
+
+<div id="confirmFinalizar" class="confirm-overlay hidden">
+  <div class="confirm-box">
+    <h3>Confirmar Finalização</h3>
+    <div id="confirmFinalizarInfo"></div>
+    <input type="date" id="dataFinalizacaoConfirm">
+    <button id="btnConfirmFinalizar" class="btn-success">Confirmar</button>
+  </div>
+</div>
+
+<div id="confirmExcluir" class="confirm-overlay hidden">
+  <div class="confirm-box">
+    <h3>Excluir OP</h3>
+    <div id="confirmExcluirInfo"></div>
+    <button id="btnConfirmExcluir" class="btn-danger">Excluir</button>
+  </div>
+</div>
+
+<!-- ================= SCRIPT ================= -->
+<script type="module" src="../scripts/processos-script.js"></script>
+
+<!-- ================= MODAL NOVO PRESTADOR ================= -->
+<div id="modalNovoPrestador" class="confirm-overlay hidden">
+  <div class="confirm-box" style="max-width:420px;width:90%;">
+    <h3>Novo Prestador</h3>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:12px;">
+      <input type="text" id="npNome" placeholder="Nome *" style="padding:8px;border-radius:6px;border:1px solid #334155;background:#1e293b;color:#f1f5f9;">
+      <input type="text" id="npServico" placeholder="Tipo de serviço * (ex: corte, costura)" style="padding:8px;border-radius:6px;border:1px solid #334155;background:#1e293b;color:#f1f5f9;">
+      <input type="text" id="npCnpj" placeholder="CNPJ (opcional)" style="padding:8px;border-radius:6px;border:1px solid #334155;background:#1e293b;color:#f1f5f9;">
+    </div>
+    <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end;">
+      <button id="btnCancelarNovoPrestador" class="btn-secondary" style="background:#475569;color:#fff;padding:8px 16px;border:none;border-radius:6px;cursor:pointer;">Cancelar</button>
+      <button id="btnSalvarNovoPrestador" class="btn-primary" style="padding:8px 16px;border:none;border-radius:6px;cursor:pointer;">Salvar</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

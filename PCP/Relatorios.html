@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Relatórios — PCP</title>
+  <link rel="stylesheet" href="../Styles/shared-style.css">
+  <style>
+    /* ══ PAGE LAYOUT ══ */
+    .page { max-width: 1300px; margin: 0 auto; }
+
+    /* ══ REPORT TYPE SELECTOR ══ */
+    .report-selector {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .report-card {
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: 14px;
+      padding: 16px 18px;
+      cursor: pointer;
+      transition: all .2s;
+      display: flex; align-items: center; gap: 12px;
+    }
+    .report-card:hover {
+      border-color: var(--primary);
+      background: rgba(59,130,246,.06);
+      transform: translateY(-2px);
+    }
+    .report-card.active {
+      border-color: var(--primary);
+      background: rgba(59,130,246,.1);
+      box-shadow: 0 0 0 3px rgba(59,130,246,.15);
+    }
+    .report-card-icon {
+      width: 40px; height: 40px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; flex-shrink: 0;
+    }
+    .icon-blue   { background: rgba(59,130,246,.15); }
+    .icon-green  { background: rgba(34,197,94,.15);  }
+    .icon-amber  { background: rgba(245,158,11,.15); }
+    .icon-purple { background: rgba(168,85,247,.15); }
+    .report-card-info { min-width: 0; }
+    .report-card-title {
+      font-size: 13px; font-weight: 700; color: var(--text);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .report-card-desc {
+      font-size: 11px; color: var(--muted); margin-top: 2px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+
+    /* ══ FILTERS PANEL ══ */
+    .filters-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px 20px;
+      margin-bottom: 20px;
+      display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end;
+    }
+    .filter-group {
+      display: flex; flex-direction: column; gap: 5px;
+    }
+    .filter-group label {
+      font-size: 10px; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .5px;
+    }
+    .filter-group input,
+    .filter-group select {
+      padding: 8px 12px; border-radius: 9px;
+      border: 1.5px solid var(--border-2);
+      background: var(--surface-2); color: var(--text);
+      font-size: 13px; min-width: 140px;
+    }
+    .filter-group input:focus,
+    .filter-group select:focus {
+      outline: none; border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(59,130,246,.12);
+    }
+    .filter-actions { display: flex; gap: 8px; align-items: flex-end; margin-left: auto; }
+    .btn-gerar {
+      background: var(--primary); color: #fff;
+      padding: 9px 20px; border-radius: 10px;
+      font-weight: 700; font-size: 13px; border: none; cursor: pointer;
+      transition: all .15s; display: flex; align-items: center; gap: 7px;
+      box-shadow: 0 2px 8px rgba(59,130,246,.3);
+    }
+    .btn-gerar:hover { background: var(--primary-dk); transform: translateY(-1px); }
+    .btn-export {
+      background: rgba(34,197,94,.12); color: #4ade80;
+      border: 1px solid rgba(34,197,94,.25);
+      padding: 9px 16px; border-radius: 10px;
+      font-weight: 700; font-size: 13px; cursor: pointer;
+      transition: all .15s; display: flex; align-items: center; gap: 7px;
+    }
+    .btn-export:hover { background: var(--success); color: #fff; border-color: var(--success); }
+    .btn-export:disabled { opacity: .4; cursor: not-allowed; }
+
+    /* ══ STATS ROW ══ */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 16px;
+    }
+    .stat-label {
+      font-size: 10px; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px;
+    }
+    .stat-value {
+      font-size: 22px; font-weight: 800; color: var(--text); line-height: 1;
+    }
+    .stat-value.blue   { color: #93c5fd; }
+    .stat-value.green  { color: #4ade80; }
+    .stat-value.amber  { color: #fbbf24; }
+    .stat-value.purple { color: #c4b5fd; }
+    .stat-sub {
+      font-size: 11px; color: var(--muted); margin-top: 3px;
+    }
+
+    /* ══ TABLE WRAPPER ══ */
+    .table-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+    .table-header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(255,255,255,.02);
+    }
+    .table-title {
+      font-size: 13px; font-weight: 700; color: var(--text);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .table-count {
+      font-size: 11px; font-weight: 600; color: var(--muted);
+      background: var(--surface-2); border: 1px solid var(--border);
+      padding: 2px 10px; border-radius: 20px;
+    }
+    .table-scroll { overflow-x: auto; }
+
+    table { width: 100%; border-collapse: collapse; }
+    thead { background: rgba(30,64,175,.55); }
+    th {
+      padding: 10px 12px; text-align: left;
+      font-size: 10px; font-weight: 700;
+      color: rgba(255,255,255,.65);
+      text-transform: uppercase; letter-spacing: .5px;
+      white-space: nowrap;
+    }
+    td {
+      padding: 10px 12px; font-size: 12px;
+      color: #cbd5e1;
+      border-bottom: 1px solid rgba(255,255,255,.035);
+      white-space: nowrap;
+    }
+    tbody tr:hover { background: rgba(255,255,255,.03); }
+    tbody tr:last-child td { border-bottom: none; }
+    tfoot td {
+      background: rgba(255,255,255,.03);
+      font-weight: 700; color: var(--text);
+      border-top: 1px solid var(--border-2);
+    }
+
+    /* ══ BADGES ══ */
+    .badge { padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; }
+    .badge-blue    { background: rgba(59,130,246,.15); color: #93c5fd; }
+    .badge-green   { background: rgba(34,197,94,.15);  color: #4ade80; }
+    .badge-amber   { background: rgba(245,158,11,.15); color: #fbbf24; }
+    .badge-red     { background: rgba(239,68,68,.15);  color: #fca5a5; }
+    .badge-purple  { background: rgba(168,85,247,.15); color: #c4b5fd; }
+    .badge-gray    { background: rgba(255,255,255,.08); color: #94a3b8; }
+
+    /* ══ EMPTY / LOADING ══ */
+    .empty-state {
+      text-align: center; padding: 60px 20px; color: var(--muted);
+    }
+    .empty-icon { font-size: 48px; margin-bottom: 12px; opacity: .5; }
+    .empty-title { font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+    .empty-desc  { font-size: 13px; }
+    .loading-row td { text-align: center; color: var(--muted); padding: 40px; }
+
+    /* ══ SUB-TABS (para relatório de estoque) ══ */
+    .sub-tabs {
+      display: flex; gap: 6px; margin-bottom: 0;
+    }
+    .sub-tab {
+      padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 600;
+      cursor: pointer; border: 1.5px solid var(--border);
+      color: var(--muted); background: transparent; transition: all .15s;
+    }
+    .sub-tab.active {
+      background: rgba(59,130,246,.15); color: #93c5fd;
+      border-color: rgba(59,130,246,.3);
+    }
+
+    @media (max-width: 900px) {
+      .report-selector { grid-template-columns: repeat(2,1fr); }
+    }
+    @media (max-width: 600px) {
+      .report-selector { grid-template-columns: 1fr 1fr; }
+      .filters-panel { flex-direction: column; }
+      .filter-actions { margin-left: 0; width: 100%; }
+      .btn-gerar, .btn-export { flex: 1; justify-content: center; }
+    }
+  </style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-content">
+    <div class="header-left">
+      <div class="logo">PCP</div>
+      <h2 class="header-text">Central de Relatórios</h2>
+    </div>
+    <div class="header-right">
+      <span id="userInfo"></span>
+      <button class="btn-voltar" onclick="window.location.href='Index.html'">← Voltar</button>
+      <button class="btn-logout" id="btnLogout">Sair</button>
+    </div>
+  </div>
+</header>
+
+<div class="page">
+
+  <!-- Seletor de tipo de relatório -->
+  <div class="report-selector" id="reportSelector">
+    <div class="report-card active" data-type="estoque" onclick="selecionarRelatorio('estoque')">
+      <div class="report-card-icon icon-blue">📦</div>
+      <div class="report-card-info">
+        <div class="report-card-title">Estoque</div>
+        <div class="report-card-desc">Saídas e insumos</div>
+      </div>
+    </div>
+    <div class="report-card" data-type="pedidos" onclick="selecionarRelatorio('pedidos')">
+      <div class="report-card-icon icon-green">📋</div>
+      <div class="report-card-info">
+        <div class="report-card-title">Pedidos</div>
+        <div class="report-card-desc">Pedidos atendidos</div>
+      </div>
+    </div>
+    <div class="report-card" data-type="ops" onclick="selecionarRelatorio('ops')">
+      <div class="report-card-icon icon-amber">⚙️</div>
+      <div class="report-card-info">
+        <div class="report-card-title">Ordens de Produção</div>
+        <div class="report-card-desc">OPs completo</div>
+      </div>
+    </div>
+    <div class="report-card" data-type="desempenho" onclick="selecionarRelatorio('desempenho')">
+      <div class="report-card-icon icon-purple">📊</div>
+      <div class="report-card-info">
+        <div class="report-card-title">Desempenho</div>
+        <div class="report-card-desc">Custo e eficiência</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filtros -->
+  <div class="filters-panel">
+    <div class="filter-group">
+      <label>Data Início</label>
+      <input type="date" id="filtroInicio">
+    </div>
+    <div class="filter-group">
+      <label>Data Fim</label>
+      <input type="date" id="filtroFim">
+    </div>
+
+    <!-- Filtros específicos por tipo -->
+    <div class="filter-group" id="filtroStatusOPWrap" style="display:none">
+      <label>Status da OP</label>
+      <select id="filtroStatusOP">
+        <option value="">Todos</option>
+        <option value="Aberta">Aberta</option>
+        <option value="EmProducao">Em Produção</option>
+        <option value="Concluida">Concluída</option>
+      </select>
+    </div>
+
+    <div class="filter-group" id="filtroStatusPedidoWrap" style="display:none">
+      <label>Status do Pedido</label>
+      <select id="filtroStatusPedido">
+        <option value="">Todos</option>
+        <option value="Entregue">Entregue</option>
+        <option value="Item em Produção">Item em Produção</option>
+        <option value="Curso normal">Curso normal</option>
+        <option value="Pedido atrasado">Pedido atrasado</option>
+        <option value="Entrega com Atraso">Entrega com Atraso</option>
+      </select>
+    </div>
+
+    <!-- Sub-tabs para estoque -->
+    <div class="filter-group" id="subTabsWrap">
+      <label>Tipo de Saída</label>
+      <div class="sub-tabs">
+        <button class="sub-tab active" data-sub="materiais" onclick="selecionarSub('materiais')">Materiais (saídas avulsas)</button>
+        <button class="sub-tab" data-sub="insumos" onclick="selecionarSub('insumos')">Insumos (consumidos em OPs)</button>
+      </div>
+    </div>
+
+    <div class="filter-actions">
+      <button class="btn-gerar" onclick="gerarRelatorio()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        Gerar Relatório
+      </button>
+      <button class="btn-export" id="btnExport" disabled onclick="exportarExcel()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Exportar XLSX
+      </button>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-row" id="statsRow" style="display:none"></div>
+
+  <!-- Tabela de resultados -->
+  <div class="table-card" id="tableCard" style="display:none">
+    <div class="table-header">
+      <div class="table-title">
+        <span id="tableTitle">Resultados</span>
+        <span class="table-count" id="tableCount">0 registros</span>
+      </div>
+    </div>
+    <div class="table-scroll">
+      <table id="reportTable">
+        <thead id="reportThead"></thead>
+        <tbody id="reportTbody"></tbody>
+        <tfoot id="reportTfoot"></tfoot>
+      </table>
+    </div>
+  </div>
+
+  <!-- Estado vazio (inicial) -->
+  <div class="table-card" id="emptyState">
+    <div class="empty-state">
+      <div class="empty-icon">📊</div>
+      <div class="empty-title">Selecione o tipo de relatório e o período</div>
+      <div class="empty-desc">Configure os filtros acima e clique em "Gerar Relatório"</div>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script type="module" src="../Scripts/relatorios-script.js"></script>
+</body>
+</html>

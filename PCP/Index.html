@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PCP — Painel Principal</title>
+  <style>
+    :root {
+      --bg:         #0f172a;
+      --surface:    #1e293b;
+      --border:     rgba(255,255,255,.07);
+      --text:       #f1f5f9;
+      --muted:      #94a3b8;
+      --blue:       #3b82f6;
+      --blue-glow:  rgba(59,130,246,.25);
+      --green:      #22c55e;
+      --green-glow: rgba(34,197,94,.25);
+      --amber:      #f59e0b;
+      --amber-glow: rgba(245,158,11,.25);
+      --purple:     #a855f7;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding-bottom: 48px;
+    }
+
+    /* ── Header ── */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 18px 40px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(15,23,42,.9);
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .header-brand { display: flex; align-items: center; gap: 14px; }
+    .logo-badge {
+      width: 40px; height: 40px; border-radius: 10px;
+      background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 900; font-size: 13px; color: #fff;
+      box-shadow: 0 0 18px rgba(59,130,246,.4);
+    }
+    .brand-title { font-size: 15px; font-weight: 700; }
+    .brand-sub   { font-size: 11px; color: var(--muted); margin-top: 1px; }
+
+    .header-user { display: flex; align-items: center; gap: 12px; }
+    .user-pill {
+      display: flex; align-items: center; gap: 10px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 100px; padding: 5px 14px 5px 5px;
+    }
+    .user-avatar {
+      width: 30px; height: 30px; border-radius: 50%;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 800; color: #fff;
+    }
+    .user-name { font-size: 13px; font-weight: 600; }
+    .btn-logout {
+      padding: 8px 16px; border-radius: 8px;
+      border: 1px solid var(--border); background: transparent;
+      color: var(--muted); font-size: 12px; font-weight: 600; cursor: pointer;
+      transition: all .2s;
+    }
+    .btn-logout:hover { background: #dc2626; border-color: #dc2626; color: #fff; }
+
+    /* ── Hero ── */
+    .hero {
+      text-align: center;
+      padding: 52px 24px 36px;
+    }
+    .hero-chip {
+      display: inline-block;
+      font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px;
+      color: var(--blue); background: rgba(59,130,246,.1);
+      border: 1px solid rgba(59,130,246,.2);
+      padding: 4px 14px; border-radius: 100px; margin-bottom: 18px;
+    }
+    .hero h1 {
+      font-size: clamp(26px, 3.5vw, 40px); font-weight: 800; line-height: 1.2;
+      background: linear-gradient(135deg, #f1f5f9 30%, #64748b);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text; margin-bottom: 8px;
+    }
+    .hero p { font-size: 14px; color: var(--muted); }
+
+    /* ── Categorias ── */
+    .categorias {
+      max-width: 1060px;
+      margin: 0 auto;
+      padding: 0 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .categoria {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: var(--surface);
+      overflow: hidden;
+      transition: border-color .25s, box-shadow .25s;
+    }
+
+    .producao:hover { border-color: rgba(59,130,246,.4);  box-shadow: 0 8px 32px rgba(59,130,246,.1); }
+    .estoque:hover  { border-color: rgba(34,197,94,.4);   box-shadow: 0 8px 32px rgba(34,197,94,.1); }
+    .pedidos:hover  { border-color: rgba(245,158,11,.4);  box-shadow: 0 8px 32px rgba(245,158,11,.1); }
+    .sistema:hover  { border-color: rgba(168,85,247,.4);  box-shadow: 0 8px 32px rgba(168,85,247,.1); }
+
+    /* ── Cabeçalho da categoria (sempre visível) ── */
+    .cat-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 18px 22px;
+      cursor: default;
+      user-select: none;
+      transition: background .2s;
+    }
+    .categoria:hover .cat-header {
+      background: rgba(255,255,255,.02);
+    }
+
+    .cat-icon {
+      width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center; font-size: 18px;
+      transition: transform .3s;
+    }
+    .categoria:hover .cat-icon { transform: scale(1.1); }
+
+    .cat-label {
+      font-size: 14px; font-weight: 700;
+    }
+
+    .cat-desc {
+      font-size: 12px; color: var(--muted); margin-left: auto;
+      opacity: 1; transition: opacity .2s;
+    }
+    .categoria:hover .cat-desc { opacity: 0; }
+
+    .cat-chevron {
+      font-size: 12px; color: var(--muted);
+      transition: transform .35s, color .2s;
+      margin-left: 4px;
+    }
+    .categoria:hover .cat-chevron { transform: rotate(90deg); }
+    .producao:hover .cat-chevron { color: var(--blue); }
+    .estoque:hover  .cat-chevron { color: var(--green); }
+    .pedidos:hover  .cat-chevron { color: var(--amber); }
+    .sistema:hover  .cat-chevron { color: var(--purple); }
+
+    /* ── Painel retrátil ── */
+    .cat-body {
+      display: grid;
+      grid-template-rows: 0fr;
+      transition: grid-template-rows .35s cubic-bezier(.4,0,.2,1);
+      border-top: 1px solid transparent;
+      transition: grid-template-rows .35s cubic-bezier(.4,0,.2,1),
+                  border-color .35s;
+    }
+    .categoria:hover .cat-body {
+      grid-template-rows: 1fr;
+    }
+    .producao:hover .cat-body { border-color: rgba(59,130,246,.15); }
+    .estoque:hover  .cat-body { border-color: rgba(34,197,94,.15); }
+    .pedidos:hover  .cat-body { border-color: rgba(245,158,11,.15); }
+    .sistema:hover  .cat-body { border-color: rgba(168,85,247,.15); }
+
+    .cat-body-inner {
+      overflow: hidden;
+    }
+
+    /* ── Cards ── */
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 12px;
+      padding: 16px 20px 20px;
+    }
+    .card {
+      text-decoration: none;
+      background: rgba(255,255,255,.04);
+      border: 1px solid var(--border);
+      border-radius: 13px;
+      padding: 18px;
+      display: flex;
+      align-items: flex-start;
+      gap: 13px;
+      position: relative;
+      overflow: hidden;
+      transition: transform .2s, box-shadow .2s, border-color .2s, background .2s;
+    }
+    .card:hover { transform: translateY(-2px); background: rgba(255,255,255,.07); }
+
+    .producao .card:hover { box-shadow: 0 6px 20px var(--blue-glow);  border-color: rgba(59,130,246,.35); }
+    .estoque  .card:hover { box-shadow: 0 6px 20px var(--green-glow); border-color: rgba(34,197,94,.35); }
+    .pedidos  .card:hover { box-shadow: 0 6px 20px var(--amber-glow); border-color: rgba(245,158,11,.35); }
+    .sistema  .card:hover { box-shadow: 0 6px 20px rgba(168,85,247,.2); border-color: rgba(168,85,247,.35); }
+
+    .card-ico {
+      width: 40px; height: 40px; border-radius: 11px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center; font-size: 19px;
+    }
+    .producao .card-ico { background: rgba(59,130,246,.12); }
+    .estoque  .card-ico { background: rgba(34,197,94,.12); }
+    .pedidos  .card-ico { background: rgba(245,158,11,.12); }
+    .sistema  .card-ico { background: rgba(168,85,247,.12); }
+
+    .card-body { min-width: 0; }
+    .card-titulo { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 3px; }
+    .card-desc   { font-size: 11px; color: var(--muted); line-height: 1.5; }
+
+    .card-arr {
+      position: absolute; right: 14px; top: 50%;
+      transform: translateY(-50%);
+      font-size: 13px; color: rgba(255,255,255,.1);
+      transition: color .2s, right .15s;
+    }
+    .card:hover .card-arr              { right: 11px; }
+    .producao .card:hover .card-arr    { color: var(--blue); }
+    .estoque  .card:hover .card-arr    { color: var(--green); }
+    .pedidos  .card:hover .card-arr    { color: var(--amber); }
+    .sistema  .card:hover .card-arr    { color: var(--purple); }
+
+    @media (max-width: 640px) {
+      header { padding: 14px 18px; }
+      .hero  { padding: 32px 18px 24px; }
+      .categorias { padding: 0 14px; }
+      .cards { grid-template-columns: 1fr 1fr; gap: 8px; padding: 12px 14px 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-brand">
+    <div class="logo-badge">PCP</div>
+    <div>
+      <div class="brand-title">Lucabe Energy</div>
+      <div class="brand-sub">Planejamento e Controle da Produção</div>
+    </div>
+  </div>
+  <div class="header-user">
+    <div class="user-pill">
+      <div class="user-avatar" id="userAvatar">?</div>
+      <span class="user-name" id="userInfo"></span>
+    </div>
+    <button class="btn-logout" id="btnLogout">Sair</button>
+  </div>
+</header>
+
+<div class="hero">
+  <div class="hero-chip">Painel de Controle</div>
+  <h1>O que vamos fazer hoje?</h1>
+  <p>Selecione uma área para continuar</p>
+</div>
+
+<div class="categorias">
+
+  <!-- PRODUÇÃO -->
+  <div class="categoria producao">
+    <div class="cat-header">
+      <div class="cat-icon">⚙️</div>
+      <span class="cat-label">Produção</span>
+      <span class="cat-desc">Gerar OP · Gerenciar OPs · Saída de Estoque</span>
+      <span class="cat-chevron">▶</span>
+    </div>
+    <div class="cat-body">
+      <div class="cat-body-inner">
+        <div class="cards">
+          <a class="card" href="gerar-op.html">
+            <div class="card-ico">📝</div>
+            <div class="card-body">
+              <div class="card-titulo">Gerar OP</div>
+              <div class="card-desc">Criar nova Ordem de Produção</div>
+            </div>
+            <span class="card-arr">→</span>
+          </a>
+          <a class="card" href="processos.html">
+            <div class="card-ico">🏭</div>
+            <div class="card-body">
+              <div class="card-titulo">Gerenciar OPs</div>
+              <div class="card-desc">Acompanhar e controlar ordens em andamento</div>
+            </div>
+            <span class="card-arr">→</span>
+          </a>
+          <a class="card" href="saida_estoque.html">
+            <div class="card-ico">📤</div>
+            <div class="card-body">
+              <div class="card-titulo">Saída de Estoque</div>
+              <div class="card-desc">Atender pedidos diretamente pelo estoque</div>
+            </div>
+            <span class="card-arr">→</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CADASTROS -->
+  <div class="categoria estoque">
+    <div class="cat-header">
+      <div class="cat-icon">🗂️</div>
+      <span class="cat-label">Cadastros</span>
+      <span class="cat-desc">Materiais · Prestadores</span>
+      <span class="cat-chevron">▶</span>
+    </div>
+    <div class="cat-body">
+      <div class="cat-body-inner">
+        <div class="cards">
+          <a class="card" href="produtos.html">
+            <div class="card-ico">📦</div>
+            <div class="card-body">
+              <div class="card-titulo">Materiais</div>
+              <div class="card-desc">Cadastro e controle de materiais e insumos</div>
+            </div>
+            <span class="card-arr">→</span>
+          </a>
+          <a class="card" href="prestadores.html">
+            <div class="card-ico">🤝</div>
+            <div class="card-body">
+              <div class="card-titulo">Prestadores</div>
+              <div class="card-desc">Cadastro de prestadores de serviço</div>
+            </div>
+            <span class="card-arr">→</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PEDIDOS -->
+  <div class="categoria pedidos">
+    <div class="cat-header">
+      <div class="cat-icon">🧾</div>
+      <span class="cat-label">Pedidos</span>
+      <span class="cat-desc">Controle de Pedidos</span>
+      <span class="cat-chevron">▶</span>
+    </div>
+    <div class="cat-body">
+      <div class="cat-body-inner">
+        <div class="cards">
+          <a class="card" href="pedidos.html">
+            <div class="card-ico">💰</div>
+            <div class="card-body">
+              <div class="card-titulo">Controle de Pedidos</div>
+              <div class="card-desc">Pedidos de venda e ordens de compra</div>
+            </div>
+            <span class="card-arr">→</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SISTEMA -->
+  <div class="categoria sistema">
+    <div class="cat-header">
+      <div class="cat-icon">🛠️</div>
+      <span class="cat-label">Sistema</span>
+      <span class="cat-desc">Logs · Relatórios</span>
+      <span class="cat-chevron">▶</span>
+    </div>
+    <div class="cat-body">
+      <div class="cat-body-inner">
+        <div class="cards">
+          <a class="card" href="sistema.html">
+            <div class="card-ico">📋</div>
+            <div class="card-body">
+              <div class="card-titulo">Sistema</div>
+              <div class="card-desc">Logs de atividade e configurações</div>
+            </div>
+            <span class="card-arr">→</span>
+          </a>
+          <a class="card" href="relatorios.html">
+            <div class="card-ico">📊</div>
+            <div class="card-body">
+              <div class="card-titulo">Relatórios</div>
+              <div class="card-desc">Estoque, pedidos, OPs e desempenho</div>
+            </div>
+            <span class="card-arr">→</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const user  = JSON.parse(localStorage.getItem("user"));
+  const token = localStorage.getItem("token");
+  if (!user || !token) window.location.href = "login.html";
+
+  const nome     = user?.nome || "Usuário";
+  const iniciais = nome.split(" ").slice(0,2).map(p => p[0]).join("").toUpperCase();
+  document.getElementById("userInfo").textContent   = `Olá, ${nome}`;
+  document.getElementById("userAvatar").textContent = iniciais;
+
+  document.getElementById("btnLogout").addEventListener("click", () => {
+    localStorage.clear();
+    window.location.href = "login.html";
+  });
+</script>
+</body>
+</html>

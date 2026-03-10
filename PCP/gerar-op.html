@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gerar OP — PCP</title>
+  <link rel="stylesheet" href="../Styles/shared-style.css">
+  <style>
+    .card { padding: 28px; max-width: 680px; margin: 0 auto; }
+    .quantidade-row { display: flex; gap: 16px; }
+    .quantidade-row .field { flex: 1; }
+    .total { margin: 20px 0 8px; padding: 16px 20px;
+      background: rgba(59,130,246,.08); border: 1px solid rgba(59,130,246,.2);
+      border-radius: 12px; }
+    .total h3 { color: #93c5fd; font-size: 17px; }
+    .form-actions { display: flex; justify-content: flex-end; margin-top: 8px; }
+    #insumosPreview { background: rgba(255,255,255,.03); border: 1px solid var(--border);
+      border-radius: 12px; padding: 16px; }
+    #insumosPreview h4 { color: #93c5fd; margin-bottom: 12px; font-size: 13px;
+      text-transform: uppercase; letter-spacing: .5px; }
+    #insumosPreview table { width: 100%; border-collapse: collapse; }
+    #insumosPreview th { padding: 8px 10px; font-size: 11px; font-weight: 700;
+      color: rgba(255,255,255,.6); text-transform: uppercase; letter-spacing:.4px;
+      background: rgba(30,64,175,.5); text-align: left; }
+    #insumosPreview td { padding: 8px 10px; font-size: 13px; color: #cbd5e1;
+      border-bottom: 1px solid rgba(255,255,255,.04); }
+    #insumosPreview .ft-total { text-align: right; padding: 10px 10px 0;
+      font-size: 13px; font-weight: 700; color: #93c5fd; }
+    .field { position: relative; }
+    .dropdown { position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 200; }
+  </style>
+</head>
+<body>
+
+  <header class="header">
+    <div class="header-content">
+      <div class="header-left">
+        <div class="logo">PCP</div>
+        <h2 class="header-text">Gerar Ordem de Produção</h2>
+      </div>
+      <div class="header-right">
+        <span id="userInfo"></span>
+        <button class="btn-voltar" onclick="window.location.href='processos.html'">← Voltar</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="card">
+    <h3>Nova OP</h3>
+
+    <form id="formOp">
+
+      <!-- Material -->
+      <div class="field">
+        <label for="materialSearch">Código / Descrição do material</label>
+        <input type="text" id="materialSearch" placeholder="Digite para buscar..." autocomplete="off">
+        <div id="materialSuggestions" class="dropdown hidden"></div>
+      </div>
+
+      <!-- Info do material -->
+      <div class="info hidden" id="materialInfo">
+        <span><strong>Código:</strong> <span id="matCodigo"></span></span>
+        <span><strong>Descrição:</strong> <span id="matDescricao"></span></span>
+        <span><strong>Custo unitário:</strong> R$ <span id="matCusto"></span></span>
+      </div>
+
+      <!-- Quantidade + Unidade -->
+      <div class="quantidade-row">
+        <div class="field">
+          <label for="quantidade">Quantidade</label>
+          <input id="quantidade" type="number" min="0.01" step="0.01" placeholder="Ex: 100">
+        </div>
+        <div class="field">
+          <label for="unidade_medida">Unidade de Medida</label>
+          <select id="unidade_medida">
+            <option value="">Selecione</option>
+            <option value="un">un — Unidade</option>
+            <option value="pc">pc — Peça</option>
+            <option value="kg">kg — Quilograma</option>
+            <option value="g">g — Grama</option>
+            <option value="m">m — Metro</option>
+            <option value="m2">m² — Metro quadrado</option>
+            <option value="l">l — Litro</option>
+            <option value="ml">ml — Mililitro</option>
+            <option value="cx">cx — Caixa</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Preview da ficha técnica (aparece ao selecionar material) -->
+      <div id="insumosPreview" style="display:none; margin: 16px 0;"></div>
+
+      <!-- Total -->
+      <div class="total">
+        <h3>Total: R$ <span id="total">0,00</span></h3>
+      </div>
+
+      <!-- Botão criar -->
+      <div class="form-actions">
+        <button type="submit" class="btn-primary">Criar OP</button>
+      </div>
+
+    </form>
+  </div>
+
+  <script type="module" src="../Scripts/gerar-op-script.js"></script>
+</body>
+</html>

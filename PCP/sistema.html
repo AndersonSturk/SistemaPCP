@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PCP — Sistema</title>
+  <link rel="stylesheet" href="../Styles/shared-style.css" />
+  <style>
+    body { padding: 24px; }
+
+    /* Info Grid */
+    .info-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 12px; margin-bottom: 28px;
+    }
+    .info-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; padding: 20px 16px; text-align: center;
+      box-shadow: 0 1px 3px rgba(0,0,0,.2), 0 8px 24px rgba(0,0,0,.15);
+    }
+    .info-card .numero { font-size: 30px; font-weight: 800; color: var(--primary); }
+    .info-card .label {
+      font-size: 11px; font-weight: 700; color: var(--muted);
+      margin-top: 4px; text-transform: uppercase; letter-spacing: .5px;
+    }
+
+    /* Seções */
+    .section {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px; padding: 24px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.2), 0 8px 24px rgba(0,0,0,.15);
+      margin-bottom: 16px;
+    }
+    .section h2 { font-size: 16px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+    .section p { color: var(--muted); font-size: 13px; margin-bottom: 16px; line-height: 1.6; }
+    .section p strong { color: #93c5fd; }
+    .section p code {
+      background: rgba(255,255,255,.06); padding: 2px 8px;
+      border-radius: 6px; font-size: 12px; color: #93c5fd;
+    }
+
+    /* Botões de ação */
+    .btn-acao {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 10px 22px; border-radius: 10px; border: none;
+      font-size: 13px; font-weight: 700; cursor: pointer;
+      transition: all .2s; color: #fff;
+    }
+    .btn-acao-blue { background: var(--primary); box-shadow: 0 2px 8px rgba(59,130,246,.3); }
+    .btn-acao-blue:hover { background: var(--primary-dk); transform: translateY(-1px); box-shadow: 0 4px 14px rgba(59,130,246,.4); }
+    .btn-acao-green { background: rgba(34,197,94,.15); color: #4ade80; border: 1px solid rgba(34,197,94,.25); }
+    .btn-acao-green:hover { background: var(--success); color: #fff; border-color: var(--success); }
+    .btn-acao:disabled { opacity: .5; cursor: not-allowed; transform: none !important; }
+
+    .btn-acao .spinner {
+      display: none; width: 14px; height: 14px;
+      border: 2px solid rgba(255,255,255,.3); border-top-color: #fff;
+      border-radius: 50%; animation: spin .6s linear infinite;
+    }
+    .btn-acao.loading .spinner { display: inline-block; }
+    .btn-acao.loading .btn-text { display: none; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Dicas */
+    .dica {
+      margin-top: 12px; padding: 10px 14px;
+      background: rgba(34,197,94,.08); border: 1px solid rgba(34,197,94,.2);
+      border-radius: 10px; font-size: 12px; color: #4ade80; line-height: 1.5;
+    }
+    .dica.warning {
+      background: rgba(245,158,11,.08); border-color: rgba(245,158,11,.2); color: #fbbf24;
+    }
+    .dica code {
+      background: rgba(255,255,255,.06); padding: 2px 6px;
+      border-radius: 4px; font-size: 11px; color: #93c5fd;
+    }
+
+    /* Abas preview */
+    .abas-preview { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+    .aba-tag {
+      padding: 5px 12px; border-radius: 20px; font-size: 11px; font-weight: 600;
+      background: rgba(59,130,246,.15); color: #93c5fd;
+    }
+
+    /* Links rápidos */
+    .links-grid { display: flex; gap: 10px; flex-wrap: wrap; }
+    .link-card {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 18px; border-radius: 10px; text-decoration: none;
+      background: var(--surface-2); border: 1px solid var(--border-2);
+      color: var(--text); font-size: 13px; font-weight: 600;
+      transition: all .15s;
+    }
+    .link-card:hover { filter: brightness(1.2); transform: translateY(-1px); }
+
+    /* Backup list */
+    .backup-list { margin-top: 16px; }
+    .backup-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 16px; border: 1px solid var(--border);
+      border-radius: 10px; margin-bottom: 8px;
+      background: rgba(255,255,255,.03); transition: background .15s;
+    }
+    .backup-item:hover { background: rgba(255,255,255,.05); }
+    .backup-name { font-size: 13px; font-weight: 600; color: var(--text); }
+    .backup-date { font-size: 12px; color: var(--muted); margin-left: 8px; }
+    .backup-actions { display: flex; gap: 6px; }
+    .backup-actions .btn-mini {
+      padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 600;
+      cursor: pointer; border: 1px solid transparent; transition: all .15s;
+    }
+    .btn-mini-blue { background: rgba(59,130,246,.15); color: #93c5fd; border-color: rgba(59,130,246,.2); }
+    .btn-mini-blue:hover { background: var(--primary); color: #fff; }
+    .btn-mini-red { background: rgba(239,68,68,.15); color: #fca5a5; border-color: rgba(239,68,68,.2); }
+    .btn-mini-red:hover { background: var(--danger); color: #fff; }
+
+    .empty-msg { color: var(--muted); font-size: 13px; font-style: italic; padding: 12px 0; }
+
+    /* Modal */
+    .modal-overlay { display: none; }
+    .modal-overlay.show { display: flex; }
+    .modal-box { max-width: 440px; width: 90%; padding: 28px; }
+    .modal-box h3 { font-size: 16px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+    .modal-box p { font-size: 13px; color: var(--muted); margin-bottom: 20px; line-height: 1.5; }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
+    @media (max-width: 640px) {
+      .info-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+      .info-card .numero { font-size: 22px; }
+      .backup-item { flex-direction: column; gap: 10px; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-content">
+    <div class="header-left">
+      <div class="logo">PCP</div>
+      <span class="header-title">Painel do Sistema</span>
+    </div>
+    <div class="header-right">
+      <span id="userInfo"></span>
+      <a href="Index.html" class="btn-voltar">← Voltar</a>
+      <button class="btn-logout" id="btnLogout">Sair</button>
+    </div>
+  </div>
+</div>
+
+<!-- INFO CARDS -->
+<div class="info-grid">
+  <div class="info-card"><div class="numero" id="infoOPs">—</div><div class="label">OPs</div></div>
+  <div class="info-card"><div class="numero" id="infoPedidos">—</div><div class="label">Pedidos</div></div>
+  <div class="info-card"><div class="numero" id="infoMateriais">—</div><div class="label">Materiais</div></div>
+  <div class="info-card"><div class="numero" id="infoSaidas">—</div><div class="label">Saídas</div></div>
+  <div class="info-card"><div class="numero" id="infoUsuarios">—</div><div class="label">Usuários</div></div>
+  <div class="info-card"><div class="numero" id="infoLogs">—</div><div class="label">Logs</div></div>
+</div>
+
+<!-- BACKUP -->
+<div class="section">
+  <h2>💾 Backup do Banco de Dados</h2>
+  <p>Cria uma <strong>cópia completa</strong> de todas as tabelas em um novo banco <code>backup_pcp_DATA</code> no servidor MySQL, e também baixa o arquivo <strong>.sql</strong>. O banco original <strong>não é alterado</strong>.</p>
+
+  <button class="btn-acao btn-acao-blue" id="btnBackup">
+    <span class="spinner"></span>
+    <span class="btn-text">💾 Criar Backup Agora</span>
+  </button>
+
+
+
+  <h4 style="margin-top:20px;margin-bottom:8px;">📁 Backups Salvos no Servidor</h4>
+  <div class="backup-list" id="backupList">
+    <div class="empty-msg">Carregando...</div>
+  </div>
+</div>
+
+<!-- EXPORT EXCEL -->
+<div class="section">
+  <h2>📊 Exportar Dados para Power BI</h2>
+  <p>Gera um arquivo <strong>.xlsx</strong> com todos os dados, cada módulo em uma aba separada. Compatível com Power BI, Excel e Google Sheets.</p>
+
+  <div class="abas-preview">
+    <span class="aba-tag">📋 Ordens de Produção</span>
+    <span class="aba-tag">📦 Pedidos por OP</span>
+    <span class="aba-tag">🛒 Controle de Pedidos</span>
+    <span class="aba-tag">🧱 Materiais</span>
+    <span class="aba-tag">🔩 Insumos por OP</span>
+    <span class="aba-tag">📤 Saídas de Estoque</span>
+    <span class="aba-tag">📝 Logs</span>
+    <span class="aba-tag">👥 Usuários</span>
+  </div>
+
+  <button class="btn-acao btn-acao-green" id="btnExport">
+    <span class="spinner"></span>
+    <span class="btn-text">📊 Exportar Excel (.xlsx)</span>
+  </button>
+
+
+<!-- LINKS RÁPIDOS -->
+<div class="section">
+  <h2>🔗 Acesso Rápido</h2>
+  <p>Outras ferramentas administrativas:</p>
+  <div class="links-grid">
+    <a href="logs.html" class="link-card">📋 Logs de Atividade</a>
+    <a href="usuarios.html" class="link-card">👥 Gerenciar Usuários</a>
+  </div>
+</div>
+
+<!-- MODAL CONFIRMAÇÃO -->
+<div class="modal-overlay" id="modalConfirm">
+  <div class="modal-box">
+    <h3 id="modalTitle">Confirmar</h3>
+    <p id="modalMsg">Tem certeza?</p>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="fecharModal()">Cancelar</button>
+      <button class="btn-danger" id="modalBtnConfirm">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { apiRequest, getUser, logout, API_URL } from "../scripts/auth.js";
+
+const user  = getUser();
+const token = localStorage.getItem("token");
+
+if (!token || !user || user.perfil !== "admin") {
+  window.location.href = "Index.html";
+}
+
+document.getElementById("userInfo").textContent = user.nome || "";
+document.getElementById("btnLogout").addEventListener("click", () => logout());
+
+// ─── Toast ───
+function showToast(msg, tipo = "success") {
+  const t = document.createElement("div");
+  t.className = `toast toast-${tipo}`;
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3500);
+}
+
+// ─── Modal ───
+let modalCallback = null;
+function abrirModal(title, msg, cb) {
+  document.getElementById("modalTitle").textContent = title;
+  document.getElementById("modalMsg").textContent = msg;
+  document.getElementById("modalConfirm").classList.add("show");
+  modalCallback = cb;
+}
+window.fecharModal = () => {
+  document.getElementById("modalConfirm").classList.remove("show");
+  modalCallback = null;
+};
+document.getElementById("modalBtnConfirm").addEventListener("click", () => {
+  if (modalCallback) modalCallback();
+  fecharModal();
+});
+
+// ─── Info ───
+async function carregarInfo() {
+  try {
+    const d = await apiRequest("/sistema/info");
+    document.getElementById("infoOPs").textContent       = Number(d.data.ops).toLocaleString("pt-BR");
+    document.getElementById("infoPedidos").textContent    = Number(d.data.pedidos).toLocaleString("pt-BR");
+    document.getElementById("infoMateriais").textContent  = Number(d.data.materiais).toLocaleString("pt-BR");
+    document.getElementById("infoSaidas").textContent     = Number(d.data.saidas).toLocaleString("pt-BR");
+    document.getElementById("infoUsuarios").textContent   = Number(d.data.usuarios).toLocaleString("pt-BR");
+    document.getElementById("infoLogs").textContent       = Number(d.data.logs).toLocaleString("pt-BR");
+  } catch (e) { console.error("Erro info:", e); }
+}
+carregarInfo();
+
+// ─── Lista de backups ───
+async function carregarBackups() {
+  const container = document.getElementById("backupList");
+  try {
+    const d = await apiRequest("/sistema/backups");
+    const backups = d.data || [];
+    if (backups.length === 0) {
+      container.innerHTML = '<div class="empty-msg">Nenhum backup encontrado no servidor.</div>';
+      return;
+    }
+    container.innerHTML = backups.map(b => {
+      const parts = b.replace("backup_pcp_", "").split("_");
+      const dataStr = parts.length >= 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : "";
+      const horaStr = parts.length >= 4 ? `${parts[3].slice(0,2)}:${parts[3].slice(2,4)}:${parts[3].slice(4,6)}` : "";
+      return `
+        <div class="backup-item">
+          <div>
+            <span class="backup-name">📁 ${b}</span>
+            <span class="backup-date">${dataStr} ${horaStr}</span>
+          </div>
+          <div class="backup-actions">
+            <button class="btn-mini btn-mini-blue" onclick="restaurarBackup('${b}')">🔄 Restaurar</button>
+            <button class="btn-mini btn-mini-red" onclick="excluirBackup('${b}')">🗑️ Excluir</button>
+          </div>
+        </div>`;
+    }).join("");
+  } catch (e) {
+    container.innerHTML = '<div class="empty-msg">Erro ao carregar backups.</div>';
+  }
+}
+carregarBackups();
+
+// ─── Criar backup ───
+document.getElementById("btnBackup").addEventListener("click", async () => {
+  const btn = document.getElementById("btnBackup");
+  btn.classList.add("loading"); btn.disabled = true;
+  try {
+    const r = await fetch(`${API_URL}/sistema/backup`, {
+      headers: { "Authorization": "Bearer " + token },
+    });
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).message || "Erro no backup");
+    const blob = await r.blob();
+    const cd = r.headers.get("Content-Disposition") || "";
+    const nome = cd.match(/filename="?([^"]+)"?/)?.[1] || `backup_pcp.sql`;
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = nome; a.click();
+    URL.revokeObjectURL(a.href);
+    showToast("Backup criado e baixado!", "success");
+    carregarBackups();
+  } catch (e) { showToast(e.message, "error"); }
+  finally { btn.classList.remove("loading"); btn.disabled = false; }
+});
+
+// ─── Restaurar ───
+window.restaurarBackup = (banco) => {
+  abrirModal(
+    "🔄 Restaurar Backup",
+    `Isso vai substituir TODOS os dados atuais pelos dados do backup "${banco}". Essa ação não pode ser desfeita. Continuar?`,
+    async () => {
+      try {
+        const d = await apiRequest("/sistema/restaurar", {
+          method: "POST", body: JSON.stringify({ banco }),
+        });
+        showToast(d.message || "Restauração concluída!", "success");
+        carregarInfo();
+      } catch (e) { showToast(e.message, "error"); }
+    }
+  );
+};
+
+// ─── Excluir backup ───
+window.excluirBackup = (banco) => {
+  abrirModal(
+    "🗑️ Excluir Backup",
+    `Excluir permanentemente o backup "${banco}"?`,
+    async () => {
+      try {
+        const d = await apiRequest(`/sistema/backup/${banco}`, { method: "DELETE" });
+        showToast(d.message || "Backup excluído!", "success");
+        carregarBackups();
+      } catch (e) { showToast(e.message, "error"); }
+    }
+  );
+};
+
+// ─── Exportar Excel ───
+document.getElementById("btnExport").addEventListener("click", async () => {
+  const btn = document.getElementById("btnExport");
+  btn.classList.add("loading"); btn.disabled = true;
+  try {
+    const r = await fetch(`${API_URL}/sistema/exportar`, {
+      headers: { "Authorization": "Bearer " + token },
+    });
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).message || "Erro na exportação");
+    const blob = await r.blob();
+    const cd = r.headers.get("Content-Disposition") || "";
+    const nome = cd.match(/filename="?([^"]+)"?/)?.[1] || `PCP_Export.xlsx`;
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = nome; a.click();
+    URL.revokeObjectURL(a.href);
+    showToast("Exportação baixada!", "success");
+  } catch (e) { showToast(e.message, "error"); }
+  finally { btn.classList.remove("loading"); btn.disabled = false; }
+});
+</script>
+</body>
+</html>

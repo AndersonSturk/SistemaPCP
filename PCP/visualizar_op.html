@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>PCP - Visualizar OP</title>
+  <link rel="stylesheet" href="../Styles/visualizar_op.css">
+</head>
+
+<body>
+
+<header class="header no-print">
+  <div class="header-content">
+    <div class="header-left">
+      <div class="logo">PCP</div>
+      <h2 class="header-text">Ordem de Produção (Documento)</h2>
+    </div>
+    <div class="header-right">
+      <button class="btn-pdf" onclick="gerarPDF()">📄 Gerar PDF</button>
+      <button class="btn-voltar" onclick="window.close()">← Voltar</button>
+    </div>
+  </div>
+</header>
+
+<div class="document" id="documentoOP">
+
+  <!-- ── Topo: empresa + identificação ── -->
+  <div class="topo">
+    <div class="empresa">
+      <h2>Lucabe Energy</h2>
+      <p>CNPJ: 01.272.361/0001-50</p>
+      <p>Avenida Comandante Sampaio, N° 781 - KM 18</p>
+      <p>Osasco - SP | CEP: 06192-010</p>
+      <p>Telefone: (11) 4506-4700 | Email: <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="5424372414382137353631382030357a373b397a3626">[email&#160;protected]</a></p>
+      <p>Site: www.lucabeenergy.com.br</p>
+    </div>
+
+    <div class="nfe">
+      <div class="titulo">ORDEM DE PRODUÇÃO (OP)</div>
+      <div class="info">
+        <b>Modelo:</b> 003_1<br>
+        <b>Tipo:</b> Produção Interna<br>
+        <b>Ambiente:</b> Produção
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Bloco 1: Dados da OP + Responsável ── -->
+  <div class="blocos">
+    <div class="bloco">
+      <h4>Dados da OP</h4>
+      <p><b>Número OP:</b> <span id="opNumero">—</span></p>
+      <p><b>Data de criação:</b> <span id="dataCriacao">—</span></p>
+      <p><b>Status:</b> <span id="statusTxt">—</span></p>
+      <p><b>Data finalização:</b> <span id="dataFinalTxt">—</span></p>
+    </div>
+
+    <div class="bloco">
+      <h4>Responsável e Controle</h4>
+      <p><b>Responsável:</b> <span id="userInfo">—</span></p>
+      <p><b>Centro de custo:</b> PCP - Lucabe</p>
+      <p><b>Projeto:</b> Montagem e produção</p>
+      <p><b>Observações:</b> <span id="observacoes">—</span></p>
+    </div>
+  </div>
+
+  <!-- ── Bloco 2: Produto ── -->
+  <div class="blocos" style="margin-top: 18px;">
+    <div class="bloco">
+      <h4>Produto / Material Base</h4>
+      <p><b>Código:</b> <span id="codigoItem">—</span></p>
+      <p><b>Descrição:</b> <span id="descricao">—</span></p>
+      <p><b>Quantidade total:</b> <span id="quantidade">—</span> <span id="unidadeMedida"></span></p>
+      <p><b>Custo Unitário:</b> R$ <span id="custoUnitario">—</span></p>
+      <p><b>Custo Total:</b> R$ <span id="custoTotal">—</span></p>
+    </div>
+
+    <div class="bloco">
+      <h4>Resumo de Atendimento</h4>
+      <p><b>Total de clientes:</b> <span id="totalClientes">—</span></p>
+      <p><b>Total de pedidos:</b> <span id="totalPedidos">—</span></p>
+      <p><b>Qtde total solicitada:</b> <span id="qtdeSolicitada">—</span></p>
+    </div>
+  </div>
+
+  <!-- ── Tabela: Pedidos vinculados ── -->
+  <div class="bloco" style="margin-top: 18px;">
+    <h4>Pedidos Vinculados</h4>
+
+    <div id="semPedidos" style="display:none; color:#94a3b8; font-size:14px; padding:16px 0;">
+      Nenhum pedido vinculado a esta OP.
+    </div>
+
+    <table id="tabelaPedidos" style="display:none;">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Cliente</th>
+          <th>Estado</th>
+          <th>Cód. Cliente</th>
+          <th>Pedido Venda</th>
+          <th>Ordem Compra</th>
+          <th>Qtde Solicitada</th>
+          <th>Qtde Atendida</th>
+          <th>Data Contratual</th>
+        </tr>
+      </thead>
+      <tbody id="pedidosTabela"></tbody>
+    </table>
+  </div>
+
+  <!-- ── Tabela: Matéria Prima / Insumos ── -->
+  <div class="bloco" style="margin-top: 18px;">
+    <h4>Matéria Prima / Insumos Utilizados</h4>
+
+    <div id="semInsumos" style="display:none; color:#94a3b8; font-size:14px; padding:16px 0;">
+      Nenhum insumo registrado para esta OP.
+    </div>
+
+    <table id="tabelaInsumos" style="display:none;">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Código</th>
+          <th>Descrição</th>
+          <th>Quantidade</th>
+          <th>Unidade</th>
+          <th>Custo Unit. (R$)</th>
+          <th>Subtotal (R$)</th>
+        </tr>
+      </thead>
+      <tbody id="insumosTabela"></tbody>
+      <tfoot>
+        <tr style="background:#f1f5f9;font-weight:700;">
+          <td colspan="5" style="padding:8px 10px;text-align:right;">Total insumos:</td>
+          <td style="padding:8px 10px;text-align:center;" id="insumosTotalViz">—</td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+
+  <!-- ── Prestadores de Serviço ── -->
+  <div class="bloco" style="margin-top: 18px;">
+    <h4>Prestadores de Serviço</h4>
+    <div id="semPrestadores" style="color:#94a3b8; font-size:14px; padding:16px 0;">
+      Nenhum prestador vinculado a esta OP.
+    </div>
+    <table id="tabelaPrestadores" style="display:none;">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Prestador</th>
+          <th>Serviço</th>
+          <th>CNPJ</th>
+          <th>Material Enviado</th>
+          <th>Quantidade</th>
+        </tr>
+      </thead>
+      <tbody id="prestadoresTabela"></tbody>
+
+    </table>
+  </div>
+
+
+  <!-- ── Rodapé do documento (só aparece no PDF) ── -->
+  <div class="document-footer print-only">
+    <div class="footer-line"></div>
+    <div class="footer-content">
+      <span>Lucabe Energy — Documento gerado eletronicamente pelo sistema PCP</span>
+      <span id="footerData"></span>
+    </div>
+
+    </div>
+    </div>
+
+    <script type="module" src="../Scripts/visualizar_op.js"></script>
+
+  </body>
+ 
+
+
+   </html>

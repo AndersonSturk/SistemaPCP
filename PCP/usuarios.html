@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gerenciar Usuários — PCP</title>
+  <link rel="stylesheet" href="../Styles/shared-style.css">
+</head>
+<body>
+
+  <header class="header">
+    <div class="header-content">
+      <div class="header-left">
+        <div class="logo">PCP</div>
+        <h2 class="header-text">Gerenciar Usuários</h2>
+      </div>
+      <div class="header-right">
+        <span id="userInfo"></span>
+        <button class="btn btn-voltar" onclick="window.location.href='sistema.html'">← Voltar</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <section class="card filtros">
+      <input type="text" id="buscaUsuario" placeholder="Buscar por nome ou email...">
+      <button id="btnNovoUsuario" class="btn btn-success">+ Novo Usuário</button>
+    </section>
+
+    <section class="card">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Nome</th>
+            <th>Email</th>
+            <th>Perfil</th>
+            <th>Status</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody id="tabelaUsuarios"></tbody>
+      </table>
+    </section>
+
+  </main>
+
+  <!-- ═══════════ MODAL USUÁRIO ═══════════ -->
+  <div id="modalUsuario" class="modal-overlay hidden">
+    <div class="modal-pedido">
+
+      <div class="modal-pedido-header">
+        <h3 id="modalTitle">Novo Usuário</h3>
+        <button class="modal-close-btn" onclick="fecharModal()" title="Fechar">✕</button>
+      </div>
+
+      <div class="modal-pedido-body">
+        <input type="hidden" id="userId">
+
+        <div class="form-row">
+          <div class="form-group flex-2">
+            <label for="userNome">Nome completo</label>
+            <input type="text" id="userNome" placeholder="Ex: João Silva">
+          </div>
+          <div class="form-group flex-1">
+            <label for="userPerfil">Perfil de acesso</label>
+            <select id="userPerfil">
+              <option value="admin">Admin</option>
+              <option value="pcp">PCP</option>
+              <option value="logistica">Logística</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="userEmail">Email</label>
+            <input type="email" id="userEmail" placeholder="usuario@empresa.com">
+          </div>
+          <div class="form-group">
+            <label for="userAtivo">Status</label>
+            <select id="userAtivo">
+              <option value="1">Ativo</option>
+              <option value="0">Inativo</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-divider">
+          <span>Senha</span>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group" style="flex:1">
+            <label for="userSenha">Senha <span id="senhaHint" class="label-auto">(obrigatória para novo usuário)</span></label>
+            <input type="password" id="userSenha" placeholder="Mínimo 4 caracteres">
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-pedido-footer">
+        <button class="btn btn-cancel" onclick="fecharModal()">Cancelar</button>
+        <button class="btn btn-primary" id="btnSalvarUsuario">Salvar Usuário</button>
+      </div>
+
+    </div>
+  </div>
+
+  <script type="module" src="../Scripts/usuarios.js"></script>
+</body>
+</html>

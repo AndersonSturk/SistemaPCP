@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PCP — Logs do Sistema</title>
+        <link rel="stylesheet" href="../Styles/logs-style.css">
+        <link rel="stylesheet" href="../Styles/shared-style.css">
+  
+</head>
+<body>
+
+<header class="header">
+  <div class="header-content">
+
+    <div class="header-left">
+      <div class="logo">PCP</div>
+      <h2 class="header-title">📋 Logs do Sistema</h2>
+    </div>
+
+    <div class="header-right">
+      <a href="sistema.html" class="btn-voltar">← Voltar</a>
+    </div>
+
+  </div>
+</header>
+
+<div class="page">
+
+  <!-- Stats -->
+  <div class="stats" id="statsArea">
+    <div class="stat-card">
+      <div class="stat-icon" style="background:#dbeafe">⚙️</div>
+      <div class="stat-info"><div class="stat-valor" id="statTotal">—</div><div class="stat-label">Total de eventos</div></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon" style="background:#dcfce7">✅</div>
+      <div class="stat-info"><div class="stat-valor" id="statHoje">—</div><div class="stat-label">Hoje</div></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon" style="background:#fef3c7">📦</div>
+      <div class="stat-info"><div class="stat-valor" id="statOPs">—</div><div class="stat-label">Eventos de OP</div></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon" style="background:#ede9fe">👤</div>
+      <div class="stat-info"><div class="stat-valor" id="statUsuarios">—</div><div class="stat-label">Usuários ativos</div></div>
+    </div>
+  </div>
+
+  <!-- Filtros -->
+  <div class="filtros">
+    <div class="filtro-group">
+      <label>Buscar</label>
+      <input type="text" id="fSearch" placeholder="Usuário, ação ou descrição...">
+    </div>
+    <div class="filtro-group">
+      <label>Módulo</label>
+      <select id="fModulo">
+        <option value="">Todos</option>
+        <option value="OP">Ordem de Produção</option>
+        <option value="MATERIAL">Material</option>
+        <option value="ESTOQUE">Saída de Estoque</option>
+        <option value="PEDIDO">Pedido</option>
+        <option value="USUARIO">Usuário</option>
+        <option value="PRESTADOR">Prestador</option>
+      </select>
+    </div>
+    <div class="filtro-group">
+      <label>Data início</label>
+      <input type="date" id="fDataInicio" style="width:150px">
+    </div>
+    <div class="filtro-group">
+      <label>Data fim</label>
+      <input type="date" id="fDataFim" style="width:150px">
+    </div>
+    <button class="btn-filtrar" onclick="buscar()">🔍 Filtrar</button>
+    <button class="btn-limpar" onclick="limparFiltros()">✕ Limpar</button>
+  </div>
+
+  <!-- Tabela -->
+  <div class="tabela-wrap">
+    <div class="tabela-header">
+      <span class="tabela-titulo">Histórico de Atividades</span>
+      <span class="tabela-total" id="totalLabel">—</span>
+    </div>
+
+    <div id="tabelaConteudo">
+      <div class="loading"><div class="spinner"></div><p style="margin-top:12px">Carregando logs...</p></div>
+    </div>
+
+    <div class="paginacao">
+      <span class="pag-info" id="pagInfo">—</span>
+      <div class="pag-btns" id="pagBtns"></div>
+    </div>
+  </div>
+
+</div>
+
+<script type="module">
+import { apiRequest, getUser } from "../Scripts/auth.js";
+
+const user = getUser();
+if (!user) window.location.href = "login.html";
+
+const LIMIT = 50;
+let paginaAtual = 0;
+let totalRegistros = 0;
+
+const MODULO_LABEL = {
+  OP: "Ordem de Produção", MATERIAL: "Material",
+  ESTOQUE: "Saída de Estoque", PEDIDO: "Pedido",
+  USUARIO: "Usuário", SISTEMA: "Sistema", PRESTADOR: "Prestador",
+};
+
+const ACAO_CLASSE = {
+  "Criar":    "acao-criar",
+  "Editar":   "acao-editar",
+  "Excluir":  "acao-excluir",
+  "Iniciar":  "acao-iniciar",
+  "Concluir": "acao-concluir",
+  "Saída":    "acao-saida",
+};
+
+function badgeModulo(m) {
+  return `<span class="badge badge-${m}">${MODULO_LABEL[m] || m}</span>`;
+}
+
+function badgeAcao(acao) {
+  const cls = Object.entries(ACAO_CLASSE).find(([k]) => acao.includes(k))?.[1] || "";
+  return `<span class="acao ${cls}">${acao}</span>`;
+}
+
+function avatar(nome) {
+  const iniciais = (nome || "?").split(" ").slice(0, 2).map(p => p[0]).join("").toUpperCase();
+  return `<div class="avatar">${iniciais}</div>`;
+}
+
+function fmtDataHora(v) {
+  if (!v) return "—";
+  const d = new Date(v);
+  return d.toLocaleDateString("pt-BR") + " " +
+    d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+
+function fmtRelativo(v) {
+  if (!v) return "";
+  const diff = Date.now() - new Date(v).getTime();
+  const min  = Math.floor(diff / 60000);
+  const h    = Math.floor(min / 60);
+  const d    = Math.floor(h / 24);
+  if (min < 1)  return "agora";
+  if (min < 60) return `há ${min}min`;
+  if (h < 24)   return `há ${h}h`;
+  if (d < 7)    return `há ${d}d`;
+  return "";
+}
+
+async function carregarStats() {
+  try {
+    const [todos, hoje, ops] = await Promise.all([
+      apiRequest("/logs?limit=1"),
+      apiRequest(`/logs?limit=1&search=&data_inicio=${new Date().toISOString().split("T")[0]}`),
+      apiRequest("/logs?modulo=OP&limit=1"),
+    ]);
+
+    document.getElementById("statTotal").textContent    = todos.total?.toLocaleString("pt-BR") ?? "—";
+    document.getElementById("statOPs").textContent      = ops.total?.toLocaleString("pt-BR") ?? "—";
+
+    // Usuários únicos do último mês
+    const mes = await apiRequest("/logs?limit=500");
+    const uniq = new Set((mes.data || []).map(l => l.usuario_nome)).size;
+    document.getElementById("statUsuarios").textContent = uniq;
+    document.getElementById("statHoje").textContent     = hoje.total ?? "—";
+  } catch {}
+}
+
+async function buscar(pagina = 0) {
+  paginaAtual = pagina;
+  const search    = document.getElementById("fSearch").value.trim();
+  const modulo    = document.getElementById("fModulo").value;
+  const dataInicio = document.getElementById("fDataInicio").value;
+  const dataFim   = document.getElementById("fDataFim").value;
+
+  const params = new URLSearchParams({
+    limit: LIMIT,
+    offset: pagina * LIMIT,
+    ...(search     && { search }),
+    ...(modulo     && { modulo }),
+    ...(dataInicio && { data_inicio: dataInicio }),
+    ...(dataFim    && { data_fim: dataFim }),
+  });
+
+  document.getElementById("tabelaConteudo").innerHTML =
+    `<div class="loading"><div class="spinner"></div></div>`;
+
+  try {
+    const res  = await apiRequest(`/logs?${params}`);
+    const logs = res.data || [];
+    totalRegistros = res.total || 0;
+
+    document.getElementById("totalLabel").textContent =
+      `${totalRegistros.toLocaleString("pt-BR")} registro(s)`;
+
+    if (logs.length === 0) {
+      document.getElementById("tabelaConteudo").innerHTML =
+        `<div class="sem-dados">📭 Nenhum log encontrado com esses filtros.</div>`;
+      renderPaginacao();
+      return;
+    }
+
+    const tbody = logs.map((l, i) => {
+      const relativo = fmtRelativo(l.criado_em);
+      return `
+        <tr>
+          <td class="data">
+            <div style="font-weight:600;color:var(--text)">${fmtDataHora(l.criado_em)}</div>
+            ${relativo ? `<div style="font-size:11px;color:#94a3b8;margin-top:2px">${relativo}</div>` : ""}
+          </td>
+          <td class="usuario">
+            <div class="usuario-info">
+              ${avatar(l.usuario_nome)}
+              <div>
+                <div class="usuario-nome">${l.usuario_nome || "Sistema"}</div>
+              </div>
+            </div>
+          </td>
+          <td>${badgeModulo(l.modulo)}</td>
+          <td>${badgeAcao(l.acao)}</td>
+          <td class="descricao" style="line-height:1.5">${l.descricao || "—"}</td>
+          <td>${l.referencia_label ? `<span class="ref">${l.referencia_label}</span>` : l.referencia_id ? `<span class="ref">#${l.referencia_id}</span>` : "—"}</td>
+        </tr>
+      `;
+    }).join("");
+
+    document.getElementById("tabelaConteudo").innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th>Data / Hora</th>
+            <th>Usuário</th>
+            <th>Módulo</th>
+            <th>Ação</th>
+            <th>Descrição</th>
+            <th>Referência</th>
+          </tr>
+        </thead>
+        <tbody>${tbody}</tbody>
+      </table>
+    `;
+
+    renderPaginacao();
+  } catch (err) {
+    document.getElementById("tabelaConteudo").innerHTML =
+      `<div class="sem-dados" style="color:#dc2626">Erro ao carregar logs: ${err.message}</div>`;
+  }
+}
+
+function renderPaginacao() {
+  const totalPaginas = Math.ceil(totalRegistros / LIMIT);
+  const inicio = paginaAtual * LIMIT + 1;
+  const fim    = Math.min((paginaAtual + 1) * LIMIT, totalRegistros);
+
+  document.getElementById("pagInfo").textContent =
+    totalRegistros > 0 ? `Exibindo ${inicio}–${fim} de ${totalRegistros}` : "Sem resultados";
+
+  const btns = document.getElementById("pagBtns");
+  btns.innerHTML = "";
+
+  const ant = document.createElement("button");
+  ant.className = "btn-pag";
+  ant.textContent = "← Anterior";
+  ant.disabled = paginaAtual === 0;
+  ant.onclick = () => buscar(paginaAtual - 1);
+  btns.appendChild(ant);
+
+  // Máx 5 páginas visíveis
+  const inicio_p = Math.max(0, paginaAtual - 2);
+  const fim_p    = Math.min(totalPaginas, inicio_p + 5);
+  for (let p = inicio_p; p < fim_p; p++) {
+    const b = document.createElement("button");
+    b.className = "btn-pag" + (p === paginaAtual ? " ativo" : "");
+    b.textContent = p + 1;
+    b.onclick = () => buscar(p);
+    btns.appendChild(b);
+  }
+
+  const prox = document.createElement("button");
+  prox.className = "btn-pag";
+  prox.textContent = "Próximo →";
+  prox.disabled = paginaAtual >= totalPaginas - 1;
+  prox.onclick = () => buscar(paginaAtual + 1);
+  btns.appendChild(prox);
+}
+
+window.buscar     = () => buscar(0);
+window.limparFiltros = () => {
+  document.getElementById("fSearch").value = "";
+  document.getElementById("fModulo").value = "";
+  document.getElementById("fDataInicio").value = "";
+  document.getElementById("fDataFim").value = "";
+  buscar(0);
+};
+
+// Enter no search
+document.getElementById("fSearch").addEventListener("keydown", e => {
+  if (e.key === "Enter") buscar(0);
+});
+
+// Init
+carregarStats();
+buscar(0);
+</script>
+</body>
+</html>

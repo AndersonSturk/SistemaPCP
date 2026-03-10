@@ -1,0 +1,364 @@
+/* ===== VARIÁVEIS ===== */
+:root {
+  --cor-primaria: #2563eb;
+  --cor-secundaria: #1e40af;
+  --cor-fundo: #f1f5f9;
+  --cor-card: #ffffff;
+  --cor-texto: #1f2933;
+  --cor-borda: #e5e7eb;
+}
+
+:root {
+  --cor-primaria: #2563eb;
+  --cor-secundaria: #1e40af;
+  --cor-fundo: #f1f5f9;
+  --cor-card: #ffffff;
+  --cor-texto: #1f2933;
+  --cor-borda: #e5e7eb;
+
+  --header-bg: #1f2a6f;
+  --header-text: #ffffff;
+  --header-shadow: rgba(15, 23, 42, 0.18);
+}
+
+
+/* ===== BASE ===== */
+* { box-sizing: border-box; }
+
+body {
+  font-family: 'Segoe UI', Tahoma, sans-serif;
+  background: var(--cor-fundo);
+  margin: 0;
+  padding: 30px;
+}
+
+/* ===== HEADER ===== */
+.header {
+  background: var(--header-bg);
+  padding: 16px 24px;
+  border-radius: 16px;
+  margin-bottom: 30px;
+  box-shadow: 0 12px 30px var(--header-shadow);
+  position: sticky;
+  top: 16px;
+  z-index: 10;
+}
+
+.header-text{
+    color: var(--header-text);
+}
+.header-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.logo {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  color: var(--header-text);
+  font-size: 16px;
+  letter-spacing: 0.5px;
+}
+
+.header-title {
+  color: var(--header-text);
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: 0.2px;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* USER INFO */
+#userInfo {
+  font-size: 13px;
+  color: rgba(248, 250, 252, 0.9);
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 12%);
+}
+
+/* BUTTONS */
+.btn-voltar,
+.btn-logout {
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+
+.btn-voltar {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--header-text);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.btn-voltar:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+}
+
+.btn-logout {
+  background: #ff4b4b;
+  color: #fff;
+}
+
+.btn-logout:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.08);
+}
+/* ===== BASE ===== */
+* { box-sizing: border-box; }
+
+
+
+
+
+.dock-container {
+  max-width: 1100px;
+  margin: 20px auto 30px;
+  padding: 0 20px;
+}
+
+.dock-bar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+
+  background: #1e40af;
+  border-radius: 18px;
+  padding: 10px 16px 12px;
+  transition: padding-bottom 0.25s ease;
+  overflow: visible;
+}
+
+.dock-item {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+
+  color: #fff;
+  font-size: 22px;
+  cursor: pointer;
+
+  transition: transform 0.25s ease;
+}
+
+.dock-item i {
+  transition: transform 0.25s ease;
+  transform-origin: center bottom;
+}
+
+.dock-label {
+  position: absolute;
+  left: 50%;
+  bottom: 0px; /* 👈 agora fica mais perto do ícone */
+  transform: translateX(-50%);
+  opacity: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+
+.dock-item:hover {
+  transform: translateY(18px); 
+}
+
+.dock-item:hover i {
+  transform: scale(2.1);
+  animation: shake 0.35s ease-in-out 1;
+}
+
+.dock-item:hover .dock-label {
+  opacity: 1;
+  animation: labelOut 0.35s ease forwards;
+}
+
+.dock-bar:hover {
+  padding-bottom: 28px;
+}
+
+@keyframes labelOut {
+  0% {
+    transform: translateX(-50%) translateX(-8px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(35px);
+    opacity: 1;
+  }
+}
+
+@keyframes shake {
+  0% { transform: translateX(0); }
+  20% { transform: translateX(-2px); }
+  40% { transform: translateX(2px); }
+  60% { transform: translateX(-2px); }
+  80% { transform: translateX(2px); }
+  100% { transform: translateX(0); }
+}
+
+
+
+
+
+
+
+
+/* ===== MODAL ===== */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.modal-overlay.show {
+  opacity: 1;
+  pointer-events: all;
+}
+
+.modal {
+  background: white;
+  width: 90%;
+  max-width: 480px;
+  border-radius: 14px;
+  padding: 24px;
+  transform: translateY(-20px) scale(0.95);
+  transition: all 0.3s ease;
+}
+
+.modal-overlay.show .modal {
+  transform: translateY(0) scale(1);
+}
+
+.hidden { display: none; }
+
+/* ===== FORM ===== */
+.form-top {
+  display: flex;
+  justify-content: flex-end;
+}
+
+form label {
+  display: block;
+  margin-top: 14px;
+  font-size: 14px;
+}
+
+form input {
+  width: 100%;
+  margin-top: 6px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--cor-borda);
+}
+
+.form-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+/* ===== TABLE ===== */
+table {
+  width: 100%;
+  background: white;
+  border-collapse: collapse;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+}
+
+thead {
+  background: var(--cor-primaria);
+  color: white;
+}
+
+th, td {
+  padding: 14px;
+  text-align: center;
+}
+
+tbody tr:hover {
+  background: #f8fafc;
+}
+
+/* ===== BUTTONS ===== */
+.btn {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+}
+
+.btn-default { background: #2f80ed; color: white; }
+.btn-adicionar { background: #f2c94c; }
+.btn-editar { background: #27ae60; color: white; }
+.btn-excluir { background: #eb5757; color: white; }
+.btn-pag { background: #333; color: white; }
+
+/* CONTAINER PRINCIPAL */
+.container {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+/* AÇÕES DO TOPO */
+.top-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 14px 0 18px;
+}
+
+/* SEARCH */
+.search {
+  flex: 1;
+}
+
+.search input {
+  width: 100%;
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(0,0,0,0.15);
+  font-size: 14px;
+  background: white;
+}

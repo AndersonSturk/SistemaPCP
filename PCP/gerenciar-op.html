@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>PCP - Gerenciar OP</title>
+      <link rel="stylesheet" href="../Styles/shared-style.css">
+</head>
+<body>
+
+
+
+<header class="header">
+  <div class="header-left">
+    <div class="logo">PCP</div>
+    <h2 class="header-text">Controle de Pedidos</h2>
+  </div>
+  <button class="btn btn-voltar" onclick="voltarHub()">← Voltar</button>
+</header>
+
+<div class="document">
+  <div class="topo">
+    <div class="empresa">
+      <h2>Lucabe Energy</h2>
+      <p>CNPJ: 12.345.678/0001-90</p>
+      <p>Rua das Indústrias, 1234 - Distrito Industrial</p>
+      <p>São Paulo - SP | CEP: 01234-567</p>
+      <p>Telefone: (11) 4000-1234 | Email: <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="32515d5c4653465d725e4751535057575c5740554b1c515d5f">[email&#160;protected]</a></p>
+      <p>Site: www.lucabeenergy.com</p>
+    </div>
+
+    <div class="nfe">
+      <div class="titulo">ORDEM DE PRODUÇÃO (OP)</div>
+      <div class="info">
+        <b>Modelo:</b> '001_2(em desenvolvimento)'<br>
+        <b>Tipo:</b> Produção Interna<br>
+        <b>Ambiente:</b> Homologação (fake)
+      </div>
+    </div>
+  </div>
+
+  <div class="blocos">
+    <div class="bloco">
+      <h4>Dados da OP</h4>
+      <p><b>OP:</b> <span id="opId"></span></p>
+      <p><b>Data de criação:</b> <span id="dataCriacao"></span></p>
+      <p><b>Status:</b> <span id="statusTxt"></span></p>
+      <p><b>Data finalização:</b> <span id="dataFinalTxt"></span></p>
+    </div>
+
+    <div class="bloco">
+      <h4>Responsável e Controle</h4>
+      <p><b>Responsável:</b> <span id="responsavelTxt"></span></p>
+      <p><b>Centro de custo:</b> PCP - Lucabe</p>
+      <p><b>Projeto:</b> Montagem e produção</p>
+      <p><b>Observações:</b> Documento gerado para teste (dados fictícios).</p>
+    </div>
+  </div>
+
+  <div class="blocos" style="margin-top: 18px;">
+    <div class="bloco">
+      <h4>Produto / Item</h4>
+      <p><b>Código:</b> <span id="codigoItem"></span></p>
+      <p><b>Descrição:</b> <span id="descricao"></span></p>
+      <p><b>Quantidade:</b> <span id="quantidade"></span> <span id="unidade"></span></p>
+      <p><b>Custo Unitário:</b> R$ <span id="custoUnitario"></span></p>
+      <p><b>Custo Total:</b> R$ <span id="custoTotal"></span></p>
+    </div>
+
+    <div class="bloco">
+  <h4>Editar OP</h4>
+
+  <div class="flex">
+    <label>Status</label>
+    <select id="status">
+      <option value="Aberta">Aberta</option>
+      <option value="EmProducao">Em Produção</option>
+      <option value="Concluida">Concluída</option>
+    </select>
+  </div>
+
+  <div class="flex" style="margin-top: 12px;">
+    <label>Responsável</label>
+    <input type="text" id="responsavel" placeholder="Responsável" value="Anderson">
+  </div>
+
+  <div class="flex" style="margin-top: 12px;">
+    <label>Data Finalização</label>
+    <input type="date" id="dataFinalizacao">
+  </div>
+
+  <div class="flex" style="margin-top: 12px;">
+    <label>Unidade de medida</label>
+    <input type="text" id="unidadeMedida" placeholder="Ex: kg, m, litros">
+  </div>
+
+  <div class="actions">
+    <button onclick="salvarEdicao()">Salvar alterações</button>
+  </div>
+</div>
+
+
+  <div class="bloco" style="margin-top: 18px;">
+    <h4>Itens / Materiais (BOM - provisório)</h4>
+    <table>
+      <thead>
+        <tr>
+          <th>Código</th>
+          <th>Descrição</th>
+          <th>Qtd</th>
+          <th>Preço Unit.</th>
+          <th>Subtotal</th>
+        </tr>
+      </thead>
+      <tbody id="itensTabela"></tbody>
+    </table>
+  </div>
+
+  <div class="logs">
+    <h4>Logs de edição</h4>
+    <div id="lista
