@@ -4,9 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Saída de Estoque</title>
-    <link rel="stylesheet"  href="../Styles/saida_estoque_style.css"
-    
-      <link rel="stylesheet" href="../Styles/shared-style.css">
+  <link rel="stylesheet" href="../Styles/saida_estoque_style.css">
+  <link rel="stylesheet" href="../Styles/shared-style.css">
 </head>
 <body>
 
@@ -25,52 +24,23 @@
 
 <div class="container">
 
-  <!-- ── Coluna esquerda: formulário ── -->
+  <!-- ══ Coluna esquerda: formulário ══ -->
   <div>
 
-    <!-- 1. Selecionar pedido -->
+    <!-- 1. Adicionar itens -->
     <div class="card" style="margin-bottom:20px">
-      <div class="card-title">📋 1. Pedido a atender</div>
-
-      <div class="field">
-        <label>Buscar pedido por cliente, nº pedido ou ordem de compra</label>
-        <div class="search-wrap">
-          <input type="text" id="pedidoSearch" placeholder="Digite para buscar...">
-          <div class="dropdown" id="pedidoDropdown"></div>
-        </div>
-      </div>
-
-      <!-- Card do pedido selecionado -->
-      <div class="pedido-card" id="pedidoCard">
-        <div class="pedido-card-header">
-          <span class="pedido-card-title" id="pedidoCardTitulo">—</span>
-          <button class="btn-limpar" onclick="limparPedido()" title="Remover seleção">✕</button>
-        </div>
-        <div class="pedido-info-grid">
-          <div class="pedido-info-row"><b id="pcCliente">—</b></div>
-          <div class="pedido-info-row">UF: <b id="pcEstado">—</b></div>
-          <div class="pedido-info-row">Pedido Venda: <b id="pcPedidoVenda">—</b></div>
-          <div class="pedido-info-row">Ordem Compra: <b id="pcOrdemCompra">—</b></div>
-          <div class="pedido-info-row">Qtde Solicitada: <b id="pcQtde">—</b></div>
-          <div class="pedido-info-row">Data Contratual: <b id="pcDataContratual">—</b></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 2. Itens retirados do estoque -->
-    <div class="card">
-      <div class="card-title">📦 2. Itens retirados do estoque</div>
+      <div class="card-title">📦 1. Adicionar Material</div>
 
       <!-- Busca de material -->
       <div class="add-item-row">
         <div class="field" style="flex:2;position:relative">
-          <label>Material</label>
+          <label>Material (código ou descrição)</label>
           <div class="search-wrap">
-            <input type="text" id="materialSearch" placeholder="Código ou descrição...">
+            <input type="text" id="materialSearch" placeholder="Digite para buscar...">
             <div class="dropdown" id="materialDropdown"></div>
           </div>
         </div>
-        <div class="field" style="width:90px">
+        <div class="field" style="width:100px">
           <label>Quantidade</label>
           <input type="number" id="itemQtde" min="0.01" step="0.01" placeholder="0">
         </div>
@@ -85,7 +55,6 @@
             <option value="pç">pç</option>
           </select>
         </div>
-        <button class="btn-add" id="btnAddItem">+ Add</button>
       </div>
 
       <!-- Info do material selecionado -->
@@ -96,7 +65,39 @@
         <span>Estoque: <b id="matEstoque" class="estoque-ok">—</b></span>
       </div>
 
-      <!-- Tabela de itens adicionados -->
+      <!-- Vincular pedido (opcional) -->
+      <div class="pedido-vinculo-section">
+        <div class="field" style="position:relative;flex:1">
+          <label>Vincular pedido <span class="label-auto">(opcional)</span></label>
+          <div class="search-wrap">
+            <input type="text" id="pedidoSearch" placeholder="Buscar pedido por cliente, OC ou PV...">
+            <div class="dropdown" id="pedidoDropdown"></div>
+          </div>
+        </div>
+        <button class="btn-limpar-pedido" id="btnLimparPedido" title="Remover vínculo" style="display:none">✕</button>
+      </div>
+
+      <!-- Card do pedido vinculado ao item atual -->
+      <div class="pedido-vinculo-card" id="pedidoVinculoCard">
+        <div class="pedido-vinculo-info">
+          <span class="pv-label">Pedido:</span>
+          <span id="pvPedido">—</span>
+          <span class="pv-label">Cliente:</span>
+          <span id="pvCliente">—</span>
+          <span class="pv-label">OC:</span>
+          <span id="pvOC">—</span>
+          <span class="pv-label">Qtde Sol.:</span>
+          <span id="pvQtde">—</span>
+        </div>
+      </div>
+
+      <button class="btn-add-item" id="btnAddItem">+ Adicionar à Ordem de Saída</button>
+    </div>
+
+    <!-- 2. Itens da ordem -->
+    <div class="card">
+      <div class="card-title">📋 2. Itens da Ordem de Saída</div>
+
       <div id="semItens" class="sem-itens">Nenhum item adicionado ainda.</div>
       <div id="tabelaWrap" style="display:none;overflow-x:auto">
         <table class="itens-table">
@@ -108,6 +109,7 @@
               <th>Un.</th>
               <th>Custo Unit.</th>
               <th>Subtotal</th>
+              <th>Pedido / Cliente</th>
               <th></th>
             </tr>
           </thead>
@@ -115,8 +117,8 @@
           <tfoot>
             <tr>
               <td colspan="5" style="text-align:right;color:var(--muted)">Total:</td>
-              <td style="color:var(--primary-dk)" id="totalGeral">R$ 0,00</td>
-              <td></td>
+              <td style="color:var(--primary-dk);font-weight:700" id="totalGeral">R$ 0,00</td>
+              <td colspan="2"></td>
             </tr>
           </tfoot>
         </table>
@@ -131,17 +133,21 @@
     </div>
   </div>
 
-  <!-- ── Coluna direita: resumo + ação + histórico ── -->
+  <!-- ══ Coluna direita: resumo + ação + histórico ══ -->
   <div>
 
     <!-- Resumo -->
     <div class="card" style="margin-bottom:20px">
-      <div class="card-title">📊 Resumo</div>
-      <div class="resumo-linha"><span>Pedido</span><span id="rsPedido">—</span></div>
-      <div class="resumo-linha"><span>Cliente</span><span id="rsCliente">—</span></div>
+      <div class="card-title">📊 Resumo da Ordem</div>
       <div class="resumo-linha"><span>Itens</span><span id="rsItens">0</span></div>
+      <div class="resumo-linha"><span>Materiais distintos</span><span id="rsMateriais">0</span></div>
+      <div class="resumo-linha"><span>Pedidos vinculados</span><span id="rsPedidos">0</span></div>
       <div class="resumo-linha total"><span>Custo total</span><span id="rsCusto">R$ 0,00</span></div>
-      <button class="btn-gerar" id="btnGerar" disabled onclick="gerarSaida()">
+
+      <!-- Lista de pedidos vinculados -->
+      <div id="pedidosVinculados" class="pedidos-vinculados-list"></div>
+
+      <button class="btn-gerar" id="btnGerar" disabled>
         ✔ Confirmar Saída de Estoque
       </button>
     </div>
@@ -157,7 +163,7 @@
   </div>
 </div>
 
-<!-- ── Modal comprovante ── -->
+<!-- ══ Modal comprovante ══ -->
 <div id="modalComprovante" class="modal-overlay hidden">
   <div class="modal-box">
     <div class="modal-header">
@@ -172,6 +178,6 @@
   </div>
 </div>
 
-<script type="module" src="../Scripts/saida-estoque-script.js"></script>
+<script type="module" src="../Scripts/saida-estoque-script.js" defer></script>
 </body>
 </html>

@@ -124,9 +124,8 @@ router.get('/pedidos', async (req, res) => {
           2
         )                                  AS custo_producao
       FROM controle_pedidos cp
-      LEFT JOIN op_pedidos opd ON cp.id  = opd.pedido_id
-      LEFT JOIN ordens_producao op ON opd.op_id = op.id AND op.is_deleted = 0
       LEFT JOIN materiais m    ON m.codigo_produto = cp.zerb
+      LEFT JOIN ordens_producao op ON op.codigo_produto = cp.zerb AND op.is_deleted = 0
       ${where}
       ORDER BY cp.data_finalizada DESC
     `, params);
@@ -173,12 +172,9 @@ router.get('/ops', async (req, res) => {
         op.codigo_produto                  AS material_codigo,
         op.descricao_material              AS material_descricao,
         m.estoque                          AS estoque_atual,
-        COUNT(DISTINCT opd.id)             AS total_pedidos,
-        COALESCE(SUM(opd.qtde_atendida),0) AS total_atendido,
         COALESCE(SUM(oi.subtotal), 0)      AS custo_insumos
       FROM ordens_producao op
       LEFT JOIN materiais m   ON m.codigo_produto = op.codigo_produto
-      LEFT JOIN op_pedidos opd ON op.id = opd.op_id
       LEFT JOIN op_insumos oi  ON op.id = oi.op_id
       ${where}
       GROUP BY op.id
@@ -212,18 +208,9 @@ router.get('/desempenho', async (req, res) => {
         COUNT(DISTINCT op.id)              AS total_ops,
         SUM(CASE WHEN op.status = 'CONCLUIDA' THEN 1 ELSE 0 END) AS ops_concluidas,
         COALESCE(SUM(op.qtde_total), 0)    AS qtde_produzida,
-        COALESCE(SUM(opd_agg.qtde_sol), 0) AS qtde_solicitada,
-        COUNT(DISTINCT opd_agg.pedido_id)  AS pedidos_atendidos,
         COALESCE(SUM(ins_agg.custo_ins),0) AS custo_total_insumos
       FROM ordens_producao op
       LEFT JOIN materiais m ON m.codigo_produto = op.codigo_produto
-      LEFT JOIN (
-        SELECT opd.op_id,
-               opd.pedido_id,
-               cp.qtde_solicitada AS qtde_sol
-        FROM op_pedidos opd
-        JOIN controle_pedidos cp ON opd.pedido_id = cp.id
-      ) opd_agg ON opd_agg.op_id = op.id
       LEFT JOIN (
         SELECT op_id, SUM(subtotal) AS custo_ins
         FROM op_insumos

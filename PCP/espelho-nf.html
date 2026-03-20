@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Espelho de Nota Fiscal — Lucabe Energy</title>
+  <link rel="stylesheet" href="../Styles/espelho-nf.css">
+</head>
+<body>
+
+<!-- ══════════════ HEADER (não imprime) ══════════════ -->
+<header class="header no-print">
+  <div class="header-content">
+    <div class="header-left">
+      <div class="logo-badge">PCP</div>
+      <h2 class="header-text">Espelho de Nota Fiscal</h2>
+    </div>
+    <div class="header-right">
+      <span id="modoLabel" style="font-size:11px;color:#94a3b8;margin-right:4px;"></span>
+      <button class="btn-add-row" onclick="adicionarLinha()">＋ Linha</button>
+      <button class="btn-limpar" onclick="limparFormulario()">↺ Limpar</button>
+      <button class="btn-salvar" id="btnSalvar" onclick="salvarEspelho()">💾 Salvar</button>
+      <button class="btn-pdf" onclick="gerarPDF()">📄 Emitir PDF</button>
+      <button class="btn-voltar" onclick="window.location.href='espelhos-nf.html'">← Voltar</button>
+    </div>
+  </div>
+</header>
+
+<!-- ══════════════ DOCUMENTO ══════════════ -->
+<div class="documento" id="documentoNF">
+
+  <!-- ── Topo do documento ── -->
+  <div class="doc-topo">
+    <div class="doc-logo">
+      <div class="logo-icon">☀</div>
+      <div class="logo-texto"><strong>LUCABE</strong><br><span>ENERGY</span></div>
+    </div>
+    <div class="doc-titulo-central">
+      <div class="doc-titulo">ESPELHO NOTA FISCAL</div>
+      <div class="doc-subtitulo">SEM VALOR FISCAL</div>
+    </div>
+    <div class="doc-logo doc-logo-dir">
+      <div class="logo-icon">☀</div>
+      <div class="logo-texto"><strong>LUCABE</strong><br><span>ENERGY</span></div>
+    </div>
+  </div>
+
+  <!-- ── Seção 1: Natureza ── -->
+  <div class="secao secao-natureza">
+    <div class="campo-grupo grande">
+      <label>NATUREZA DA OPERAÇÃO</label>
+      <select id="natureza" class="campo-doc maiusculo">
+        <option value="REMESSA PARA INDUSTRIALIZAÇÃO">REMESSA PARA INDUSTRIALIZAÇÃO</option>
+        <option value="REMESSA SIMBOLICA DE INDUSTRIALIZACAO">REMESSA SIMBOLICA DE INDUSTRIALIZACAO</option>
+        <option value="DEVOLUCAO FORNECEDOR">DEVOLUCAO FORNECEDOR</option>
+        <option value="COMPRA NAO CONTRIBUINTE">COMPRA NAO CONTRIBUINTE</option>
+        <option value="RETORNO CONSERTO S ORIGEM">RETORNO CONSERTO S ORIGEM</option>
+        <option value="DEVOLUCAO CLIENTE (EMITIR)">DEVOLUCAO CLIENTE (EMITIR)</option>
+        <option value="REMESSA CONSERTO">REMESSA CONSERTO</option>
+        <option value="PERDA, ROUBO OU DETERIORACAO">PERDA, ROUBO OU DETERIORACAO</option>
+        <option value="REMESSA MERCADORIA FALTANTE">REMESSA MERCADORIA FALTANTE</option>
+        <option value="OUTRAS SAIDAS CLIENTE">OUTRAS SAIDAS CLIENTE</option>
+        <option value="OUTRAS ENTRADAS FORN">OUTRAS ENTRADAS FORN</option>
+        <option value="OUTRAS ENTRADAS">OUTRAS ENTRADAS</option>
+        <option value="REMESSA BONIFICACAO">REMESSA BONIFICACAO</option>
+        <option value="DEVOLUCAO CLIENTE (EMITIR)">DEVOLUCAO CLIENTE (EMITIR)</option>
+        <option value="REMESSA PARA TROCA">REMESSA PARA TROCA</option>
+        <option value="REMESSA PARA DEPOSITO FECHADO OU ARMAZEM GERAL">REMESSA PARA DEPOSITO FECHADO OU ARMAZEM GERAL</option>
+        <option value="COMPLEMENTO DE ICMS (CLIENTE)">COMPLEMENTO DE ICMS (CLIENTE)</option>
+        <option value="EXPOSICAO EM FEIRAS">EXPOSICAO EM FEIRAS</option>
+        <option value="RETORNO EXPOSICAO EM FEIRA">RETORNO EXPOSICAO EM FEIRA</option>
+      </select>
+    </div>
+    <div class="campo-grupo pequeno">
+      <label>CFOP</label>
+      <input type="text" id="cfop_nf" value="901" class="campo-doc" readonly style="background:#f0f9ff;">
+    </div>
+    <div class="campo-grupo medio">
+      <label>OUTROS (DESCREVA)</label>
+      <input type="text" id="outros" class="campo-doc">
+    </div>
+  </div>
+
+  <!-- ── Seção 2: Dados do Prestador/Fornecedor ── -->
+  <div class="secao-titulo">DADOS DO PRESTADOR DE SERVIÇO</div>
+  <div class="secao secao-fornecedor">
+    <div class="campo-grupo grande" style="position:relative;">
+      <label>RAZÃO SOCIAL <small class="no-print" style="color:#64748b;">(digite para buscar prestadores)</small></label>
+      <input type="text" id="razao_social" class="campo-doc maiusculo" placeholder="Nome do prestador" autocomplete="off">
+      <div id="listaPrestadores" class="autocomplete-dropdown no-print" style="display:none;"></div>
+    </div>
+    <div class="campo-grupo medio">
+      <label>CNPJ</label>
+      <input type="text" id="cnpj_forn" class="campo-doc" placeholder="00.000.000/0000-00" maxlength="18">
+    </div>
+    <div class="campo-grupo medio">
+      <label>INSCRIÇÃO ESTADUAL</label>
+      <input type="text" id="inscricao_est" class="campo-doc" placeholder="000000000000">
+    </div>
+    <div class="campo-grupo medio">
+      <label>EMAIL NF-e</label>
+      <input type="email" id="email_nf" class="campo-doc" placeholder="email@fornecedor.com.br">
+    </div>
+  </div>
+
+  <!-- ── Seção 3: Tabela de Material ── -->
+  <div class="secao-titulo">MATERIAL</div>
+  <div class="tabela-wrapper">
+    <table class="tabela-material" id="tabelaMaterial">
+      <thead>
+        <tr>
+          <th class="col-cod">COD ZERB</th>
+          <th class="col-desc">DESCRIÇÃO DOS PRODUTOS</th>
+          <th class="col-cst">CST</th>
+          <th class="col-cfop">CFOP</th>
+          <th class="col-qtd">QUANT</th>
+          <th class="col-vunit">VALOR UNIT</th>
+          <th class="col-vtotal">VALOR TOTAL</th>
+          <th class="col-calc">CÁLC ICMS</th>
+          <th class="col-icms">VALOR ICMS</th>
+          <th class="col-ipi">VALOR IPI</th>
+          <th class="col-liq">LIQ ICMS</th>
+          <th class="col-alq">ALQ IPI</th>
+          <th class="col-st">ICMS ST</th>
+          <th class="col-mva">MV A</th>
+          <th class="col-acao no-print"></th>
+        </tr>
+      </thead>
+      <tbody id="corpoTabela">
+        <!-- linhas inseridas pelo JS -->
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ── Seção 4: Totais fiscais ── -->
+  <div class="secao-totais">
+    <div class="total-item">
+      <div class="total-label">BASE DE<br>CÁLCULO ICMS</div>
+      <div class="total-valor"><input type="text" id="base_icms" value="R$ -" class="campo-total"></div>
+    </div>
+    <div class="total-item">
+      <div class="total-label">VALOR<br>ICMS</div>
+      <div class="total-valor"><input type="text" id="valor_icms" value="R$ -" class="campo-total"></div>
+    </div>
+    <div class="total-item">
+      <div class="total-label">BASE DE<br>CÁLCULO ICMS SUBS.</div>
+      <div class="total-valor"><input type="text" id="base_icms_sub" value="R$ -" class="campo-total"></div>
+    </div>
+    <div class="total-item">
+      <div class="total-label">VALOR ICMS<br>SUBSTITUIÇÃO</div>
+      <div class="total-valor"><input type="text" id="valor_icms_sub" value="R$ -" class="campo-total"></div>
+    </div>
+    <div class="total-item">
+      <div class="total-label">OUTRAS DESP<br>ACESSÓRIOS</div>
+      <div class="total-valor"><input type="text" id="outras_desp" value="R$ -" class="campo-total"></div>
+    </div>
+    <div class="total-item">
+      <div class="total-label">VALOR<br>TOTAL DO IPI</div>
+      <div class="total-valor"><input type="text" id="total_ipi" value="R$ -" class="campo-total"></div>
+    </div>
+    <div class="total-item destaque">
+      <div class="total-label">VALOR TOTAL<br>DOS PRODUTOS</div>
+      <div class="total-valor" id="totalProdutosBox">R$ 0,00</div>
+    </div>
+    <div class="total-item destaque maior">
+      <div class="total-label">VALOR TOTAL<br>DA NOTA</div>
+      <div class="total-valor" id="totalNotaBox">R$ 0,00</div>
+    </div>
+  </div>
+
+  <!-- ── Seção 5: Dados de Transporte ── -->
+  <div class="secao-titulo">DADOS PARA TRANSPORTE</div>
+  <div class="secao secao-transporte">
+    <div class="campo-grupo grande">
+      <label>TRANSPORTADORA</label>
+      <input type="text" id="transportadora" value="Lucabe Materiais Elétricos LTDA" class="campo-doc">
+    </div>
+    <div class="campo-grupo medio">
+      <label>CNPJ</label>
+      <input type="text" id="cnpj_transp" value="01.272.361/0001-50" class="campo-doc">
+    </div>
+    <div class="campo-grupo pequeno">
+      <label>TIPO DE FRETE</label>
+      <input type="text" id="tipo_frete" value="LUCABE" class="campo-doc maiusculo">
+    </div>
+    <div class="campo-grupo pequeno">
+      <label>VOLUME</label>
+      <input type="text" id="volume" class="campo-doc">
+    </div>
+    <div class="campo-grupo pequeno">
+      <label>PESO</label>
+      <input type="text" id="peso" class="campo-doc">
+    </div>
+  </div>
+
+  <!-- ── Seção 6: Informações Complementares ── -->
+  <div class="secao-titulo">INFORMAÇÕES COMPLEMENTARES</div>
+  <div class="secao secao-complementar">
+    <div class="campo-grupo medio">
+      <label>SOLICITADO</label>
+      <input type="text" id="solicitado" class="campo-doc" placeholder="Nome do solicitante">
+    </div>
+    <div class="campo-grupo pequeno">
+      <label>POP</label>
+      <input type="text" id="pop" class="campo-doc">
+    </div>
+    <div class="campo-grupo pequeno">
+      <label>DATA</label>
+      <input type="date" id="data_doc" class="campo-doc">
+    </div>
+    <div class="campo-grupo medio">
+      <label>REFERENTE A NF</label>
+      <input type="text" id="ref_nf" class="campo-doc" placeholder="Nº da NF de referência">
+    </div>
+  </div>
+  <div class="secao secao-obs">
+    <div class="campo-grupo full">
+      <label>OBSERVAÇÃO</label>
+      <textarea id="observacao" class="campo-doc campo-obs" rows="2"
+        placeholder="Descreva observações relevantes para a NF..."></textarea>
+    </div>
+  </div>
+
+  <!-- ── Rodapé do documento ── -->
+  <div class="doc-footer">
+    <div class="footer-line"></div>
+    <div class="footer-content">
+      <span>Lucabe Energy — Documento interno sem valor fiscal</span>
+      <span id="footerData"></span>
+    </div>
+  </div>
+
+</div><!-- /documentoNF -->
+
+<script type="module" src="../Scripts/espelho-nf-script.js" defer></script>
+</body>
+</html>

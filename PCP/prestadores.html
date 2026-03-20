@@ -195,7 +195,6 @@ document.getElementById("btnFiltrar").addEventListener("click", carregar);
 document.getElementById("btnSalvar").addEventListener("click",  salvar);
 document.getElementById("btnCancelar").addEventListener("click", fechar);
 filtro.addEventListener("keydown", e => { if (e.key === "Enter") carregar(); });
-modal.addEventListener("click",    e => { if (e.target === modal) fechar(); });
 
 carregar();
 </script>

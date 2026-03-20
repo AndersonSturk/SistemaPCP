@@ -66,9 +66,11 @@
           <div class="form-group flex-1">
             <label for="userPerfil">Perfil de acesso</label>
             <select id="userPerfil">
-              <option value="admin">Admin</option>
-              <option value="pcp">PCP</option>
-              <option value="logistica">Logística</option>
+              <option value="admin">Admin — Acesso total</option>
+              <option value="pcp">PCP — Planejamento e Controle</option>
+              <option value="producao">Produção — Gerar e gerenciar OPs</option>
+              <option value="logistica">Logística — Estoque e expedição</option>
+              <option value="vendas">Vendas — Pedidos e dashboard</option>
             </select>
           </div>
         </div>
@@ -107,6 +109,6 @@
     </div>
   </div>
 
-  <script type="module" src="../Scripts/usuarios.js"></script>
+  <script type="module" src="../Scripts/usuarios.js" defer></script>
 </body>
 </html>

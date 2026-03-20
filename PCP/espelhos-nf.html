@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PCP — Espelhos de Nota Fiscal</title>
+  <style>
+    :root {
+      --bg: #0f172a; --surface: #1e293b; --border: rgba(255,255,255,.07);
+      --text: #f1f5f9; --muted: #94a3b8; --blue: #3b82f6; --green: #22c55e;
+      --red: #ef4444; --amber: #f59e0b;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    /* Header */
+    .header { display: flex; justify-content: space-between; align-items: center; padding: 16px 32px;
+      border-bottom: 1px solid var(--border); background: rgba(15,23,42,.95);
+      backdrop-filter: blur(12px); position: sticky; top: 0; z-index: 10; }
+    .header-left { display: flex; align-items: center; gap: 12px; }
+    .header-right { display: flex; align-items: center; gap: 8px; }
+    .logo-badge { width: 38px; height: 38px; border-radius: 10px;
+      background: linear-gradient(135deg,#3b82f6,#1d4ed8); display: flex; align-items: center;
+      justify-content: center; font-weight: 900; font-size: 12px; color: #fff; }
+    .header-title { font-size: 16px; font-weight: 700; }
+    .header-sub { font-size: 11px; color: var(--muted); }
+    .btn { padding: 8px 16px; border-radius: 9px; border: none; cursor: pointer;
+      font-weight: 600; font-size: 12px; transition: all .15s; }
+    .btn-primary { background: #2563eb; color: #fff; }
+    .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+    .btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
+
+    /* Conteúdo */
+    .page { max-width: 1100px; margin: 0 auto; padding: 28px 24px; }
+
+    /* Barra de busca */
+    .toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+    .search-input {
+      flex: 1; max-width: 380px; padding: 10px 14px; border-radius: 10px;
+      border: 1px solid var(--border); background: var(--surface); color: var(--text);
+      font-size: 13px; outline: none; }
+    .search-input:focus { border-color: var(--blue); }
+    .count-badge { font-size: 12px; color: var(--muted); margin-left: auto; }
+
+    /* Tabela */
+    .table-card { background: var(--surface); border-radius: 14px; border: 1px solid var(--border); overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; }
+    thead th { padding: 12px 14px; font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .5px; color: var(--muted); border-bottom: 1px solid var(--border);
+      text-align: left; white-space: nowrap; }
+    tbody tr { border-bottom: 1px solid var(--border); transition: background .15s; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: rgba(255,255,255,.03); }
+    tbody td { padding: 11px 14px; font-size: 13px; }
+    .td-muted { color: var(--muted); font-size: 12px; }
+    .td-mono  { font-family: monospace; font-size: 12px; }
+    .td-valor { font-weight: 700; color: #4ade80; font-size: 13px; }
+
+    /* Ações */
+    .acoes { display: flex; gap: 6px; }
+    .btn-act { padding: 5px 10px; border-radius: 7px; border: none; cursor: pointer;
+      font-size: 11px; font-weight: 600; transition: all .15s; }
+    .btn-act:hover { filter: brightness(1.15); transform: translateY(-1px); }
+    .btn-emit { background: rgba(34,197,94,.15); color: #4ade80; border: 1px solid rgba(34,197,94,.25); }
+    .btn-edit { background: rgba(59,130,246,.15); color: #93c5fd; border: 1px solid rgba(59,130,246,.25); }
+    .btn-del  { background: rgba(239,68,68,.15); color: #fca5a5; border: 1px solid rgba(239,68,68,.25); }
+
+    /* Empty state */
+    .empty { text-align: center; padding: 60px 20px; color: var(--muted); }
+    .empty-ico { font-size: 40px; margin-bottom: 12px; }
+    .empty-txt { font-size: 14px; }
+
+    /* Loading */
+    .loading { text-align: center; padding: 48px; color: var(--muted); font-size: 14px; }
+  </style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-left">
+    <div class="logo-badge">PCP</div>
+    <div>
+      <div class="header-title">Espelhos de Nota Fiscal</div>
+      <div class="header-sub">Gerencie os espelhos criados</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <span id="userInfo"></span>
+    <button class="btn btn-primary" onclick="window.location.href='espelho-nf.html'">+ Novo Espelho</button>
+    <button class="btn btn-secondary" onclick="window.location.href='Index.html'">← Voltar</button>
+  </div>
+</header>
+
+<div class="page">
+  <div class="toolbar">
+    <input class="search-input" id="buscaInput" placeholder="🔍  Buscar por fornecedor, CNPJ ou NF referência..." type="text">
+    <span class="count-badge" id="countBadge"></span>
+  </div>
+
+  <div class="table-card">
+    <div id="listaArea"><div class="loading">Carregando espelhos...</div></div>
+  </div>
+</div>
+
+<script type="module" src="../Scripts/espelhos-nf-script.js" defer></script>
+</body>
+</html>

@@ -72,17 +72,17 @@ function atualizarStepper(status) {
     CONCLUIDA:   document.getElementById("step-concluida"),
   };
 
-  Object.values(steps).forEach(s => s && s.classList.remove("active", "done"));
+  Object.values(steps).forEach(s => s?.classList.remove("active", "done"));
 
   if (status === "ABERTA") {
-    steps.ABERTA.classList.add("active");
+    steps.ABERTA?.classList.add("active");
   } else if (status === "EM_PRODUCAO") {
-    steps.ABERTA.classList.add("done");
-    steps.EM_PRODUCAO.classList.add("active");
+    steps.ABERTA?.classList.add("done");
+    steps.EM_PRODUCAO?.classList.add("active");
   } else if (status === "CONCLUIDA" || status === "CANCELADA") {
-    steps.ABERTA.classList.add("done");
-    steps.EM_PRODUCAO.classList.add("done");
-    steps.CONCLUIDA.classList.add("active");
+    steps.ABERTA?.classList.add("done");
+    steps.EM_PRODUCAO?.classList.add("done");
+    steps.CONCLUIDA?.classList.add("active");
   }
 }
 
@@ -93,6 +93,18 @@ function atualizarStepper(status) {
 //   Concluida   → Ambos desabilitados
 function atualizarBotoesProducao(status) {
   if (!btnIniciar || !btnFinalizar) return;
+
+  // Reabilita formulário (caso tenha sido bloqueado por OP concluída anterior)
+  const form = document.getElementById("formGerenciarOP");
+  if (form && status !== "CONCLUIDA" && status !== "CANCELADA") {
+    form.querySelectorAll("input, select, textarea").forEach(el => el.disabled = false);
+    const btnSalvar = form.querySelector("button[type=submit]");
+    if (btnSalvar) btnSalvar.style.display = "";
+    const btnAddPrest = document.getElementById("btnAddPrestador");
+    const btnNovoPrest = document.getElementById("btnNovoPrestador");
+    if (btnAddPrest) btnAddPrest.style.display = "";
+    if (btnNovoPrest) btnNovoPrest.style.display = "";
+  }
 
   if (status === "ABERTA") {
     btnIniciar.style.display = "inline-flex";
@@ -107,6 +119,18 @@ function atualizarBotoesProducao(status) {
   else if (status === "CONCLUIDA" || status === "CANCELADA") {
     btnIniciar.style.display = "none";
     btnFinalizar.style.display = "none";
+    // Bloqueia edição da OP concluída/cancelada
+    const form = document.getElementById("formGerenciarOP");
+    if (form) {
+      form.querySelectorAll("input, select, textarea").forEach(el => el.disabled = true);
+      const btnSalvar = form.querySelector("button[type=submit]");
+      if (btnSalvar) btnSalvar.style.display = "none";
+    }
+    // Esconde formulário de prestadores e perdas
+    const btnAddPrest = document.getElementById("btnAddPrestador");
+    const btnNovoPrest = document.getElementById("btnNovoPrestador");
+    if (btnAddPrest) btnAddPrest.style.display = "none";
+    if (btnNovoPrest) btnNovoPrest.style.display = "none";
   }
 
   if (tipFinalizar) {
@@ -117,14 +141,14 @@ function atualizarBotoesProducao(status) {
 
 // ─── Carregar OPs ─────────────────────────────────────────────────────────────
 async function carregarOPs(search = "") {
-  tabelaOPs.innerHTML = `<tr><td colspan="6" style="text-align:center;color:#888">Carregando...</td></tr>`;
+  tabelaOPs.innerHTML = `<tr><td colspan="5" style="text-align:center;color:#888">Carregando...</td></tr>`;
   try {
     const res = await apiRequest(`/ordens_producao?search=${encodeURIComponent(search)}`);
     const ops = res.data || [];
     tabelaOPs.innerHTML = "";
 
     if (ops.length === 0) {
-      tabelaOPs.innerHTML = `<tr><td colspan="6" style="text-align:center;color:#888">Nenhuma OP encontrada.</td></tr>`;
+      tabelaOPs.innerHTML = `<tr><td colspan="5" style="text-align:center;color:#888">Nenhuma OP encontrada.</td></tr>`;
       return;
     }
 
@@ -135,8 +159,7 @@ async function carregarOPs(search = "") {
         : op.material_id;
 
       tr.innerHTML = `
-        <td>${op.id}</td>
-        <td>${op.numero_op}</td>
+        <td style="font-weight:600">${op.numero_op}</td>
         <td>${materialLabel}</td>
         <td>${op.quantidade}</td>
         <td><span class="badge badge-${badgeStatus(op.status)}">${op.status}</span></td>
@@ -154,7 +177,7 @@ async function carregarOPs(search = "") {
   } catch (err) {
     console.error("Erro ao carregar OPs:", err);
     showToast("Erro ao carregar ordens de produção.", "error");
-    tabelaOPs.innerHTML = `<tr><td colspan="6" style="text-align:center;color:#e74c3c">Erro ao carregar dados.</td></tr>`;
+    tabelaOPs.innerHTML = `<tr><td colspan="5" style="text-align:center;color:#e74c3c">Erro ao carregar dados.</td></tr>`;
   }
 }
 
@@ -204,19 +227,10 @@ async function abrirModalOP(id) {
     atualizarStepper(op.status);
     atualizarBotoesProducao(op.status);
 
-    // Busca pedidos disponíveis para este material
-    const codigoProduto = op.codigo_produto || null;
-    const qtdeOP        = Number(op.qtde_total || op.quantidade || 0);
-    if (codigoProduto) {
-      carregarPedidosModal(codigoProduto, op.status, qtdeOP, op.unidade_medida);
-    } else {
-      const tbody = document.getElementById("tabelaPedidosModalBody");
-      if (tbody) tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:16px;">Material sem código de produto definido.</td></tr>`;
-    }
-
     // Carrega insumos salvos para esta OP
     await carregarInsumosOP(id);
     await carregarPrestadoresOP(id);
+    await carregarPerdasOP(id);
 
     hideLoading();
     modalGerenciarOP.classList.remove("hidden");
@@ -313,35 +327,11 @@ window.fecharConfirm = fecharConfirm;
 
 // ─── Botão INICIAR PRODUÇÃO ───────────────────────────────────────────────────
 btnIniciar.addEventListener("click", async () => {
-  const tbody  = document.getElementById("tabelaPedidosModalBody");
-  const checks = tbody ? Array.from(tbody.querySelectorAll(".chk-pedido:checked")) : [];
-
-  if (checks.length === 0) {
-    showToast("Selecione ao menos um pedido antes de iniciar.", "warning");
-    return;
-  }
-
-  const pedidosSelecionados = checks.map(chk => {
-    // Sobe para o <tr> pai do checkbox
-    const tr     = chk.closest("tr");
-    const inp    = tr.querySelector(".inp-qtde");
-    const pedido = JSON.parse(tr.dataset.pedido || "{}");
-    return {
-      ...pedido,
-      qtde_atendida: Number(inp?.value || pedido.qtde_solicitada || 0),
-    };
-  });
+  if (!confirm("Iniciar produção desta OP? Os insumos serão movidos para estoque em produção.")) return;
 
   showLoading("Iniciando produção...");
 
   try {
-    // 1. Vincula pedidos selecionados
-    await apiRequest("/op_pedidos/vincular", {
-      method: "POST",
-      body: JSON.stringify({ op_id: opAtualId, pedidos: pedidosSelecionados }),
-    });
-
-    // 2. Inicia produção (move insumos FT para estoque_producao e muda status)
     await apiRequest(`/ordens_producao/${opAtualId}/iniciar`, {
       method: "POST",
       body: JSON.stringify({}),
@@ -352,12 +342,8 @@ btnIniciar.addEventListener("click", async () => {
     atualizarStepper("EM_PRODUCAO");
     atualizarBotoesProducao("EM_PRODUCAO");
 
-    // Recarrega tabela em modo leitura
-    const op = (await apiRequest(`/ordens_producao/${opAtualId}`)).data;
-    carregarPedidosModal(op.codigo_produto, "EM_PRODUCAO", 0, "");
-
     hideLoading();
-    showToast(`Produção iniciada! ${pedidosSelecionados.length} pedido(s) vinculado(s). ▶`, "success");
+    showToast("Produção iniciada! Destino: Estoque. ▶", "success");
     carregarOPs(buscaOP.value);
   } catch (err) {
     hideLoading();
@@ -476,158 +462,10 @@ buscaOP.addEventListener("input", () => {
   debounceTimer = setTimeout(() => carregarOPs(buscaOP.value), 350);
 });
 
-// ─── Fechar modal clicando fora ───────────────────────────────────────────────
-modalGerenciarOP.addEventListener("click", (e) => {
-  if (e.target === modalGerenciarOP) fecharModalOP();
-});
 
 // ─── Header ───────────────────────────────────────────────────────────────────
 if (btnVoltar) btnVoltar.addEventListener("click", () => (window.location.href = "index.html"));
 if (btnLogout) btnLogout.addEventListener("click", logout);
-
-// ─── Pedidos no modal ─────────────────────────────────────────────────────────
-async function carregarPedidosModal(codigoProduto, status, qtdeOP, unidade) {
-  const tbody    = document.getElementById("tabelaPedidosModalBody");
-  const thCheck  = document.getElementById("thCheck");
-  const thQtde   = document.getElementById("thQtdeAtend");
-  const contador = document.getElementById("pedidosContador");
-  if (!tbody) return;
-
-  const modoSelecao = (status === "ABERTA");
-
-  // Mostra/oculta colunas de seleção
-  if (thCheck)  thCheck.style.display  = modoSelecao ? "table-cell" : "none";
-  if (thQtde) {
-    thQtde.style.display = "table-cell";
-    thQtde.textContent   = modoSelecao ? "Qtde Atender" : "Qtde Atendida";
-  }
-  if (contador) contador.style.display = modoSelecao ? "flex"        : "none";
-
-  if (modoSelecao) {
-    document.getElementById("ctrQtdeOP").textContent = `${qtdeOP} ${unidade || ""}`;
-    document.getElementById("ctrSaldo").textContent  = qtdeOP;
-    document.getElementById("ctrQtdeSel").textContent = "0";
-  }
-
-  tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:16px;">Carregando pedidos...</td></tr>`;
-
-  try {
-    let pedidos = [];
-
-    if (modoSelecao) {
-      // ABERTA: busca pedidos disponíveis para o material
-      const res = await apiRequest(`/controle_pedidos/material/${encodeURIComponent(codigoProduto)}`);
-      pedidos = res.data || [];
-    } else {
-      // EM_PRODUCAO / CONCLUIDA: busca apenas pedidos já vinculados à OP
-      const res = await apiRequest(`/op/${opAtualId}`);
-      pedidos = res.data?.pedidos || [];
-    }
-
-    if (pedidos.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:16px;">Nenhum pedido em aberto para este material.</td></tr>`;
-      return;
-    }
-
-    tbody.innerHTML = "";
-    pedidos.forEach((p, i) => {
-      const tr = document.createElement("tr");
-      tr.classList.add(i % 2 === 0 ? "row-dark" : "row-darker");
-      tr.dataset.pedido   = JSON.stringify(p);
-
-      const tdCheck = modoSelecao ? `
-        <td style="padding:8px 10px;text-align:center">
-          <input type="checkbox" class="chk-pedido" data-idx="${i}">
-        </td>` : "";
-
-      const qtdePendente = p.qtde_pendente ?? p.qtde_solicitada ?? 0;
-
-      const tdQtde = modoSelecao ? `
-        <td style="padding:8px 6px;text-align:center">
-          <input type="number" class="inp-qtde" data-idx="${i}"
-            min="1" max="${qtdePendente || 9999}" value="${qtdePendente || ''}"
-            disabled
-            style="width:82px;padding:5px 6px;border:1.5px solid #e2e8f0;border-radius:7px;
-              font-size:13px;font-weight:600;text-align:center;background:#f8fafc;color:#94a3b8">
-        </td>` : `
-        <td style="padding:8px 10px;text-align:center;font-weight:700;color:#2563eb">
-          ${p.qtde_atendida ?? "—"}
-        </td>`;
-
-      tr.innerHTML = `
-        ${tdCheck}
-        <td style="padding:8px 10px;">${p.pedido_venda || "—"}</td>
-        <td style="padding:8px 10px;">${p.ordem_compra || "—"}</td>
-        <td style="padding:8px 10px;font-weight:600;">${p.cliente || "—"}</td>
-        <td style="padding:8px 10px;">${p.estado || "—"}</td>
-        <td style="padding:8px 10px;">${p.codigo_cliente || "—"}</td>
-        <td style="padding:8px 10px;text-align:center;" title="Solicitada: ${p.qtde_solicitada ?? 0} / Pendente: ${qtdePendente}">${modoSelecao ? qtdePendente : (p.qtde_solicitada ?? "—")}</td>
-        ${tdQtde}
-        <td style="padding:8px 10px;text-align:center;">${p.data_contratual ? new Date(p.data_contratual).toLocaleDateString("pt-BR") : "—"}</td>
-      `;
-      tbody.appendChild(tr);
-    });
-
-    if (!modoSelecao) return;
-
-    // ── Lógica de seleção inline ──────────────────────────────────────────────
-    function recalcular() {
-      let total = 0;
-      tbody.querySelectorAll(".chk-pedido:checked").forEach(chk => {
-        const inp = tbody.querySelector(`.inp-qtde[data-idx="${chk.dataset.idx}"]`);
-        total += Number(inp?.value || 0);
-      });
-      const saldo   = Number(qtdeOP) - total;
-      const excede  = saldo < 0;
-      const nenhum  = tbody.querySelectorAll(".chk-pedido:checked").length === 0;
-
-      document.getElementById("ctrQtdeSel").textContent    = total;
-      document.getElementById("ctrSaldo").textContent      = saldo;
-      document.getElementById("ctrSaldo").style.color      = excede ? "#dc2626" : "#16a34a";
-      document.getElementById("ctrAviso").style.display    = excede ? "inline" : "none";
-      btnIniciar.disabled = excede || nenhum;
-    }
-
-    tbody.addEventListener("change", (e) => {
-      if (e.target.classList.contains("chk-pedido")) {
-        const inp = tbody.querySelector(`.inp-qtde[data-idx="${e.target.dataset.idx}"]`);
-        if (inp) {
-          inp.disabled = !e.target.checked;
-          inp.style.background = e.target.checked ? "#fff" : "#f8fafc";
-          inp.style.color      = e.target.checked ? "#0f172a" : "#94a3b8";
-        }
-      }
-      recalcular();
-    });
-
-    tbody.addEventListener("input", (e) => {
-      if (e.target.classList.contains("inp-qtde")) recalcular();
-    });
-
-    // Selecionar todos
-    const checkTodos = document.getElementById("checkTodosPedidos");
-    if (checkTodos) checkTodos.onchange = (e) => {
-      tbody.querySelectorAll(".chk-pedido").forEach(chk => {
-        chk.checked = e.target.checked;
-        const inp = tbody.querySelector(`.inp-qtde[data-idx="${chk.dataset.idx}"]`);
-        if (inp) {
-          inp.disabled = !e.target.checked;
-          inp.style.background = e.target.checked ? "#fff" : "#f8fafc";
-          inp.style.color      = e.target.checked ? "#0f172a" : "#94a3b8";
-        }
-      });
-      recalcular();
-    };
-
-    // Habilita btnIniciar novamente (estava sendo desabilitado por atualizarBotoesProducao)
-    // mas agora a lógica é: habilitado só quando tem pedido selecionado sem exceder
-    btnIniciar.disabled = true; // começa desabilitado até selecionar algo
-
-  } catch (err) {
-    console.error("Erro ao carregar pedidos do modal:", err);
-    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:#e74c3c;padding:16px;">Erro ao carregar pedidos.</td></tr>`;
-  }
-}
 
 // ═══════════════════════════════════════════════════
 // MATÉRIA PRIMA / INSUMOS
@@ -665,14 +503,27 @@ async function carregarInsumosOP(opId) {
 async function salvarInsumos() {
   if (!opAtualId) return;
   try {
-    await apiRequest(`/ordens_producao/${opAtualId}/insumos`, {
+    const res = await apiRequest(`/ordens_producao/${opAtualId}/insumos`, {
       method: "POST",
       body: JSON.stringify({ insumos }),
     });
+    // Atualiza custos exibidos (insumos + prestadores)
+    if (res.custo_total != null) atualizarCustosExibidos(res);
   } catch (err) {
     showToast("Erro ao salvar insumos.", "error");
     console.error(err);
   }
+}
+
+function atualizarCustosExibidos(dados) {
+  if (dados == null) return;
+  // Aceita tanto objeto {custo_total, custo_unitario} quanto número direto
+  const total    = typeof dados === "object" ? dados.custo_total    : dados;
+  const unitario = typeof dados === "object" ? dados.custo_unitario : null;
+  const elTotal = document.getElementById("custo_total");
+  if (elTotal && total != null) elTotal.value = Number(total).toFixed(2);
+  const elUnit = document.getElementById("custo_unitario");
+  if (elUnit && unitario != null) elUnit.value = Number(unitario).toFixed(2);
 }
 
 // ─── Busca com debounce ───────────────────────────────────────────────────────
@@ -856,6 +707,10 @@ window.fecharModalOP = function() {
   const extraEl = document.getElementById("insumoInfoEmbalagem");
   if (extraEl) extraEl.innerHTML = "";
   renderInsumos();
+
+  perdasLinhas = [];
+  renderPerdas();
+
   _fecharOriginal();
 };
 
@@ -918,13 +773,16 @@ function renderPrestadores() {
   wrap.style.display = "";
   tbody.innerHTML = "";
 
+  const fmtData = (v) => v ? new Date(v).toLocaleDateString("pt-BR") : "—";
+  const fmtBRL  = (v) => Number(v || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 });
+
   opPrestadores.forEach(v => {
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${v.prestador_nome || "—"}</td>
-      <td>${v.prestador_servico || "—"}</td>
-      <td>${v.descricao || v.codigo_produto || "—"}</td>
-      <td>${Number(v.quantidade || 0).toLocaleString("pt-BR", {minimumFractionDigits: 2})}</td>
+      <td>${v.prestador_cnpj || "—"}</td>
+      <td>R$ ${fmtBRL(v.valor_servico)}</td>
+      <td>${fmtData(v.data_envio)}</td>
       <td><button class="btn-sm btn-danger" data-vid="${v.id}">✕</button></td>
     `;
     tr.querySelector("button").addEventListener("click", () => removerVinculoPrestador(v.id));
@@ -937,29 +795,32 @@ document.addEventListener("DOMContentLoaded", () => {
   const btnAdd = document.getElementById("btnAddPrestador");
   if (btnAdd) {
     btnAdd.addEventListener("click", async () => {
-      const prestadorId = document.getElementById("prestadorSelect")?.value;
-      const material    = document.getElementById("prestadorMaterial")?.value.trim();
-      const qtde = document.getElementById("prestadorQtde")?.value;
-      const obs  = document.getElementById("prestadorObs")?.value.trim();
+      const prestadorId    = document.getElementById("prestadorSelect")?.value;
+      const valorServico   = document.getElementById("prestadorValorServico")?.value;
+      const dataEnvio      = document.getElementById("prestadorDataEnvio")?.value;
+      const obs            = document.getElementById("prestadorObs")?.value.trim();
 
       if (!prestadorId) { showToast("Selecione um prestador.", "error"); return; }
       if (!opAtualId)   { showToast("Abra uma OP primeiro.", "error"); return; }
 
       try {
-        await apiRequest(`/prestadores/op/${opAtualId}`, {
+        const res = await apiRequest(`/prestadores/op/${opAtualId}`, {
           method: "POST",
           body: JSON.stringify({
-            prestador_id: prestadorId,
-            descricao: material || null,
-            quantidade: qtde || 0,
-            observacoes: obs || null,
+            prestador_id:     prestadorId,
+            valor_servico:    valorServico || 0,
+            data_envio:       dataEnvio || null,
+            observacoes:      obs || null,
           }),
         });
         // Limpa campos
-        document.getElementById("prestadorMaterial").value = "";
-        document.getElementById("prestadorQtde").value = "";
+        document.getElementById("prestadorValorServico").value = "";
+        document.getElementById("prestadorDataEnvio").value = "";
         document.getElementById("prestadorObs").value = "";
         document.getElementById("prestadorSelect").value = "";
+
+        // Atualiza custo total (insumos + prestadores)
+        if (res.custo_total != null) atualizarCustosExibidos(res);
 
         await carregarPrestadoresOP(opAtualId);
         showToast("Prestador vinculado!", "success");
@@ -1015,11 +876,126 @@ document.addEventListener("DOMContentLoaded", () => {
 async function removerVinculoPrestador(vinculoId) {
   if (!confirm("Remover este prestador da OP?")) return;
   try {
-    await apiRequest(`/prestadores/op/vinculo/${vinculoId}`, { method: "DELETE" });
+    const res = await apiRequest(`/prestadores/op/vinculo/${vinculoId}`, { method: "DELETE" });
     opPrestadores = opPrestadores.filter(v => v.id !== vinculoId);
     renderPrestadores();
+    // Atualiza custo total (insumos + prestadores)
+    if (res.custo_total != null) atualizarCustosExibidos(res);
     showToast("Vínculo removido.", "success");
   } catch (e) {
     showToast(e.message || "Erro ao remover.", "error");
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════
+//  PERDAS DE MATERIAL
+// ═══════════════════════════════════════════════════════════════════
+
+let perdasLinhas = []; // espelha os insumos da OP com qtde de perda editável
+
+// ─── Carregar perdas: espelha insumos e pré-preenche com perdas salvas ───────
+async function carregarPerdasOP(opId) {
+  const semItens  = document.getElementById("perdasSemItens");
+  const btnSalvar = document.getElementById("btnSalvarPerdas");
+  if (semItens) { semItens.textContent = "Carregando insumos..."; semItens.style.display = ""; }
+  if (btnSalvar) btnSalvar.style.display = "none";
+
+  try {
+    const resIns = await apiRequest(`/ordens_producao/${opId}/insumos`);
+    const insumosList = resIns.data || [];
+
+    let perdasSalvas = [];
+    try {
+      const resPerdas = await apiRequest(`/ordens_producao/${opId}/perdas`);
+      perdasSalvas = Array.isArray(resPerdas.data) ? resPerdas.data : [];
+    } catch (_) {}
+
+    perdasLinhas = insumosList.map(ins => {
+      const salva = perdasSalvas.find(p =>
+        (ins.material_id && p.material_id === ins.material_id) ||
+        (ins.codigo_produto && p.codigo_produto === ins.codigo_produto)
+      );
+      return {
+        material_id:    ins.material_id,
+        codigo_produto: ins.codigo_produto,
+        descricao:      ins.descricao,
+        unidade_medida: ins.unidade_medida || "un",
+        quantidade:     salva ? Number(salva.quantidade) : 0,
+        motivo:         salva?.motivo || "",
+      };
+    });
+
+    renderPerdas();
+  } catch (e) {
+    console.warn("Erro ao carregar perdas:", e.message);
+    perdasLinhas = [];
+    renderPerdas();
+  }
+}
+
+// ─── Render tabela de perdas editável ────────────────────────────
+function renderPerdas() {
+  const semItens  = document.getElementById("perdasSemItens");
+  const wrap      = document.getElementById("perdasTabelaWrap");
+  const tbody     = document.getElementById("perdasTbody");
+  const btnSalvar = document.getElementById("btnSalvarPerdas");
+  if (!semItens || !wrap || !tbody) return;
+
+  if (perdasLinhas.length === 0) {
+    semItens.textContent = "Esta OP não possui insumos cadastrados.";
+    semItens.style.display = "";
+    wrap.style.display = "none";
+    if (btnSalvar) btnSalvar.style.display = "none";
+    return;
+  }
+
+  semItens.style.display = "none";
+  wrap.style.display = "";
+  if (btnSalvar) btnSalvar.style.display = "";
+  tbody.innerHTML = "";
+
+  perdasLinhas.forEach((p, idx) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td style="font-size:12px">${p.codigo_produto || "—"}</td>
+      <td style="text-align:left;font-size:12px">${p.descricao}</td>
+      <td style="font-size:12px">${p.unidade_medida}</td>
+      <td><input type="number" min="0" step="any" value="${p.quantidade || 0}"
+          data-idx="${idx}" class="perda-qtde-input"
+          style="width:80px;padding:4px 8px;border-radius:6px;border:1.5px solid #334155;background:#1e293b;color:#f1f5f9;font-size:12px;text-align:center;"></td>
+      <td><input type="text" value="${p.motivo || ""}"
+          data-idx="${idx}" class="perda-motivo-input"
+          placeholder="Motivo (opcional)"
+          style="width:100%;min-width:100px;padding:4px 8px;border-radius:6px;border:1.5px solid #334155;background:#1e293b;color:#f1f5f9;font-size:12px;"></td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  tbody.querySelectorAll(".perda-qtde-input").forEach(input => {
+    input.addEventListener("input", () => {
+      perdasLinhas[Number(input.dataset.idx)].quantidade = Number(input.value) || 0;
+    });
+  });
+  tbody.querySelectorAll(".perda-motivo-input").forEach(input => {
+    input.addEventListener("input", () => {
+      perdasLinhas[Number(input.dataset.idx)].motivo = input.value;
+    });
+  });
+}
+
+// ─── Salvar perdas ────────────────────────────────────────────────
+document.getElementById("btnSalvarPerdas")?.addEventListener("click", async () => {
+  if (!opAtualId) return;
+  try {
+    await apiRequest(`/ordens_producao/${opAtualId}/perdas`, {
+      method: "PUT",
+      body: JSON.stringify({ perdas: perdasLinhas }),
+    });
+    showToast("Perdas salvas!", "success");
+  } catch (e) {
+    showToast(e.message || "Erro ao salvar perdas.", "error");
+  }
+});
+
+// eslint-disable-next-line no-unused-vars
+function removerPerda() {} // substituída pela edição direta na tabela

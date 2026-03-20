@@ -220,10 +220,10 @@ thead th {
 ═══════════════════════════════════════════════════════ */
 @media print {
 
-  /* ── Reset de página ── */
+  /* ── Remove cabeçalho/rodapé do browser (URL, data/hora) ── */
   @page {
     size: A4 portrait;
-    margin: 12mm 10mm 10mm 10mm;
+    margin: 0;
   }
 
   /* ── Esconde o que não vai no PDF ── */
@@ -231,15 +231,15 @@ thead th {
     display: none !important;
   }
 
-  /* ── Mostra o rodapé ── */
+  /* ── Mostra o rodapé do documento ── */
   .print-only {
     display: block !important;
   }
 
-  /* ── Body limpo ── */
+  /* ── Body: padding compensa a margem zero do @page ── */
   body {
     background: white !important;
-    padding: 0 !important;
+    padding: 10mm 11mm 8mm 11mm !important;
     margin: 0 !important;
     font-size: 11px !important;
     -webkit-print-color-adjust: exact !important;
@@ -259,49 +259,62 @@ thead th {
 
   /* ── Topo compacto ── */
   .topo {
-    padding-bottom: 10px !important;
-    margin-bottom: 10px !important;
+    padding-bottom: 8px !important;
+    margin-bottom: 8px !important;
   }
 
-  .empresa h2 { font-size: 18px !important; }
-  .empresa p { font-size: 11px !important; margin: 2px 0 !important; }
-  .nfe .titulo { font-size: 14px !important; }
-  .nfe .info { font-size: 11px !important; }
+  .empresa h2 { font-size: 16px !important; margin-bottom: 2px !important; }
+  .empresa p  { font-size: 10px !important; margin: 1px 0 !important; }
+  .nfe .titulo { font-size: 13px !important; }
+  .nfe .info   { font-size: 10px !important; margin-top: 4px !important; }
 
   /* ── Blocos compactos ── */
   .blocos {
-    gap: 10px !important;
+    gap: 8px !important;
   }
 
   .bloco {
-    padding: 8px 10px !important;
-    border-radius: 6px !important;
+    padding: 7px 9px !important;
+    border-radius: 5px !important;
     background: #f8fafc !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
 
   .bloco h4 {
-    font-size: 12px !important;
-    margin-bottom: 6px !important;
+    font-size: 11px !important;
+    margin: 0 0 5px 0 !important;
     color: var(--cor-secundaria) !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
 
   .bloco p {
-    font-size: 11px !important;
-    margin: 2px 0 !important;
+    font-size: 10px !important;
+    margin: 1px 0 !important;
+    line-height: 1.4 !important;
+  }
+
+  /* ── Espaçamentos entre seções ── */
+  .blocos + .blocos,
+  [style*="margin-top: 18px"] {
+    margin-top: 8px !important;
+  }
+
+  /* ── Texto de "sem itens" nas seções ── */
+  #semPedidos, #semInsumos, #semPrestadores, #semPerdas {
+    padding: 4px 0 !important;
+    font-size: 10px !important;
   }
 
   /* ── Tabelas compactas ── */
-  th, td {
-    padding: 4px 6px !important;
-    font-size: 10px !important;
-    border-color: #d1d5db !important;
+  table {
+    margin-top: 4px !important;
+    break-inside: auto !important;
   }
 
   thead {
+    display: table-header-group !important;
     background: var(--cor-primaria) !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
@@ -310,31 +323,15 @@ thead th {
   thead th {
     color: white !important;
     font-size: 9px !important;
+    padding: 4px 6px !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
 
-  table {
-    margin-top: 6px !important;
-  }
-
-  /* ── Espaçamentos entre seções ── */
-  .blocos + .blocos { margin-top: 10px !important; }
-  .bloco + .bloco { margin-top: 0 !important; }
-  [style*="margin-top: 18px"] { margin-top: 10px !important; }
-
-  /* ── Evitar quebra no meio de blocos ── */
-  .bloco {
-    break-inside: avoid !important;
-    page-break-inside: avoid !important;
-  }
-
-  table {
-    break-inside: auto !important;
-  }
-
-  thead {
-    display: table-header-group !important;
+  th, td {
+    padding: 3px 6px !important;
+    font-size: 10px !important;
+    border-color: #d1d5db !important;
   }
 
   tr {
@@ -342,10 +339,16 @@ thead th {
     page-break-inside: avoid !important;
   }
 
+  /* ── Evitar quebra no meio de blocos ── */
+  .bloco {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
   /* ── Rodapé do documento ── */
   .document-footer {
-    margin-top: 14px !important;
-    padding-top: 8px !important;
+    margin-top: 10px !important;
+    padding-top: 6px !important;
   }
 
   .footer-line {

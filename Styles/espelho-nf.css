@@ -1,0 +1,565 @@
+/* ═══════════════════════════════════════════════════════
+   ESPELHO DE NOTA FISCAL — CSS
+   Tela + Impressão/PDF (A4)
+═══════════════════════════════════════════════════════ */
+
+:root {
+  --cor-primaria:   #2563eb;
+  --cor-titulo-bg:  #1e3a8a;
+  --cor-fundo:      #f1f5f9;
+  --cor-card:       #ffffff;
+  --cor-borda:      #374151;
+  --cor-texto:      #111827;
+  --header-bg:      #1f2a6f;
+  --header-text:    #f8fafc;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 24px;
+  font-family: 'Segoe UI', Arial, sans-serif;
+  background: var(--cor-fundo);
+  color: var(--cor-texto);
+}
+
+/* ═══════ HEADER ═══════ */
+.header {
+  background: var(--header-bg);
+  padding: 14px 22px;
+  border-radius: 14px;
+  margin-bottom: 24px;
+  box-shadow: 0 8px 24px rgba(15,23,42,.2);
+  position: sticky;
+  top: 12px;
+  z-index: 10;
+}
+
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.header-left  { display: flex; align-items: center; gap: 12px; }
+.header-right { display: flex; align-items: center; gap: 8px; }
+
+.logo-badge {
+  width: 40px; height: 40px;
+  border-radius: 10px;
+  background: rgba(255,255,255,.15);
+  border: 1px solid rgba(255,255,255,.18);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800; color: #fff; font-size: 12px;
+}
+
+.header-title { color: #fff; font-size: 17px; font-weight: 700; margin: 0; }
+
+.btn-voltar, .btn-pdf, .btn-add-row, .btn-limpar {
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 12px;
+  transition: transform .15s, filter .15s;
+}
+.btn-voltar  { background: rgba(255,255,255,.12); color: #fff; border: 1px solid rgba(255,255,255,.16); }
+.btn-pdf     { background: #16a34a; color: #fff; }
+.btn-add-row { background: #2563eb; color: #fff; }
+.btn-limpar  { background: #64748b; color: #fff; }
+.btn-salvar  { background: #7c3aed; color: #fff; }
+.btn-voltar:hover, .btn-pdf:hover, .btn-add-row:hover, .btn-limpar:hover {
+  transform: translateY(-1px); filter: brightness(1.08);
+}
+
+/* ═══════ DOCUMENTO ═══════ */
+.documento {
+  max-width: 1050px;
+  margin: 0 auto;
+  background: #fff;
+  border: 1.5px solid var(--cor-borda);
+  padding: 16px 18px 12px;
+  font-size: 11px;
+}
+
+/* ── Topo ── */
+.doc-topo {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border: 1.5px solid var(--cor-borda);
+  padding: 8px 12px;
+  margin-bottom: 0;
+}
+
+.doc-logo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.logo-icon {
+  font-size: 28px;
+  color: #ca8a04;
+  line-height: 1;
+}
+
+.logo-texto {
+  font-size: 11px;
+  line-height: 1.3;
+  font-weight: 700;
+  color: var(--cor-texto);
+  text-transform: uppercase;
+  letter-spacing: .3px;
+}
+
+.logo-texto span { font-size: 9px; font-weight: 400; }
+
+.doc-logo-dir { text-align: right; }
+
+.doc-titulo-central { text-align: center; }
+
+.doc-titulo {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: var(--cor-texto);
+  text-transform: uppercase;
+}
+
+.doc-subtitulo {
+  font-size: 10px;
+  color: #6b7280;
+  margin-top: 2px;
+  letter-spacing: .5px;
+}
+
+/* ── Seções ── */
+.secao {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  border: 1.5px solid var(--cor-borda);
+  border-top: none;
+}
+
+.secao-titulo {
+  background: #e5e7eb;
+  border: 1.5px solid var(--cor-borda);
+  border-top: none;
+  font-weight: 800;
+  font-size: 10px;
+  letter-spacing: .8px;
+  text-align: center;
+  padding: 4px;
+  text-transform: uppercase;
+}
+
+.campo-grupo {
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--cor-borda);
+  padding: 4px 6px;
+}
+
+.campo-grupo:last-child { border-right: none; }
+
+.campo-grupo.pequeno { flex: 0.6; min-width: 80px; }
+.campo-grupo.medio   { flex: 1;   min-width: 130px; }
+.campo-grupo.grande  { flex: 2;   min-width: 200px; }
+.campo-grupo.full    { flex: 1 1 100%; }
+
+.campo-grupo label {
+  font-size: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .3px;
+  color: #4b5563;
+  margin-bottom: 2px;
+  white-space: nowrap;
+}
+
+.campo-doc {
+  border: none;
+  border-bottom: 1px solid #9ca3af;
+  background: transparent;
+  font-size: 10px;
+  font-family: inherit;
+  color: var(--cor-texto);
+  width: 100%;
+  padding: 1px 2px;
+  outline: none;
+}
+
+.campo-doc:focus { border-bottom-color: var(--cor-primaria); background: #eff6ff; }
+
+.maiusculo { text-transform: uppercase; }
+
+.campo-obs {
+  resize: vertical;
+  border: 1px solid #9ca3af;
+  border-radius: 3px;
+  padding: 3px 4px;
+  font-size: 10px;
+  font-family: inherit;
+  line-height: 1.4;
+}
+
+.campo-obs:focus { border-color: var(--cor-primaria); background: #eff6ff; outline: none; }
+
+/* ── Tabela de Material ── */
+.tabela-wrapper {
+  overflow-x: auto;
+  border: 1.5px solid var(--cor-borda);
+  border-top: none;
+}
+
+.tabela-material {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 900px;
+}
+
+.tabela-material th {
+  background: #e5e7eb;
+  border: 1px solid var(--cor-borda);
+  padding: 4px 3px;
+  font-size: 8.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  text-align: center;
+  white-space: nowrap;
+  letter-spacing: .2px;
+}
+
+.tabela-material td {
+  border: 1px solid #9ca3af;
+  padding: 1px 2px;
+  font-size: 10px;
+  vertical-align: middle;
+}
+
+.tabela-material td input {
+  width: 100%;
+  border: none;
+  background: transparent;
+  font-size: 10px;
+  font-family: inherit;
+  color: var(--cor-texto);
+  text-align: center;
+  padding: 2px 1px;
+  outline: none;
+}
+
+.tabela-material td input:focus { background: #eff6ff; }
+
+.tabela-material td.td-desc input { text-align: left; }
+.tabela-material td.td-val { text-align: right; }
+.tabela-material td input.inp-moeda { text-align: right; }
+
+/* Larguras das colunas */
+.col-cod  { width: 7%; }
+.col-desc { width: 21%; }
+.col-cst  { width: 4.5%; }
+.col-cfop { width: 4.5%; }
+.col-qtd  { width: 5.5%; }
+.col-vunit{ width: 7.5%; }
+.col-vtotal{ width: 8%; }
+.col-calc { width: 6%; }
+.col-icms { width: 7%; }
+.col-ipi  { width: 7%; }
+.col-liq  { width: 6%; }
+.col-alq  { width: 5%; }
+.col-st   { width: 6%; }
+.col-mva  { width: 5%; }
+.col-acao { width: 4%; }
+
+.btn-del-row {
+  background: #ef4444;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 10px;
+  padding: 2px 5px;
+  line-height: 1;
+}
+
+.btn-del-row:hover { background: #b91c1c; }
+
+/* ── Totais fiscais ── */
+.secao-totais {
+  display: flex;
+  border: 1.5px solid var(--cor-borda);
+  border-top: none;
+}
+
+.total-item {
+  flex: 1;
+  border-right: 1px solid var(--cor-borda);
+  display: flex;
+  flex-direction: column;
+}
+
+.total-item:last-child { border-right: none; }
+
+.total-item.destaque { background: #f0f4ff; }
+.total-item.maior    { background: #dbeafe; }
+
+.total-label {
+  font-size: 7.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  text-align: center;
+  padding: 3px 2px 2px;
+  border-bottom: 1px solid var(--cor-borda);
+  background: #e5e7eb;
+  line-height: 1.3;
+}
+
+.total-item.destaque .total-label { background: #c7d2fe; }
+.total-item.maior .total-label    { background: #93c5fd; }
+
+.total-valor {
+  font-size: 10px;
+  font-weight: 600;
+  text-align: right;
+  padding: 3px 4px;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.campo-total {
+  width: 100%;
+  border: none;
+  background: transparent;
+  font-size: 10px;
+  font-family: inherit;
+  font-weight: 600;
+  text-align: right;
+  color: var(--cor-texto);
+  padding: 0;
+  outline: none;
+}
+
+.campo-total:focus { background: #eff6ff; }
+
+/* ── Transporte ── */
+.secao-transporte { }
+
+/* ── Complementar / Observação ── */
+.secao-obs {
+  border: 1.5px solid var(--cor-borda);
+  border-top: none;
+}
+
+/* ── Rodapé ── */
+.doc-footer {
+  margin-top: 10px;
+  padding-top: 6px;
+}
+
+.footer-line {
+  height: 1px;
+  background: linear-gradient(to right, var(--cor-primaria), #d1d5db);
+  margin-bottom: 4px;
+}
+
+.footer-content {
+  display: flex;
+  justify-content: space-between;
+  font-size: 8px;
+  color: #9ca3af;
+}
+
+/* ═══════ SELECT (natureza) ═══════ */
+select.campo-doc {
+  border: none;
+  border-bottom: 1px solid #9ca3af;
+  background: transparent;
+  font-size: 10px;
+  font-family: inherit;
+  color: var(--cor-texto);
+  width: 100%;
+  padding: 1px 2px;
+  outline: none;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236b7280'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 4px center;
+  padding-right: 16px;
+}
+
+select.campo-doc:focus {
+  border-bottom-color: var(--cor-primaria);
+  background-color: #eff6ff;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%232563eb'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 4px center;
+}
+
+/* ═══════ AUTOCOMPLETE DROPDOWN ═══════ */
+.autocomplete-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.15);
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 100;
+}
+
+.autocomplete-item {
+  padding: 8px 10px;
+  cursor: pointer;
+  font-size: 11px;
+  border-bottom: 1px solid #f1f5f9;
+  transition: background .1s;
+}
+
+.autocomplete-item:last-child { border-bottom: none; }
+.autocomplete-item:hover { background: #eff6ff; }
+
+/* ═══════ HELPERS ═══════ */
+.no-print { }
+.print-only { display: none; }
+
+/* ═══════════════════════════════════════════════════════
+   @MEDIA PRINT — A4 sem cabeçalho/rodapé do browser
+═══════════════════════════════════════════════════════ */
+@media print {
+
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+
+  .no-print { display: none !important; }
+  .print-only { display: block !important; }
+
+  body {
+    background: white !important;
+    padding: 9mm 10mm 7mm 10mm !important;
+    margin: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  .documento {
+    max-width: 100% !important;
+    border: 1.5px solid #374151 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Inputs viram texto limpo */
+  .campo-doc,
+  .campo-total,
+  .tabela-material td input {
+    border: none !important;
+    background: transparent !important;
+    outline: none !important;
+  }
+
+  select.campo-doc {
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    background-image: none !important;
+    border: none !important;
+    background: transparent !important;
+  }
+
+  .campo-obs {
+    border: none !important;
+    background: transparent !important;
+    resize: none !important;
+  }
+
+  /* Remove botão de deletar linha */
+  .col-acao, .btn-del-row { display: none !important; }
+
+  /* Esconde linhas vazias */
+  .linha-material:not(.tem-dados) { display: none !important; }
+
+  /* Compactar tabela */
+  .tabela-material { min-width: unset !important; }
+
+  .tabela-material th {
+    font-size: 7px !important;
+    padding: 3px 2px !important;
+    background: #e5e7eb !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .tabela-material td {
+    font-size: 9px !important;
+    padding: 1px 2px !important;
+  }
+
+  .tabela-material td input {
+    font-size: 9px !important;
+  }
+
+  /* Seção títulos */
+  .secao-titulo {
+    font-size: 9px !important;
+    padding: 3px !important;
+    background: #e5e7eb !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Totais */
+  .total-label {
+    font-size: 7px !important;
+    padding: 2px !important;
+    background: #e5e7eb !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .total-item.destaque .total-label { background: #c7d2fe !important; }
+  .total-item.maior .total-label    { background: #93c5fd !important; }
+  .total-item.destaque { background: #f0f4ff !important; }
+  .total-item.maior    { background: #dbeafe !important; }
+
+  .total-valor { font-size: 9px !important; padding: 2px 3px !important; }
+  .campo-total { font-size: 9px !important; }
+
+  /* Campos do formulário */
+  .campo-grupo { padding: 3px 5px !important; }
+  .campo-grupo label { font-size: 7px !important; }
+  .campo-doc { font-size: 9px !important; }
+
+  /* Topo */
+  .doc-topo { padding: 5px 8px !important; }
+  .doc-titulo { font-size: 13px !important; }
+  .doc-subtitulo { font-size: 9px !important; }
+  .logo-icon { font-size: 22px !important; }
+  .logo-texto { font-size: 9px !important; }
+
+  /* Rodapé */
+  .doc-footer { margin-top: 6px !important; }
+  .footer-content { font-size: 7px !important; }
+
+  /* Overflow */
+  .tabela-wrapper { overflow: visible !important; }
+
+  /* Evita quebra dentro das seções */
+  .secao, .secao-totais { break-inside: avoid !important; }
+}

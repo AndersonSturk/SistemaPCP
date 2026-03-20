@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Entrada de Notas — PCP</title>
+  <link rel="stylesheet" href="../Styles/shared-style.css">
+  <style>
+    .page { max-width: 1200px; margin: 0 auto; }
+
+    /* Drop zone */
+    .drop-zone {
+      border: 2.5px dashed var(--border-2);
+      border-radius: 16px;
+      padding: 48px 24px;
+      text-align: center;
+      margin-bottom: 24px;
+      transition: border-color .2s, background .2s;
+      cursor: pointer;
+      background: var(--surface);
+    }
+    .drop-zone.dragover {
+      border-color: var(--primary);
+      background: rgba(59,130,246,.08);
+    }
+    .drop-zone-icon { font-size: 40px; margin-bottom: 10px; }
+    .drop-zone-text { font-size: 15px; color: var(--muted); }
+    .drop-zone-text strong { color: var(--primary); }
+    .drop-zone input[type="file"] { display: none; }
+
+    /* NF info card */
+    .nf-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+      margin-bottom: 20px;
+      display: none;
+    }
+    .nf-card.show { display: block; }
+    .nf-header {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      gap: 16px; flex-wrap: wrap; margin-bottom: 16px;
+    }
+    .nf-titulo { font-size: 18px; font-weight: 800; color: var(--text); }
+    .nf-subtitulo { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .nf-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .nf-campo {
+      background: var(--surface-2);
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+    .nf-campo-label { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+    .nf-campo-valor { font-size: 14px; font-weight: 600; color: var(--text); margin-top: 2px; word-break: break-all; }
+
+    /* Tabela de itens */
+    .table-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      margin-bottom: 20px;
+      display: none;
+    }
+    .table-card.show { display: block; }
+    .table-scroll { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; min-width: 800px; }
+    thead th {
+      padding: 12px 14px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      color: var(--muted);
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface-2);
+      white-space: nowrap;
+    }
+    tbody td {
+      padding: 10px 14px;
+      font-size: 13px;
+      color: var(--text);
+      border-bottom: 1px solid var(--border);
+    }
+    tbody tr:hover { background: rgba(59,130,246,.04); }
+
+    /* Status badges */
+    .badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .3px;
+    }
+    .badge-ok { background: rgba(34,197,94,.15); color: #22c55e; }
+    .badge-warn { background: rgba(245,158,11,.15); color: #f59e0b; }
+
+    /* Botoes */
+    .btn-confirmar {
+      padding: 12px 28px;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 14px;
+      background: var(--success);
+      color: #fff;
+      transition: transform .15s, filter .15s;
+      display: none;
+    }
+    .btn-confirmar.show { display: inline-block; }
+    .btn-confirmar:hover { transform: translateY(-1px); filter: brightness(1.1); }
+    .btn-confirmar:disabled { opacity: .5; cursor: not-allowed; transform: none; filter: none; }
+
+    .btn-limpar {
+      padding: 12px 28px;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 14px;
+      background: var(--surface-2);
+      color: var(--muted);
+      margin-left: 10px;
+      display: none;
+    }
+    .btn-limpar.show { display: inline-block; }
+    .btn-limpar:hover { color: var(--text); }
+
+    /* Historico */
+    .historico-titulo {
+      font-size: 16px; font-weight: 700; color: var(--text);
+      margin: 32px 0 12px;
+    }
+
+    /* Resultado pos-processamento */
+    .resultado-card {
+      background: var(--surface);
+      border: 1px solid rgba(34,197,94,.3);
+      border-radius: 14px;
+      padding: 20px;
+      margin-bottom: 20px;
+      display: none;
+    }
+    .resultado-card.show { display: block; }
+    .resultado-titulo { font-size: 16px; font-weight: 800; color: var(--success); margin-bottom: 10px; }
+    .resultado-resumo { font-size: 13px; color: var(--muted); line-height: 1.6; }
+    .resultado-resumo strong { color: var(--text); }
+  </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="header">
+  <div class="header-content">
+    <div class="header-left">
+      <div class="logo">PCP</div>
+      <h2 class="header-text">Entrada de Notas</h2>
+    </div>
+    <div class="header-right">
+      <span id="userInfo"></span>
+      <button class="btn-voltar" onclick="window.location.href='Index.html'">← Voltar</button>
+    </div>
+  </div>
+</header>
+
+<div class="page">
+
+  <!-- DROP ZONE -->
+  <div class="drop-zone" id="dropZone">
+    <div class="drop-zone-icon">📥</div>
+    <div class="drop-zone-text">
+      Arraste o arquivo <strong>XML ou PDF da NF-e</strong> aqui<br>
+      <span style="font-size:12px;">ou clique para selecionar (.xml ou .pdf)</span>
+    </div>
+    <input type="file" id="inputXML" accept=".xml,.pdf">
+  </div>
+
+  <!-- INFO DA NF -->
+  <div class="nf-card" id="nfCard">
+    <div class="nf-header">
+      <div>
+        <div class="nf-titulo" id="nfTitulo">NF-e</div>
+        <div class="nf-subtitulo" id="nfSubtitulo"></div>
+      </div>
+    </div>
+    <div class="nf-grid" id="nfGrid"></div>
+  </div>
+
+  <!-- TABELA DE ITENS -->
+  <div class="table-card" id="tabelaCard">
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Cod. Produto</th>
+            <th>Descricao</th>
+            <th>NCM</th>
+            <th>CFOP</th>
+            <th>Unidade</th>
+            <th>Quantidade</th>
+            <th>Valor Unit.</th>
+            <th>Valor Total</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="corpoTabela"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- BOTOES -->
+  <div style="margin-bottom:24px;">
+    <button class="btn-confirmar" id="btnConfirmar">Confirmar Entrada no Estoque</button>
+    <button class="btn-limpar" id="btnLimpar">Limpar</button>
+  </div>
+
+  <!-- RESULTADO -->
+  <div class="resultado-card" id="resultadoCard">
+    <div class="resultado-titulo">Entrada processada com sucesso!</div>
+    <div class="resultado-resumo" id="resultadoResumo"></div>
+  </div>
+
+  <!-- HISTORICO -->
+  <div class="historico-titulo">Entradas Recentes</div>
+  <div class="table-card show" id="historicoCard">
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>NF</th>
+            <th>Emitente</th>
+            <th>CNPJ</th>
+            <th>Valor Total</th>
+            <th>Itens</th>
+            <th>Data Entrada</th>
+            <th>Registrado por</th>
+          </tr>
+        </thead>
+        <tbody id="corpoHistorico"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+  if (window.pdfjsLib) {
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  }
+</script>
+<script type="module" src="../Scripts/entrada-notas-script.js" defer></script>
+</body>
+</html>

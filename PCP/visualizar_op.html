@@ -30,14 +30,14 @@
       <p>CNPJ: 01.272.361/0001-50</p>
       <p>Avenida Comandante Sampaio, N° 781 - KM 18</p>
       <p>Osasco - SP | CEP: 06192-010</p>
-      <p>Telefone: (11) 4506-4700 | Email: <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="5424372414382137353631382030357a373b397a3626">[email&#160;protected]</a></p>
+      <p>Telefone: (11) 4506-4700 | Email: contato@lucabeltda.com.br</a></p>
       <p>Site: www.lucabeenergy.com.br</p>
     </div>
 
     <div class="nfe">
       <div class="titulo">ORDEM DE PRODUÇÃO (OP)</div>
       <div class="info">
-        <b>Modelo:</b> 003_1<br>
+        <b>Modelo:</b> 005_1<br>
         <b>Tipo:</b> Produção Interna<br>
         <b>Ambiente:</b> Produção
       </div>
@@ -75,37 +75,9 @@
     </div>
 
     <div class="bloco">
-      <h4>Resumo de Atendimento</h4>
-      <p><b>Total de clientes:</b> <span id="totalClientes">—</span></p>
-      <p><b>Total de pedidos:</b> <span id="totalPedidos">—</span></p>
-      <p><b>Qtde total solicitada:</b> <span id="qtdeSolicitada">—</span></p>
+      <h4>Destino da Produção</h4>
+      <p><b>Destino:</b> Estoque</p>
     </div>
-  </div>
-
-  <!-- ── Tabela: Pedidos vinculados ── -->
-  <div class="bloco" style="margin-top: 18px;">
-    <h4>Pedidos Vinculados</h4>
-
-    <div id="semPedidos" style="display:none; color:#94a3b8; font-size:14px; padding:16px 0;">
-      Nenhum pedido vinculado a esta OP.
-    </div>
-
-    <table id="tabelaPedidos" style="display:none;">
-      <thead>
-        <tr>
-          <th>#</th>
-          <th>Cliente</th>
-          <th>Estado</th>
-          <th>Cód. Cliente</th>
-          <th>Pedido Venda</th>
-          <th>Ordem Compra</th>
-          <th>Qtde Solicitada</th>
-          <th>Qtde Atendida</th>
-          <th>Data Contratual</th>
-        </tr>
-      </thead>
-      <tbody id="pedidosTabela"></tbody>
-    </table>
   </div>
 
   <!-- ── Tabela: Matéria Prima / Insumos ── -->
@@ -131,8 +103,8 @@
       <tbody id="insumosTabela"></tbody>
       <tfoot>
         <tr style="background:#f1f5f9;font-weight:700;">
-          <td colspan="5" style="padding:8px 10px;text-align:right;">Total insumos:</td>
-          <td style="padding:8px 10px;text-align:center;" id="insumosTotalViz">—</td>
+          <td colspan="6" style="padding:8px 10px;text-align:right;">Total insumos:</td>
+          <td style="padding:8px 10px;text-align:center;font-weight:700" id="insumosTotalViz">—</td>
         </tr>
       </tfoot>
     </table>
@@ -149,17 +121,36 @@
         <tr>
           <th>#</th>
           <th>Prestador</th>
-          <th>Serviço</th>
           <th>CNPJ</th>
-          <th>Material Enviado</th>
-          <th>Quantidade</th>
+          <th>Valor Serviço</th>
+          <th>Data Envio</th>
         </tr>
       </thead>
       <tbody id="prestadoresTabela"></tbody>
-
     </table>
   </div>
 
+
+  <!-- ── Perdas de Material ── -->
+  <div class="bloco" style="margin-top: 18px;">
+    <h4>Perdas de Material</h4>
+    <div id="semPerdas" style="color:#94a3b8; font-size:14px; padding:16px 0;">
+      Nenhuma perda de material registrada.
+    </div>
+    <table id="tabelaPerdas" style="display:none;">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Código</th>
+          <th>Descrição</th>
+          <th>Quantidade</th>
+          <th>Unidade</th>
+          <th>Motivo</th>
+        </tr>
+      </thead>
+      <tbody id="perdasTabela"></tbody>
+    </table>
+  </div>
 
   <!-- ── Rodapé do documento (só aparece no PDF) ── -->
   <div class="document-footer print-only">
@@ -172,7 +163,7 @@
     </div>
     </div>
 
-    <script type="module" src="../Scripts/visualizar_op.js"></script>
+    <script type="module" src="../Scripts/visualizar_op.js" defer></script>
 
   </body>
  

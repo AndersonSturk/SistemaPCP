@@ -10,7 +10,6 @@ if (userInfoEl) userInfoEl.innerText = user.nome;
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const fmt         = (v) => (v != null && v !== "") ? v : "—";
 const fmtData     = (v) => v ? new Date(v).toLocaleDateString("pt-BR")  : "—";
-const fmtDataHora = (v) => v ? new Date(v).toLocaleString("pt-BR")      : "—";
 const fmtMoeda    = (v) => Number(v || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 });
 
 // ─── Badge de status ──────────────────────────────────────────────────────────
@@ -83,22 +82,21 @@ async function carregarOP() {
   if (!id) { showToast("ID da OP não informado.", "error"); return; }
 
   try {
-    let op, pedidos = [];
+    let op;
 
     try {
-      const res = await apiRequest(`/op/${id}`);
-      op      = res.data;
-      pedidos = op.pedidos || [];
-    } catch {
       const res = await apiRequest(`/ordens_producao/${id}`);
+      op = res.data;
+    } catch {
+      const res = await apiRequest(`/op/${id}`);
       op = res.data;
     }
 
     // ── Dados da OP ──
     document.getElementById("opNumero").innerText     = fmt(op.numero_op);
-    document.getElementById("dataCriacao").innerText  = fmtDataHora(op.data_criacao);
+    document.getElementById("dataCriacao").innerText  = fmtData(op.data_criacao);
     document.getElementById("statusTxt").innerHTML    = badgeStatus(op.status);
-    document.getElementById("dataFinalTxt").innerText = fmtDataHora(op.data_finalizacao);
+    document.getElementById("dataFinalTxt").innerText = fmtData(op.data_finalizacao);
     document.getElementById("observacoes").innerText  = fmt(op.observacoes);
 
     // ── Produto ──
@@ -109,68 +107,23 @@ async function carregarOP() {
     document.getElementById("custoUnitario").innerText = fmtMoeda(op.custo_unitario);
     document.getElementById("custoTotal").innerText    = fmtMoeda(op.custo_total);
 
-    // ── Tabela de pedidos vinculados ──
-    renderPedidos(pedidos);
-
     // ── Tabela de insumos ──
     try {
       const ri = await apiRequest(`/ordens_producao/${id}/insumos`);
       renderInsumos(ri.data || []);
-    } catch {
+    } catch (errIns) {
+      console.error("Erro ao carregar insumos da OP:", errIns);
       renderInsumos([]);
     }
 
-    // ── Prestadores e estoque em produção ──
+    // ── Prestadores e perdas ──
     await carregarPrestadores(id);
+    await carregarPerdas(id);
 
   } catch (err) {
     console.error("Erro ao carregar OP:", err);
     showToast("Erro ao carregar dados da OP.", "error");
   }
-}
-
-// ─── Renderizar tabela de pedidos vinculados ──────────────────────────────────
-function renderPedidos(pedidos) {
-  const tabela     = document.getElementById("tabelaPedidos");
-  const semPedidos = document.getElementById("semPedidos");
-  const tbody      = document.getElementById("pedidosTabela");
-
-  if (!pedidos || pedidos.length === 0) {
-    tabela.style.display     = "none";
-    semPedidos.style.display = "block";
-
-    document.getElementById("totalClientes").innerText  = "0";
-    document.getElementById("totalPedidos").innerText   = "0";
-    document.getElementById("qtdeSolicitada").innerText = "0";
-    return;
-  }
-
-  semPedidos.style.display = "none";
-  tabela.style.display     = "table";
-
-  const totalSolicitada = pedidos.reduce((s, p) => s + Number(p.qtde_solicitada || 0), 0);
-  const clientesUnicos  = [...new Set(pedidos.map(p => p.cliente).filter(Boolean))];
-
-  document.getElementById("totalClientes").innerText  = clientesUnicos.length;
-  document.getElementById("totalPedidos").innerText   = pedidos.length;
-  document.getElementById("qtdeSolicitada").innerText = totalSolicitada;
-
-  tbody.innerHTML = "";
-  pedidos.forEach((p, i) => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${i + 1}</td>
-      <td style="text-align:left;font-weight:600">${fmt(p.cliente)}</td>
-      <td>${fmt(p.estado)}</td>
-      <td>${fmt(p.codigo_cliente)}</td>
-      <td>${fmt(p.pedido_venda)}</td>
-      <td>${fmt(p.ordem_compra)}</td>
-      <td>${fmt(p.qtde_solicitada)}</td>
-      <td style="font-weight:700;color:#4ade80">${fmt(p.qtde_atendida || '—')}</td>
-      <td>${fmtData(p.data_contratual)}</td>
-    `;
-    tbody.appendChild(tr);
-  });
 }
 
 // ─── Renderizar tabela de insumos ─────────────────────────────────────────────
@@ -240,10 +193,9 @@ async function carregarPrestadores(opId) {
       tr.innerHTML = `
         <td>${i + 1}</td>
         <td>${v.prestador_nome || "—"}</td>
-        <td>${v.prestador_servico || "—"}</td>
         <td>${v.prestador_cnpj || "—"}</td>
-        <td>${v.descricao || v.codigo_produto || "—"}</td>
-        <td>${Number(v.quantidade || 0).toLocaleString("pt-BR", {minimumFractionDigits: 2})}</td>
+        <td>R$ ${Number(v.valor_servico || 0).toLocaleString("pt-BR", {minimumFractionDigits: 2})}</td>
+        <td>${v.data_envio ? new Date(v.data_envio).toLocaleDateString("pt-BR") : "—"}</td>
       `;
       tbody.appendChild(tr);
     });
@@ -297,5 +249,46 @@ async function carregarEstoqueProducao(opId) {
 
   } catch (e) {
     console.warn("Erro ao carregar estoque em produção:", e.message);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  PERDAS DE MATERIAL — visualizar_op.js
+// ═══════════════════════════════════════════════════════════════
+
+async function carregarPerdas(opId) {
+  try {
+    const res   = await apiRequest(`/ordens_producao/${opId}/perdas`);
+    const lista = Array.isArray(res.data) ? res.data : [];
+
+    const semEl = document.getElementById("semPerdas");
+    const tabEl = document.getElementById("tabelaPerdas");
+    const tbody = document.getElementById("perdasTabela");
+    if (!semEl || !tabEl || !tbody) return;
+
+    if (lista.length === 0) {
+      semEl.style.display = "";
+      tabEl.style.display = "none";
+      return;
+    }
+
+    semEl.style.display = "none";
+    tabEl.style.display = "table";
+    tbody.innerHTML = "";
+
+    lista.forEach((p, i) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${i + 1}</td>
+        <td>${p.codigo_produto || "—"}</td>
+        <td style="text-align:left">${p.descricao}</td>
+        <td>${Number(p.quantidade).toLocaleString("pt-BR", { minimumFractionDigits: 3 })}</td>
+        <td>${p.unidade_medida}</td>
+        <td>${p.motivo || "—"}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  } catch (e) {
+    console.warn("Erro ao carregar perdas:", e.message);
   }
 }

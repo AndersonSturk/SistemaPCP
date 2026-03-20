@@ -35,15 +35,10 @@ function setupEventos() {
     });
   }
 
-  // Fecha modal clicando no overlay (fora do card)
-  if (modalPedido) {
-    modalPedido.addEventListener("click", (e) => {
-      if (e.target === modalPedido) fecharModal();
-    });
-  }
 
   // ── Auto-busca: codigo_cliente → material ──
   const inputCodigoCliente = document.getElementById("codigo_cliente");
+  const inputCliente       = document.getElementById("cliente");
   if (inputCodigoCliente) {
     let debounceCC = null;
     inputCodigoCliente.addEventListener("input", () => {
@@ -55,6 +50,13 @@ function setupEventos() {
     inputCodigoCliente.addEventListener("blur", () => {
       const val = inputCodigoCliente.value.trim();
       if (val) buscarMaterialPorCodigoCliente(val);
+    });
+  }
+  // Re-busca material quando o nome do cliente muda (afeta regra de produto por cliente)
+  if (inputCliente && inputCodigoCliente) {
+    inputCliente.addEventListener("blur", () => {
+      const cod = inputCodigoCliente.value.trim();
+      if (cod) buscarMaterialPorCodigoCliente(cod);
     });
   }
 
@@ -85,9 +87,9 @@ async function carregarPedidos(cliente = "", status = "") {
     pedidos.forEach((p) => {
       const tr = document.createElement("tr");
       tr.innerHTML = `
-        <td>${p.id}</td>
+        <td style="font-weight:600">${p.ordem_compra || "—"}</td>
         <td>${p.cliente || p.codigo_cliente || "—"}</td>
-        <td>${p.pedido_venda || "—"}</td>
+        <td>${p.codigo_produto || p.zerb ? `<strong>${p.codigo_produto || p.zerb}</strong> — ` : ""}${p.descricao_material || "—"}</td>
         <td>${p.qtde_solicitada || "—"}</td>
         <td><span class="badge badge-${badgeClass(p.status_producao)}">${p.status_producao || "—"}</span></td>
         <td>
@@ -119,7 +121,8 @@ async function buscarMaterialPorCodigoCliente(codigoCliente) {
   if (zerbField) zerbField.value = "";
 
   try {
-    const res  = await apiRequest(`/cliente-material/${encodeURIComponent(codigoCliente)}`);
+    const clienteNome = document.getElementById("cliente")?.value?.trim() || "";
+    const res  = await apiRequest(`/cliente-material/${encodeURIComponent(codigoCliente)}?cliente=${encodeURIComponent(clienteNome)}`);
     const data = res.data || res;
 
     if (data && (data.material_id || data.codigo_zerb)) {

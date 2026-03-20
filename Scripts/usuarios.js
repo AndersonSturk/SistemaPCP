@@ -33,10 +33,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   document.getElementById("btnSalvarUsuario").addEventListener("click", salvarUsuario);
 
-  modalUsuario.addEventListener("click", (e) => {
-    if (e.target === modalUsuario) fecharModal();
-  });
-
   let debounce = null;
   buscaUsuario.addEventListener("input", () => {
     clearTimeout(debounce);
@@ -71,15 +67,20 @@ async function carregarUsuarios() {
       const perfilBadge = {
         admin: "badge-danger",
         pcp: "badge-info",
-        logistica: "badge-warning",
-        vendas: "badge-success",
+        producao: "badge-warning",
+        logistica: "badge-success",
+        vendas: "badge-default",
+      };
+      const perfilLabel = {
+        admin: "Admin", pcp: "PCP", producao: "Produção",
+        logistica: "Logística", vendas: "Vendas",
       };
 
       tr.innerHTML = `
         <td>${u.id}</td>
         <td>${u.nome}</td>
         <td>${u.email}</td>
-        <td><span class="badge ${perfilBadge[u.perfil] || "badge-default"}">${u.perfil}</span></td>
+        <td><span class="badge ${perfilBadge[u.perfil] || "badge-default"}">${perfilLabel[u.perfil] || u.perfil}</span></td>
         <td><span class="badge ${u.ativo ? "badge-success" : "badge-default"}">${u.ativo ? "Ativo" : "Inativo"}</span></td>
         <td>
           <button class="btn btn-primary btn-sm btn-editar">Editar</button>

@@ -251,6 +251,20 @@
   <div class="top-bar">
     <button class="btn btn-success" id="btnAdicionar">+ Novo Material</button>
     <input type="text" id="buscaProduto" placeholder="Buscar por código ou descrição...">
+    <select id="filtroSituacao" style="padding:9px 13px;border-radius:10px;border:1.5px solid var(--border-2);background:var(--surface-2);color:var(--text);font-size:13px;min-width:130px">
+      <option value="">Todos</option>
+      <option value="ativo">Ativos</option>
+      <option value="inativo">Inativos</option>
+    </select>
+    <select id="filtroTipo" style="padding:9px 13px;border-radius:10px;border:1.5px solid var(--border-2);background:var(--surface-2);color:var(--text);font-size:13px;min-width:160px">
+      <option value="">Todos os tipos</option>
+      <option value="revenda">Revenda</option>
+      <option value="produzido">Produzido</option>
+      <option value="insumo">Insumo</option>
+      <option value="material">Material</option>
+      <option value="em_processo">Em Processo</option>
+      <option value="apenas_temporario">Temporário</option>
+    </select>
   </div>
 
   <div class="table-card">
@@ -261,14 +275,18 @@
             <th>Código</th>
             <th>Descrição</th>
             <th>Un.</th>
+            <th>Tipo</th>
+            <th>Grupo</th>
+            <th>Subgrupo</th>
+            <th>Marca</th>
+            <th>Situação</th>
             <th>Estoque</th>
             <th>Custo Unit.</th>
-            <th>Ficha Técnica</th>
             <th>Ações</th>
           </tr>
         </thead>
         <tbody id="tabelaMateriais">
-          <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px">Carregando...</td></tr>
+          <tr><td colspan="11" style="text-align:center;color:var(--muted);padding:32px">Carregando...</td></tr>
         </tbody>
       </table>
     </div>
@@ -320,9 +338,47 @@
             <option value="conj">conj — Conjunto</option>
           </select>
         </div>
+        <div class="field">
+          <label>Tipo</label>
+          <select id="tipo">
+            <option value="">— Não definido —</option>
+            <option value="revenda">Revenda</option>
+            <option value="produzido">Produzido</option>
+            <option value="insumo">Insumo</option>
+            <option value="material">Material</option>
+            <option value="em_processo">Em Processo</option>
+            <option value="apenas_temporario">Temporário</option>
+          </select>
+        </div>
+        <div class="field span2">
+          <label>Grupo</label>
+          <div style="position:relative">
+            <input type="text" id="grupo" placeholder="Ex: ABRACADEIRA, CABO, MATERIAL ELETRICO..." autocomplete="off">
+            <div id="grupoSuggestions" style="display:none;position:absolute;top:100%;left:0;right:0;background:#1e2d45;border:1.5px solid var(--border-2);border-radius:10px;max-height:160px;overflow-y:auto;z-index:200;box-shadow:0 8px 24px rgba(0,0,0,.3)"></div>
+          </div>
+        </div>
+        <div class="field">
+          <label>Subgrupo</label>
+          <input type="text" id="subgrupo" placeholder="Ex: TIPO D, NYLON, PVC...">
+        </div>
+        <div class="field">
+          <label>Situação</label>
+          <select id="situacao">
+            <option value="ativo">Ativo</option>
+            <option value="inativo">Inativo</option>
+          </select>
+        </div>
+        <div class="field span2">
+          <label>Marca</label>
+          <input type="text" id="marca" placeholder="Ex: 3M, ABB, HELLERMANN..." required>
+        </div>
         <div class="field span2">
           <label>Descrição</label>
           <input type="text" id="descricao" placeholder="Descrição completa do material" required>
+        </div>
+        <div class="field span2">
+          <label>Descrição Detalhada <span style="font-weight:400;text-transform:none;color:#64748b">(aparece na Ficha Técnica)</span></label>
+          <textarea id="descricao_detalhada" rows="3" placeholder="Descrição técnica completa: especificações, dimensões, materiais utilizados, normas aplicáveis, cor, acabamento..." style="resize:vertical;min-height:60px"></textarea>
         </div>
         <div class="field">
           <label>Quantidade em Estoque</label>
@@ -330,7 +386,54 @@
         </div>
         <div class="field">
           <label>Custo Unitário (R$)</label>
-          <input type="number" id="custo_fornecedor" value="0" min="0" step="0.01">
+          <input type="number" id="custo_fornecedor" value="0" min="0" step="0.0001">
+        </div>
+        <div class="field">
+          <label>Qtde por Embalagem</label>
+          <input type="number" id="qtde_embalagem" value="" min="0" step="1" placeholder="Ex: 100">
+        </div>
+        <div class="field">
+          <label>Estoque Mínimo</label>
+          <input type="number" id="estoque_minimo" value="0" min="0" step="any" placeholder="Alerta se abaixo">
+        </div>
+
+        <!-- Conversão de unidade (compra → estoque) -->
+        <div class="span2" style="margin-top:6px">
+          <div style="background:rgba(59,130,246,.05);border:1px solid rgba(59,130,246,.15);border-radius:10px;padding:14px 16px">
+            <div style="font-size:11px;font-weight:700;color:#60a5fa;text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px">
+              Conversão de Unidade (Compra → Estoque)
+            </div>
+            <p style="font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.5">
+              Se o material entra em uma unidade diferente da que é controlado (ex: compra em <strong style="color:#93c5fd">rolo</strong> mas estoca em <strong style="color:#93c5fd">metros</strong>), configure abaixo. Na entrada de NF, a quantidade será convertida automaticamente.
+            </p>
+            <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end">
+              <div class="field" style="margin:0">
+                <label>Unidade de Compra (NF)</label>
+                <select id="unidade_compra">
+                  <option value="">Mesma do estoque</option>
+                  <option value="rolo">rolo — Rolo</option>
+                  <option value="bobina">bobina — Bobina</option>
+                  <option value="cx">cx — Caixa</option>
+                  <option value="fardo">fardo — Fardo</option>
+                  <option value="pct">pct — Pacote</option>
+                  <option value="sc">sc — Saco</option>
+                  <option value="un">un — Unidade</option>
+                  <option value="pc">pc — Peça</option>
+                  <option value="par">par — Par</option>
+                  <option value="kg">kg — Quilograma</option>
+                  <option value="l">l — Litro</option>
+                  <option value="gl">gl — Galão</option>
+                  <option value="tb">tb — Tubo</option>
+                  <option value="barra">barra — Barra</option>
+                </select>
+              </div>
+              <div class="field" style="margin:0">
+                <label>Fator de Conversão</label>
+                <input type="number" id="fator_conversao" value="1" min="0.0001" step="any" placeholder="Ex: 25">
+              </div>
+              <div id="conversaoPreview" style="font-size:11px;color:#93c5fd;font-weight:600;padding-bottom:10px;white-space:nowrap"></div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -375,9 +478,8 @@
         <button class="btn btn-primary" id="btnFtAddManual" style="white-space:nowrap">Adicionar</button>
       </div>
 
-      <div class="ft-list" id="ftList">
-        <div class="ft-empty" id="ftEmpty">Nenhum insumo na ficha técnica. Busque ou adicione manualmente.</div>
-      </div>
+      <div class="ft-empty" id="ftEmpty">Nenhum insumo na ficha técnica. Busque ou adicione manualmente.</div>
+      <div class="ft-list" id="ftList"></div>
     </div>
 
     <div class="modal-footer">
@@ -387,6 +489,6 @@
   </div>
 </div>
 
-<script type="module" src="../Scripts/produtos-script.js"></script>
+<script type="module" src="../Scripts/produtos-script.js" defer></script>
 </body>
 </html>

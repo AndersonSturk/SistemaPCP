@@ -10,6 +10,59 @@ if (!["admin", "pcp", "logistica"].includes(user.perfil)) {
   setTimeout(() => (window.location.href = "index.html"), 1500);
 }
 
+function setText(id, text) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.innerText = text;
+}
+
+function formatDateTime(value, fallback = "—") {
+  if (!value) return fallback;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return fallback;
+  return date.toLocaleString("pt-BR");
+}
+
+function createTableRow(columns = []) {
+  const tr = document.createElement("tr");
+  columns.forEach(col => {
+    const td = document.createElement("td");
+    td.textContent = col;
+    tr.appendChild(td);
+  });
+  return tr;
+}
+
+function renderLogs(logs) {
+  const container = document.getElementById("listaLogs");
+  if (!container) return;
+  container.innerHTML = "";
+
+  if (!logs.length) {
+    const p = document.createElement("p");
+    p.style.color = "#888";
+    p.style.fontSize = "13px";
+    p.textContent = "Nenhum log registrado.";
+    container.appendChild(p);
+    return;
+  }
+
+  logs.forEach(l => {
+    const item = document.createElement("div");
+    item.className = "log-item";
+
+    const date = document.createElement("b");
+    date.textContent = formatDateTime(l.data, "—");
+    item.appendChild(date);
+
+    const pre = document.createElement("pre");
+    pre.textContent = typeof l.depois === "string" ? l.depois : JSON.stringify(l.depois, null, 2);
+    item.appendChild(pre);
+
+    container.appendChild(item);
+  });
+}
+
 // ─── Parâmetros da URL ─────────────────────────────────────────
 const urlParams = new URLSearchParams(window.location.search);
 const opId = urlParams.get("id");
@@ -31,26 +84,13 @@ async function carregarOP() {
     }
 
     // Informações principais
-    document.getElementById("opId").innerText = op.numero_op || op.id;
-
-    document.getElementById("dataCriacao").innerText = op.data_criacao
-      ? new Date(op.data_criacao).toLocaleString("pt-BR")
-      : "—";
-
-    document.getElementById("statusTxt").innerText = op.status;
-
-    document.getElementById("dataFinalTxt").innerText = op.data_finalizacao
-      ? new Date(op.data_finalizacao).toLocaleString("pt-BR")
-      : "Em andamento";
-
-    document.getElementById("responsavelTxt").innerText =
-      op.responsavel || "—";
-
-    document.getElementById("codigoItem").innerText =
-      op.codigo_produto || "—";
-
-    document.getElementById("descricao").innerText =
-      op.descricao_material || "—";
+    setText("opId", op.numero_op || op.id);
+    setText("dataCriacao", formatDateTime(op.data_criacao));
+    setText("statusTxt", op.status || "—");
+    setText("dataFinalTxt", op.data_finalizacao ? formatDateTime(op.data_finalizacao, "Em andamento") : "Em andamento");
+    setText("responsavelTxt", op.responsavel || "—");
+    setText("codigoItem", op.codigo_produto || "—");
+    setText("descricao", op.descricao_material || "—");
 
     // Quantidade principal (usa qtde_total ou quantidade)
     const quantidade = op.qtde_total || op.quantidade || 0;
@@ -76,15 +116,25 @@ async function carregarOP() {
     }
 
     // ─── Tabela de itens ───────────────────────────────────────
-    document.getElementById("itensTabela").innerHTML = `
-      <tr>
-        <td>${op.codigo_produto || "—"}</td>
-        <td>${op.descricao_material || "—"}</td>
-        <td>${quantidade} ${op.unidade_medida || ""}</td>
-        <td>R$ ${Number(op.custo_unitario || 0).toFixed(2)}</td>
-        <td>R$ ${Number(op.custo_total || 0).toFixed(2)}</td>
-      </tr>
-    `;
+    const itensTabela = document.getElementById("itensTabela");
+    itensTabela.innerHTML = "";
+    const row = document.createElement("tr");
+
+    const cols = [
+      op.codigo_produto || "—",
+      op.descricao_material || "—",
+      `${quantidade} ${op.unidade_medida || ""}`,
+      `R$ ${Number(op.custo_unitario || 0).toFixed(2)}`,
+      `R$ ${Number(op.custo_total || 0).toFixed(2)}`,
+    ];
+
+    cols.forEach(text => {
+      const td = document.createElement("td");
+      td.textContent = text;
+      row.appendChild(td);
+    });
+
+    itensTabela.appendChild(row);
 
     // Se o backend retornar pedidos vinculados
     if (op.pedidos && op.pedidos.length > 0) {
@@ -103,31 +153,17 @@ async function carregarLogs() {
   try {
     const res = await apiRequest(`/ordens_producao/${opId}/logs`);
     const logs = res.data || [];
-    const container = document.getElementById("listaLogs");
-    container.innerHTML = "";
-
-    if (logs.length === 0) {
-      container.innerHTML =
-        `<p style="color:#888;font-size:13px;">Nenhum log registrado.</p>`;
-      return;
-    }
-
-    logs.forEach((l) => {
-      container.innerHTML += `
-        <div class="log-item">
-          <b>${new Date(l.data).toLocaleString("pt-BR")}</b>
-          <pre>${
-            typeof l.depois === "string"
-              ? l.depois
-              : JSON.stringify(l.depois, null, 2)
-          }</pre>
-        </div>
-      `;
-    });
+    renderLogs(logs);
   } catch (err) {
     console.warn("Logs indisponíveis:", err.message);
-    document.getElementById("listaLogs").innerHTML =
-      `<p style="color:#888;font-size:13px;">Logs indisponíveis.</p>`;
+    const container = document.getElementById("listaLogs");
+    if (!container) return;
+    container.innerHTML = "";
+    const msg = document.createElement("p");
+    msg.style.color = "#888";
+    msg.style.fontSize = "13px";
+    msg.textContent = "Logs indisponíveis.";
+    container.appendChild(msg);
   }
 }
 

@@ -4,101 +4,35 @@ const user = getUser();
 if (!user) window.location.href = "login.html";
 
 // ── Estado ────────────────────────────────────────────────────────────────────
-let pedidoSelecionado  = null;
 let materialSelecionado = null;
-let itens              = [];
-let pedidoTimer        = null;
-let materialTimer      = null;
+let pedidoVinculado     = null;
+let itens               = [];
+let materialTimer       = null;
+let pedidoTimer         = null;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const fmt      = v => (v != null && v !== "") ? v : "—";
 const fmtData  = v => v ? new Date(v).toLocaleDateString("pt-BR") : "—";
 const fmtMoeda = v => Number(v || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 });
 
-// ── Busca de pedido ───────────────────────────────────────────────────────────
-const pedidoSearch   = document.getElementById("pedidoSearch");
-const pedidoDropdown = document.getElementById("pedidoDropdown");
-
-pedidoSearch.addEventListener("input", () => {
-  clearTimeout(pedidoTimer);
-  const q = pedidoSearch.value.trim();
-  if (q.length < 2) { pedidoDropdown.style.display = "none"; return; }
-  pedidoTimer = setTimeout(() => buscarPedidos(q), 300);
-});
-
-document.addEventListener("click", e => {
-  if (!pedidoSearch.contains(e.target) && !pedidoDropdown.contains(e.target))
-    pedidoDropdown.style.display = "none";
-  if (!document.getElementById("materialSearch").contains(e.target) &&
-      !document.getElementById("materialDropdown").contains(e.target))
-    document.getElementById("materialDropdown").style.display = "none";
-});
-
-async function buscarPedidos(q) {
-  try {
-    const res   = await apiRequest(`/controle_pedidos?search=${encodeURIComponent(q)}&limit=10`);
-    const lista = res.data || [];
-    pedidoDropdown.innerHTML = "";
-
-    if (lista.length === 0) {
-      pedidoDropdown.innerHTML = `<div class="dropdown-item" style="color:#94a3b8">Nenhum pedido encontrado</div>`;
-      pedidoDropdown.style.display = "block";
-      return;
-    }
-
-    lista.forEach(p => {
-      const div = document.createElement("div");
-      div.className = "dropdown-item";
-      div.innerHTML = `
-        <div class="cliente">${p.cliente || "—"} — ${p.zerb || "—"}</div>
-        <div class="detalhe">PV: ${p.pedido_venda || "—"} | OC: ${p.ordem_compra || "—"} | Qtde: ${p.qtde_solicitada || 0}</div>
-      `;
-      div.addEventListener("click", () => selecionarPedido(p));
-      pedidoDropdown.appendChild(div);
-    });
-
-    pedidoDropdown.style.display = "block";
-  } catch (err) {
-    console.error("Erro ao buscar pedidos:", err);
-  }
-}
-
-function selecionarPedido(p) {
-  pedidoSelecionado = p;
-  pedidoSearch.value = `${p.cliente || ""} — ${p.zerb || ""}`;
-  pedidoDropdown.style.display = "none";
-
-  // Preenche card
-  document.getElementById("pedidoCardTitulo").textContent = `Pedido: ${p.pedido_venda || p.id}`;
-  document.getElementById("pcCliente").textContent        = fmt(p.cliente);
-  document.getElementById("pcEstado").textContent         = fmt(p.estado);
-  document.getElementById("pcPedidoVenda").textContent    = fmt(p.pedido_venda);
-  document.getElementById("pcOrdemCompra").textContent    = fmt(p.ordem_compra);
-  document.getElementById("pcQtde").textContent           = fmt(p.qtde_solicitada);
-  document.getElementById("pcDataContratual").textContent = fmtData(p.data_contratual);
-  document.getElementById("pedidoCard").classList.add("show");
-
-  // Resumo
-  document.getElementById("rsPedido").textContent  = p.pedido_venda || p.id;
-  document.getElementById("rsCliente").textContent = p.cliente || "—";
-
-  atualizarBtnGerar();
-}
-
-window.limparPedido = function() {
-  pedidoSelecionado = null;
-  pedidoSearch.value = "";
-  document.getElementById("pedidoCard").classList.remove("show");
-  document.getElementById("rsPedido").textContent  = "—";
-  document.getElementById("rsCliente").textContent = "—";
-  atualizarBtnGerar();
-};
-
-// ── Busca de material ─────────────────────────────────────────────────────────
+// ── Elementos ─────────────────────────────────────────────────────────────────
 const materialSearch   = document.getElementById("materialSearch");
 const materialDropdown = document.getElementById("materialDropdown");
+const pedidoSearch     = document.getElementById("pedidoSearch");
+const pedidoDropdown   = document.getElementById("pedidoDropdown");
 const matInfo          = document.getElementById("matInfo");
 
+// ── Fechar dropdowns ao clicar fora ──────────────────────────────────────────
+document.addEventListener("click", e => {
+  if (!materialSearch.contains(e.target) && !materialDropdown.contains(e.target))
+    materialDropdown.style.display = "none";
+  if (!pedidoSearch.contains(e.target) && !pedidoDropdown.contains(e.target))
+    pedidoDropdown.style.display = "none";
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  BUSCA DE MATERIAL
+// ══════════════════════════════════════════════════════════════════════════════
 materialSearch.addEventListener("input", () => {
   clearTimeout(materialTimer);
   const q = materialSearch.value.trim();
@@ -143,14 +77,12 @@ function selecionarMaterial(m) {
   materialSearch.value = `${m.codigo_produto} — ${m.descricao}`;
   materialDropdown.style.display = "none";
 
-  // Calcula custo por unidade real (regra de 3 se tiver qtde_embalagem)
-  const custoEmb   = Number(m.custo_fornecedor || 0);
-  const qtdeEmb    = Number(m.qtde_embalagem   || 0);
-  const estoque    = Number(m.estoque          || 0);
-  const custoUnit  = qtdeEmb > 0 ? custoEmb / qtdeEmb : custoEmb;
+  const custoEmb  = Number(m.custo_fornecedor || 0);
+  const qtdeEmb   = Number(m.qtde_embalagem   || 0);
+  const estoque   = Number(m.estoque           || 0);
+  const custoUnit = qtdeEmb > 0 ? custoEmb / qtdeEmb : custoEmb;
   materialSelecionado._custoUnit = custoUnit;
 
-  // Badge de estoque
   const estoqueEl = document.getElementById("matEstoque");
   estoqueEl.textContent = `${estoque} un`;
   estoqueEl.className   = estoque > 10 ? "estoque-ok" : estoque > 0 ? "estoque-warn" : "estoque-zero";
@@ -161,7 +93,72 @@ function selecionarMaterial(m) {
   matInfo.classList.add("show");
 }
 
-// ── Adicionar item ─────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+//  BUSCA DE PEDIDO (vínculo opcional por item)
+// ══════════════════════════════════════════════════════════════════════════════
+pedidoSearch.addEventListener("input", () => {
+  clearTimeout(pedidoTimer);
+  const q = pedidoSearch.value.trim();
+  if (q.length < 2) { pedidoDropdown.style.display = "none"; return; }
+  pedidoTimer = setTimeout(() => buscarPedidos(q), 300);
+});
+
+async function buscarPedidos(q) {
+  try {
+    const res   = await apiRequest(`/controle_pedidos?search=${encodeURIComponent(q)}&limit=10`);
+    const lista = res.data || [];
+    pedidoDropdown.innerHTML = "";
+
+    if (lista.length === 0) {
+      pedidoDropdown.innerHTML = `<div class="dropdown-item" style="color:#94a3b8">Nenhum pedido encontrado</div>`;
+      pedidoDropdown.style.display = "block";
+      return;
+    }
+
+    lista.forEach(p => {
+      const div = document.createElement("div");
+      div.className = "dropdown-item";
+      div.innerHTML = `
+        <div class="cliente">${p.cliente || "—"} — ${p.zerb || "—"}</div>
+        <div class="detalhe">PV: ${p.pedido_venda || "—"} | OC: ${p.ordem_compra || "—"} | Qtde: ${p.qtde_solicitada || 0}</div>
+      `;
+      div.addEventListener("click", () => vincularPedido(p));
+      pedidoDropdown.appendChild(div);
+    });
+
+    pedidoDropdown.style.display = "block";
+  } catch (err) {
+    console.error("Erro ao buscar pedidos:", err);
+  }
+}
+
+function vincularPedido(p) {
+  pedidoVinculado = p;
+  pedidoSearch.value = `${p.cliente || ""} — OC: ${p.ordem_compra || "—"}`;
+  pedidoDropdown.style.display = "none";
+
+  document.getElementById("pvPedido").textContent  = p.pedido_venda || p.id;
+  document.getElementById("pvCliente").textContent = p.cliente || "—";
+  document.getElementById("pvOC").textContent      = p.ordem_compra || "—";
+  document.getElementById("pvQtde").textContent    = p.qtde_solicitada || "—";
+  document.getElementById("pedidoVinculoCard").classList.add("show");
+  document.getElementById("btnLimparPedido").style.display = "flex";
+}
+
+document.getElementById("btnLimparPedido").addEventListener("click", () => {
+  limparPedidoVinculado();
+});
+
+function limparPedidoVinculado() {
+  pedidoVinculado = null;
+  pedidoSearch.value = "";
+  document.getElementById("pedidoVinculoCard").classList.remove("show");
+  document.getElementById("btnLimparPedido").style.display = "none";
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  ADICIONAR ITEM À ORDEM
+// ══════════════════════════════════════════════════════════════════════════════
 document.getElementById("btnAddItem").addEventListener("click", () => {
   if (!materialSelecionado) { showToast("Selecione um material.", "warning"); return; }
   const qtde    = Number(document.getElementById("itemQtde").value);
@@ -169,39 +166,50 @@ document.getElementById("btnAddItem").addEventListener("click", () => {
   if (!qtde || qtde <= 0) { showToast("Informe uma quantidade válida.", "warning"); return; }
 
   const estoque = Number(materialSelecionado.estoque || 0);
-  if (qtde > estoque) {
-    showToast(`Estoque insuficiente! Disponível: ${estoque} ${unidade}.`, "warning");
+
+  // Soma já adicionada deste material
+  const jaAdicionado = itens
+    .filter(i => i.material_id === materialSelecionado.id)
+    .reduce((s, i) => s + i.quantidade, 0);
+
+  if (qtde + jaAdicionado > estoque) {
+    showToast(`Estoque insuficiente! Disponível: ${estoque}, já alocado: ${jaAdicionado}.`, "warning");
     return;
   }
 
   const custoUnit = materialSelecionado._custoUnit || Number(materialSelecionado.custo_fornecedor || 0);
-  const existente = itens.find(i => i.material_id === materialSelecionado.id);
 
-  if (existente) {
-    existente.quantidade += qtde;
-    existente.subtotal    = Number((existente.quantidade * existente.custo_unitario).toFixed(2));
-  } else {
-    itens.push({
-      material_id:    materialSelecionado.id,
-      codigo_produto: materialSelecionado.codigo_produto,
-      descricao:      materialSelecionado.descricao,
-      unidade_medida: unidade,
-      quantidade:     qtde,
-      custo_unitario: Number(custoUnit.toFixed(4)),
-      subtotal:       Number((qtde * custoUnit).toFixed(2)),
-    });
-  }
+  itens.push({
+    material_id:    materialSelecionado.id,
+    codigo_produto: materialSelecionado.codigo_produto,
+    descricao:      materialSelecionado.descricao,
+    unidade_medida: unidade,
+    quantidade:     qtde,
+    custo_unitario: Number(custoUnit.toFixed(4)),
+    subtotal:       Number((qtde * custoUnit).toFixed(2)),
+    // Vínculo com pedido (pode ser null)
+    pedido_id:      pedidoVinculado?.id || null,
+    pedido_venda:   pedidoVinculado?.pedido_venda || null,
+    ordem_compra:   pedidoVinculado?.ordem_compra || null,
+    cliente:        pedidoVinculado?.cliente || null,
+    estado:         pedidoVinculado?.estado || null,
+    codigo_cliente: pedidoVinculado?.codigo_cliente || null,
+    zerb:           pedidoVinculado?.zerb || null,
+  });
 
   // Limpa campos
   materialSearch.value = "";
   document.getElementById("itemQtde").value = "";
   materialSelecionado = null;
   matInfo.classList.remove("show");
+  limparPedidoVinculado();
 
   renderItens();
 });
 
-// ── Renderizar tabela de itens ─────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+//  RENDERIZAR TABELA DE ITENS
+// ══════════════════════════════════════════════════════════════════════════════
 function renderItens() {
   const tbody    = document.getElementById("itensTbody");
   const wrap     = document.getElementById("tabelaWrap");
@@ -222,15 +230,20 @@ function renderItens() {
 
   itens.forEach((it, i) => {
     total += it.subtotal;
+    const pedidoLabel = it.pedido_id
+      ? `<span class="item-pedido-tag">${it.cliente || "—"}<br><small>OC: ${it.ordem_compra || "—"}</small></span>`
+      : `<span style="color:var(--muted);font-size:11px">Sem vínculo</span>`;
+
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td style="font-weight:600">${it.codigo_produto}</td>
-      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
         title="${it.descricao}">${it.descricao}</td>
       <td>${it.quantidade}</td>
       <td>${it.unidade_medida}</td>
       <td>R$ ${it.custo_unitario.toFixed(2)}</td>
       <td style="font-weight:700;color:#1d4ed8">R$ ${it.subtotal.toFixed(2)}</td>
+      <td>${pedidoLabel}</td>
       <td>
         <button data-idx="${i}" style="background:none;border:none;cursor:pointer;
           color:#ef4444;font-size:15px" title="Remover">✕</button>
@@ -252,56 +265,161 @@ function renderItens() {
 
 function atualizarResumo(total) {
   const t = total ?? itens.reduce((s, i) => s + i.subtotal, 0);
-  document.getElementById("rsItens").textContent = itens.length;
-  document.getElementById("rsCusto").textContent = `R$ ${fmtMoeda(t)}`;
+
+  // Contagens
+  const materiaisDistintos = new Set(itens.map(i => i.material_id)).size;
+  const pedidosVinculados  = new Set(itens.filter(i => i.pedido_id).map(i => i.pedido_id));
+
+  document.getElementById("rsItens").textContent     = itens.length;
+  document.getElementById("rsMateriais").textContent  = materiaisDistintos;
+  document.getElementById("rsPedidos").textContent    = pedidosVinculados.size;
+  document.getElementById("rsCusto").textContent      = `R$ ${fmtMoeda(t)}`;
+
+  // Lista de pedidos vinculados no resumo
+  const pedidosEl = document.getElementById("pedidosVinculados");
+  if (pedidosVinculados.size > 0) {
+    const pedidosMap = new Map();
+    itens.filter(i => i.pedido_id).forEach(i => {
+      if (!pedidosMap.has(i.pedido_id)) {
+        pedidosMap.set(i.pedido_id, {
+          cliente: i.cliente,
+          ordem_compra: i.ordem_compra,
+          pedido_venda: i.pedido_venda,
+          itensCount: 0,
+        });
+      }
+      pedidosMap.get(i.pedido_id).itensCount++;
+    });
+
+    pedidosEl.innerHTML = Array.from(pedidosMap.values()).map(p => `
+      <div class="pv-item">
+        <span class="pv-item-cliente">${p.cliente || "—"}</span>
+        <span class="pv-item-detalhe">OC: ${p.ordem_compra || "—"} · ${p.itensCount} item(s)</span>
+      </div>
+    `).join("");
+    pedidosEl.style.display = "block";
+  } else {
+    pedidosEl.innerHTML = "";
+    pedidosEl.style.display = "none";
+  }
+
   atualizarBtnGerar();
 }
 
 function atualizarBtnGerar() {
-  document.getElementById("btnGerar").disabled =
-    !pedidoSelecionado || itens.length === 0;
+  document.getElementById("btnGerar").disabled = itens.length === 0;
 }
 
-// ── Gerar saída ───────────────────────────────────────────────────────────────
-window.gerarSaida = async function() {
-  if (!pedidoSelecionado || itens.length === 0) return;
+// ══════════════════════════════════════════════════════════════════════════════
+//  GERAR SAÍDA
+// ══════════════════════════════════════════════════════════════════════════════
+document.getElementById("btnGerar").addEventListener("click", gerarSaida);
+
+async function gerarSaida() {
+  if (itens.length === 0) return;
 
   try {
-    document.getElementById("btnGerar").disabled = true;
-    document.getElementById("btnGerar").textContent = "Processando...";
+    const btn = document.getElementById("btnGerar");
+    btn.disabled = true;
+    btn.textContent = "Processando...";
 
     const obs = document.getElementById("obsTexto").value;
     const res = await apiRequest("/saidas_estoque", {
       method: "POST",
       body: JSON.stringify({
-        pedido_id:  pedidoSelecionado.id,
-        usuario:    user.nome,
+        usuario: user.nome,
         observacoes: obs,
         itens,
       }),
     });
 
     showToast(`Saída registrada! Nº ${res.numero}`, "success");
-    abrirComprovante(res.saida);
+    console.log("Resposta saída:", JSON.stringify(res, null, 2));
+    abrirComprovante(res.saida || res.data || res);
     carregarHistorico();
 
     // Limpa formulário
-    limparPedido();
     itens = [];
     renderItens();
     document.getElementById("obsTexto").value = "";
   } catch (err) {
     showToast(err.message || "Erro ao registrar saída.", "error");
   } finally {
-    document.getElementById("btnGerar").disabled = false;
-    document.getElementById("btnGerar").textContent = "✔ Confirmar Saída de Estoque";
+    const btn = document.getElementById("btnGerar");
+    btn.disabled = false;
+    btn.textContent = "✔ Confirmar Saída de Estoque";
   }
-};
+}
 
-// ── Comprovante ───────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+//  COMPROVANTE
+// ══════════════════════════════════════════════════════════════════════════════
 function abrirComprovante(saida) {
   const el = document.getElementById("comprovanteConteudo");
-  const totalGeral = saida.itens.reduce((s, i) => s + Number(i.subtotal), 0);
+
+  if (!saida) {
+    el.innerHTML = `<p style="color:var(--danger);padding:24px;text-align:center">Erro: dados da saída não encontrados.</p>`;
+    const modal = document.getElementById("modalComprovante");
+    modal.classList.remove("hidden");
+    requestAnimationFrame(() => modal.classList.add("show"));
+    return;
+  }
+
+  const itensArr = saida.itens || [];
+  const totalGeral = itensArr.reduce((s, i) => s + Number(i.subtotal || 0), 0);
+
+  // Agrupa itens por pedido para o comprovante
+  const porPedido = new Map();
+  itensArr.forEach(it => {
+    const key = it.pedido_id || "sem_vinculo";
+    if (!porPedido.has(key)) {
+      porPedido.set(key, {
+        cliente: it.cliente || null,
+        ordem_compra: it.ordem_compra || null,
+        pedido_venda: it.pedido_venda || null,
+        itens: [],
+      });
+    }
+    porPedido.get(key).itens.push(it);
+  });
+
+  // Gera seções por pedido
+  let secoesHTML = "";
+  porPedido.forEach((grupo, key) => {
+    const subtotal = grupo.itens.reduce((s, i) => s + Number(i.subtotal || 0), 0);
+    const titulo = key === "sem_vinculo"
+      ? "Itens sem vínculo a pedido"
+      : `Pedido: ${grupo.cliente || "—"} — OC: ${grupo.ordem_compra || "—"}`;
+
+    secoesHTML += `
+      <div class="comp-section">
+        <h4>${titulo}</h4>
+        <table class="comp-table">
+          <thead><tr>
+            <th>#</th><th>Código</th><th>Descrição</th><th>Qtde</th><th>Un.</th>
+            <th>Custo Unit.</th><th>Subtotal</th>
+          </tr></thead>
+          <tbody>
+            ${grupo.itens.map((it, i) => `
+              <tr>
+                <td>${i + 1}</td>
+                <td style="font-weight:600">${fmt(it.codigo_produto)}</td>
+                <td>${fmt(it.descricao)}</td>
+                <td>${it.quantidade}</td>
+                <td>${it.unidade_medida || "un"}</td>
+                <td>R$ ${fmtMoeda(it.custo_unitario)}</td>
+                <td style="font-weight:700;color:var(--primary)">R$ ${fmtMoeda(it.subtotal)}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+          <tfoot><tr>
+            <td colspan="6" style="text-align:right">Subtotal:</td>
+            <td style="font-weight:700">R$ ${fmtMoeda(subtotal)}</td>
+          </tr></tfoot>
+        </table>
+      </div>
+    `;
+  });
 
   el.innerHTML = `
     <div class="comprovante">
@@ -315,62 +433,28 @@ function abrirComprovante(saida) {
         </div>
         <div class="comp-doc">
           <div class="titulo">COMPROVANTE DE SAÍDA</div>
-          <p><b>Nº:</b> ${saida.numero}</p>
+          <p><b>Nº:</b> ${saida.numero || "—"}</p>
           <p><b>Data:</b> ${fmtData(saida.data_saida)}</p>
-          <p><b>Usuário:</b> ${saida.usuario}</p>
+          <p><b>Usuário:</b> ${saida.usuario || "—"}</p>
         </div>
       </div>
 
-      <div class="comp-section">
-        <h4>Pedido Atendido</h4>
-        <div class="comp-grid">
-          <div class="comp-row"><span style="color:#64748b">Cliente:</span> <b>${fmt(saida.cliente)}</b></div>
-          <div class="comp-row"><span style="color:#64748b">Estado:</span> <b>${fmt(saida.estado)}</b></div>
-          <div class="comp-row"><span style="color:#64748b">Pedido Venda:</span> <b>${fmt(saida.pedido_venda)}</b></div>
-          <div class="comp-row"><span style="color:#64748b">Ordem Compra:</span> <b>${fmt(saida.ordem_compra)}</b></div>
-          <div class="comp-row"><span style="color:#64748b">Cód. Cliente:</span> <b>${fmt(saida.codigo_cliente)}</b></div>
-          <div class="comp-row"><span style="color:#64748b">Produto (ZERB):</span> <b>${fmt(saida.zerb)}</b></div>
-        </div>
-      </div>
+      ${secoesHTML}
 
-      <div class="comp-section">
-        <h4>Materiais Retirados do Estoque</h4>
-        <table class="comp-table">
-          <thead><tr>
-            <th>#</th><th>Código</th><th>Descrição</th><th>Qtde</th><th>Un.</th>
-            <th>Custo Unit.</th><th>Subtotal</th>
-          </tr></thead>
-          <tbody>
-            ${saida.itens.map((it, i) => `
-              <tr>
-                <td>${i + 1}</td>
-                <td style="font-weight:600">${fmt(it.codigo_produto)}</td>
-                <td>${fmt(it.descricao)}</td>
-                <td>${it.quantidade}</td>
-                <td>${it.unidade_medida || "un"}</td>
-                <td>R$ ${fmtMoeda(it.custo_unitario)}</td>
-                <td style="font-weight:700">R$ ${fmtMoeda(it.subtotal)}</td>
-              </tr>
-            `).join("")}
-          </tbody>
-          <tfoot><tr>
-            <td colspan="6" style="text-align:right">Total:</td>
-            <td>R$ ${fmtMoeda(totalGeral)}</td>
-          </tr></tfoot>
-        </table>
+      <div class="comp-total-section">
+        <span class="comp-total-label">Total Geral</span>
+        <span class="comp-total-valor">R$ ${fmtMoeda(totalGeral)}</span>
       </div>
 
       ${saida.observacoes ? `
         <div class="comp-section">
           <h4>Observações</h4>
-          <p style="font-size:13px;color:#475569;padding:8px 12px;background:#f8fafc;
-            border-radius:8px">${saida.observacoes}</p>
+          <p class="comp-obs">${saida.observacoes}</p>
         </div>` : ""}
 
-      <div style="margin-top:24px;padding-top:12px;border-top:1px solid #e2e8f0;
-        display:flex;justify-content:space-between;font-size:11px;color:#94a3b8">
+      <div class="comp-footer">
         <span>PCP - Lucabe Energy</span>
-        <span>Gerado em ${new Date().toLocaleString("pt-BR")} por ${saida.usuario}</span>
+        <span>Gerado em ${new Date().toLocaleString("pt-BR")} por ${saida.usuario || "Sistema"}</span>
       </div>
     </div>
   `;
@@ -386,7 +470,9 @@ window.fecharComprovante = function() {
   setTimeout(() => modal.classList.add("hidden"), 260);
 };
 
-// ── Histórico ─────────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+//  HISTÓRICO
+// ══════════════════════════════════════════════════════════════════════════════
 async function carregarHistorico() {
   const el = document.getElementById("historicoLista");
   try {
@@ -404,8 +490,8 @@ async function carregarHistorico() {
           <span class="hist-num">Nº ${s.numero}</span>
           <span class="badge badge-success">Concluída</span>
         </div>
-        <div class="hist-detalhe">${s.cliente || "—"} · ${fmtData(s.data_saida)}</div>
-        <div class="hist-detalhe">${s.total_itens || 0} item(s) · R$ ${fmtMoeda(s.custo_total)}</div>
+        <div class="hist-detalhe">${fmtData(s.data_saida)} · ${s.total_itens || 0} item(s)</div>
+        <div class="hist-detalhe">R$ ${fmtMoeda(s.custo_total)}</div>
       </div>
     `).join("");
   } catch {
@@ -416,8 +502,10 @@ async function carregarHistorico() {
 window.verSaida = async function(id) {
   try {
     const res = await apiRequest(`/saidas_estoque/${id}`);
-    abrirComprovante(res.data);
+    console.log("Resposta verSaida:", JSON.stringify(res, null, 2));
+    abrirComprovante(res.data || res.saida || res);
   } catch (err) {
+    console.error("Erro verSaida:", err);
     showToast("Erro ao carregar saída.", "error");
   }
 };

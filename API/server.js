@@ -1,43 +1,84 @@
-require("dotenv").config();
 const express = require("express");
 const mysql = require("mysql2");
 const cors = require("cors");
 const path = require("path");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
-const rateLimit = require("express-rate-limit");
 const { exec } = require("child_process");
 const fs = require("fs");
-
 const app = express();
-
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "../paginas")));
-
-const JWT_SECRET = process.env.JWT_SECRET || "MUDE_ESSE_SEGREDO_EM_PRODUCAO";
-
-
+const JWT_SECRET = "MUDE_ESSE_SEGREDO_EM_PRODUCAO";
 const db = mysql.createPool({
-  host: process.env.DB_HOST || "127.0.0.1",
-  user: process.env.DB_USER || "root",
-  password: process.env.DB_PASSWORD || "",
-  database: process.env.DB_NAME || "pcp",
-  port: Number(process.env.DB_PORT) || 3306,
+  host: "127.0.0.1", 
+  user: "root",
+  password: "4618", 
+  database: "pcp",
+  port: 3000, 
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0
 });
-
 db.getConnection((err, connection) => {
   if (err) {
     console.error("❌ ERRO AO CONECTAR NO MYSQL:", err.message);
   } else {
     console.log("✅ Conectado ao MySQL (pcp)");
-    connection.release();
+    // Auto-migrações seguras
+    const migrations = [
+      {
+        table: "controle_pedidos", column: "criado_em",
+        sql: "ALTER TABLE controle_pedidos ADD COLUMN criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP"
+      },
+      {
+        table: "materiais", column: "unidade_compra",
+        sql: "ALTER TABLE materiais ADD COLUMN unidade_compra VARCHAR(20) NULL AFTER unidade_medida"
+      },
+      {
+        table: "materiais", column: "fator_conversao",
+        sql: "ALTER TABLE materiais ADD COLUMN fator_conversao DECIMAL(14,4) NOT NULL DEFAULT 1 AFTER unidade_compra"
+      },
+      {
+        table: "materiais", column: "descricao_detalhada",
+        sql: "ALTER TABLE materiais ADD COLUMN descricao_detalhada TEXT NULL AFTER descricao"
+      },
+    ];
+    // Migrações de tipo (ALTER COLUMN para corrigir tipos em tabelas existentes)
+    const typeFixes = [
+      `ALTER TABLE entradas_nf_itens MODIFY COLUMN estoque_anterior DECIMAL(14,4) NULL`,
+      `ALTER TABLE entradas_nf_itens MODIFY COLUMN estoque_novo DECIMAL(14,4) NULL`,
+      `ALTER TABLE usuarios MODIFY COLUMN perfil ENUM('admin','pcp','producao','logistica','vendas') NOT NULL DEFAULT 'pcp'`,
+    ];
+
+    let pending = migrations.length + typeFixes.length;
+    const done = () => { if (--pending <= 0) connection.release(); };
+
+    for (const m of migrations) {
+      connection.query(
+        `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+         WHERE TABLE_SCHEMA = 'pcp' AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
+        [m.table, m.column],
+        (e, rows) => {
+          if (!e && rows.length === 0) {
+            connection.query(m.sql, (e2) => {
+              if (!e2) console.log(`✅ Coluna ${m.column} adicionada à ${m.table}`);
+              done();
+            });
+          } else done();
+        }
+      );
+    }
+
+    for (const sql of typeFixes) {
+      connection.query(sql, (e) => {
+        if (!e) console.log("✅ Tipo de coluna corrigido (INT→DECIMAL)");
+        done();
+      });
+    }
   }
 });
-
 /* =======================
    HELPERS
 ======================= */
@@ -46,6 +87,20 @@ function serverError(res, err) {
   return res.status(500).json({ success: false, message: "Erro interno do servidor" });
 }
 
+function normalizeDateToSql(dateValue) {
+  if (!dateValue) return null;
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return null;
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function todaySqlDate() {
+  const now = new Date();
+  return normalizeDateToSql(now);
+}
 /* =======================
    SISTEMA DE LOGS
 ======================= */
@@ -57,7 +112,6 @@ const MODULOS = {
   USUARIO:  "Usuário",
   SISTEMA:  "Sistema",
 };
-
 async function registrarLog({ usuario_id, usuario_nome, modulo, acao, descricao, referencia_id = null, referencia_label = null }) {
   try {
     await db.promise().query(
@@ -99,7 +153,6 @@ async function registrarLog({ usuario_id, usuario_nome, modulo, acao, descricao,
     }
   }
 }
-
 /* =======================
    LOGS — GET (listar)
 ======================= */
@@ -112,7 +165,6 @@ app.get(
       const { modulo, usuario_id, search, data_inicio, data_fim, limit = 100, offset = 0 } = req.query;
       let where = "WHERE 1=1";
       const params = [];
-
       if (modulo)      { where += " AND modulo = ?";           params.push(modulo); }
       if (usuario_id)  { where += " AND usuario_id = ?";       params.push(usuario_id); }
       if (data_inicio) { where += " AND DATE(criado_em) >= ?"; params.push(data_inicio); }
@@ -121,7 +173,6 @@ app.get(
         where += " AND (descricao LIKE ? OR acao LIKE ? OR usuario_nome LIKE ? OR referencia_label LIKE ?)";
         const q = `%${search}%`; params.push(q, q, q, q);
       }
-
       const [rows] = await db.promise().query(
         `SELECT * FROM logs_sistema ${where} ORDER BY criado_em DESC LIMIT ? OFFSET ?`,
         [...params, Number(limit), Number(offset)]
@@ -129,19 +180,16 @@ app.get(
       const [[{ total }]] = await db.promise().query(
         `SELECT COUNT(*) AS total FROM logs_sistema ${where}`, params
       );
-
       res.json({ success: true, data: rows, total });
     } catch (err) {
       res.status(500).json({ success: false, message: err.message });
     }
   }
 );
-
 function authMiddleware(req, res, next) {
   const authHeader = req.headers.authorization;
   if (!authHeader)
     return res.status(401).json({ success: false, message: "Token não enviado" });
-
   const token = authHeader.split(" ")[1];
   try {
     req.user = jwt.verify(token, JWT_SECRET);
@@ -150,7 +198,6 @@ function authMiddleware(req, res, next) {
     return res.status(401).json({ success: false, message: "Token inválido" });
   }
 }
-
 function roleMiddleware(perfis = []) {
   return (req, res, next) => {
     if (!perfis.includes(req.user.perfil))
@@ -158,51 +205,34 @@ function roleMiddleware(perfis = []) {
     next();
   };
 }
-
 /* =======================
    LOGIN
 ======================= */
-const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 10,
-  message: { success: false, message: "Muitas tentativas de login. Tente novamente em 15 minutos." },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-app.post("/login", loginLimiter, (req, res) => {
+app.post("/login", (req, res) => {
   const { email, senha } = req.body;
-
   if (!email || !senha)
     return res.status(400).json({ success: false, message: "Email e senha são obrigatórios" });
-
   db.query(
     "SELECT * FROM usuarios WHERE email = ? AND ativo = 1",
     [email],
     async (err, results) => {
       if (err) return serverError(res, err);
-
       if (results.length === 0)
         return res.status(401).json({ success: false, message: "Credenciais inválidas" });
-
       const user = results[0];
       const senhaValida = await bcrypt.compare(senha, user.senha_hash);
-
       if (!senhaValida)
         return res.status(401).json({ success: false, message: "Credenciais inválidas" });
-
       const token = jwt.sign(
         { id: user.id, nome: user.nome, perfil: user.perfil },
         JWT_SECRET,
         { expiresIn: "8h" }
       );
-
       res.json({
         success: true,
         token,
         user: { id: user.id, nome: user.nome, perfil: user.perfil },
       });
-
       registrarLog({
         usuario_id: user.id, usuario_nome: user.nome,
         modulo: "SISTEMA", acao: "Login",
@@ -212,6 +242,13 @@ app.post("/login", loginLimiter, (req, res) => {
     }
   );
 });
+// Migração: garante coluna estoque_minimo em materiais
+async function garantirColunaEstoqueMinimo() {
+  await db.promise().query(
+    `ALTER TABLE materiais ADD COLUMN estoque_minimo DECIMAL(14,4) NOT NULL DEFAULT 0`
+  ).catch(() => {});
+}
+garantirColunaEstoqueMinimo();
 
 /* =======================
    MATERIAIS — GET (listar)
@@ -219,22 +256,24 @@ app.post("/login", loginLimiter, (req, res) => {
 app.get(
   "/materiais",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica", "vendas"]),
+  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao"]),
   (req, res) => {
     const search = req.query.search || "";
     const page   = parseInt(req.query.page)  || 1;
     const limit  = parseInt(req.query.limit) || 100;
     const offset = (page - 1) * limit;
-
-    const where  = search ? "WHERE codigo_produto LIKE ? OR descricao LIKE ?" : "";
-    const params = search ? [`%${search}%`, `%${search}%`] : [];
-
+    const tipo   = req.query.tipo || "";
+    const conds  = [];
+    const params = [];
+    if (search)   { conds.push("(codigo_produto LIKE ? OR descricao LIKE ?)"); params.push(`%${search}%`, `%${search}%`); }
+    if (tipo)     { conds.push("tipo = ?"); params.push(tipo); }
+    const situacao = req.query.situacao || "";
+    if (situacao) { conds.push("situacao = ?"); params.push(situacao); }
+    const where  = conds.length ? "WHERE " + conds.join(" AND ") : "";
     db.query(`SELECT COUNT(*) AS total FROM materiais ${where}`, params, (err, countRows) => {
       if (err) return serverError(res, err);
-
       const totalItems = countRows[0].total;
       const totalPages = Math.ceil(totalItems / limit) || 1;
-
       db.query(
         `SELECT * FROM materiais ${where} ORDER BY CAST(codigo_produto AS UNSIGNED) ASC LIMIT ? OFFSET ?`,
         [...params, limit, offset],
@@ -246,6 +285,39 @@ app.get(
     });
   }
 );
+/* =======================
+   MATERIAIS — BUSCA POR CÓDIGO (para NF)
+======================= */
+app.get(
+  "/materiais/busca-codigo/:codigo",
+  authMiddleware,
+  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao"]),
+  async (req, res) => {
+    try {
+      const [rows] = await db.promise().query(
+        `SELECT id, codigo_produto, descricao, custo_fornecedor, unidade_medida,
+                unidade_compra, fator_conversao
+         FROM materiais WHERE codigo_produto = ? LIMIT 1`,
+        [req.params.codigo]
+      );
+      if (!rows.length) return res.status(404).json({ success: false, message: "Material não encontrado." });
+      res.json({ success: true, data: rows[0] });
+    } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+  }
+);
+// GET /materiais/grupos — lista de grupos distintos para filtros
+app.get(
+  "/materiais/grupos",
+  authMiddleware,
+  async (req, res) => {
+    try {
+      const [rows] = await db.promise().query(
+        `SELECT DISTINCT grupo FROM materiais WHERE grupo IS NOT NULL AND grupo != '' ORDER BY grupo ASC`
+      );
+      res.json({ success: true, data: rows.map(r => r.grupo) });
+    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+  }
+);
 
 /* =======================
    MATERIAIS — GET (por id)
@@ -253,7 +325,7 @@ app.get(
 app.get(
   "/materiais/:id",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica", "vendas"]),
+  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao"]),
   (req, res) => {
     db.query("SELECT * FROM materiais WHERE id = ?", [req.params.id], (err, rows) => {
       if (err) return serverError(res, err);
@@ -263,25 +335,25 @@ app.get(
     });
   }
 );
-
 /* =======================
    MATERIAIS — POST (criar)   ← estava faltando
 ======================= */
 app.post(
   "/materiais",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica"]),
+  roleMiddleware(["admin", "pcp", "logistica", "producao"]),
   (req, res) => {
-    const { codigo_produto, descricao, estoque, custo_fornecedor, qtde_embalagem } = req.body;
-
+    const { codigo_produto, descricao, descricao_detalhada, estoque, custo_fornecedor, qtde_embalagem, unidade_medida, unidade_compra, fator_conversao, tipo, grupo, subgrupo, situacao, marca, estoque_minimo } = req.body;
     if (!codigo_produto || !descricao)
       return res.status(400).json({ success: false, message: "Código e descrição são obrigatórios" });
-
+    const situacaoFinal = situacao === "inativo" ? "inativo" : "ativo";
     db.query(
-      `INSERT INTO materiais (codigo_produto, descricao, estoque, custo_fornecedor, qtde_embalagem)
-       VALUES (?, ?, ?, ?, ?)`,
-      [codigo_produto, descricao, Number(estoque) || 0, Number(custo_fornecedor) || 0,
-       qtde_embalagem ? Number(qtde_embalagem) : null],
+      `INSERT INTO materiais (codigo_produto, descricao, descricao_detalhada, estoque, custo_fornecedor, qtde_embalagem, unidade_medida, unidade_compra, fator_conversao, tipo, grupo, subgrupo, situacao, marca, estoque_minimo)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [codigo_produto, descricao, descricao_detalhada || null, Number(estoque) || 0, Number(custo_fornecedor) || 0,
+       qtde_embalagem ? Number(qtde_embalagem) : null, unidade_medida || 'un',
+       unidade_compra || null, Number(fator_conversao) || 1,
+       tipo || null, grupo || null, subgrupo || null, situacaoFinal, marca || null, Number(estoque_minimo) || 0],
       (err, result) => {
         if (err) {
           if (err.code === "ER_DUP_ENTRY")
@@ -299,38 +371,69 @@ app.post(
     );
   }
 );
-
 /* =======================
    MATERIAIS — PUT (atualizar)
 ======================= */
 app.put(
   "/materiais/:id",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica"]),
-  (req, res) => {
-    const { codigo_produto, descricao, estoque, custo_fornecedor, qtde_embalagem } = req.body;
+  roleMiddleware(["admin", "pcp", "logistica", "producao"]),
+  async (req, res) => {
+    const { codigo_produto, descricao, descricao_detalhada, estoque, custo_fornecedor, qtde_embalagem, unidade_medida, unidade_compra, fator_conversao, tipo, grupo, subgrupo, situacao, marca, estoque_minimo } = req.body;
+    const situacaoFinal = situacao === "inativo" ? "inativo" : "ativo";
+    try {
+      // Busca estoque anterior para registrar movimentação
+      const [[matAntes]] = await db.promise().query(
+        `SELECT estoque FROM materiais WHERE id = ?`, [req.params.id]
+      );
+      const estoqueAnterior = matAntes ? Number(matAntes.estoque || 0) : null;
+      const estoqueNovo = Number(estoque);
 
-    db.query(
-      `UPDATE materiais SET codigo_produto = ?, descricao = ?, estoque = ?,
-       custo_fornecedor = ?, qtde_embalagem = ? WHERE id = ?`,
-      [codigo_produto, descricao, Number(estoque), Number(custo_fornecedor),
-       qtde_embalagem ? Number(qtde_embalagem) : null, req.params.id],
-      (err, result) => {
-        if (err) return serverError(res, err);
-        if (result.affectedRows === 0)
-          return res.status(404).json({ success: false, message: "Material não encontrado" });
-        res.json({ success: true, message: "Material atualizado" });
-        registrarLog({
-          usuario_id: req.user.id, usuario_nome: req.user.nome,
-          modulo: "MATERIAL", acao: "Editar Material",
-          descricao: `Material ID ${req.params.id} atualizado — Código: ${codigo_produto}, Estoque: ${estoque}, Custo: R$ ${custo_fornecedor}`,
-          referencia_id: Number(req.params.id), referencia_label: codigo_produto,
-        });
+      const [result] = await db.promise().query(
+        `UPDATE materiais SET codigo_produto = ?, descricao = ?, descricao_detalhada = ?, estoque = ?,
+         custo_fornecedor = ?, qtde_embalagem = ?, unidade_medida = ?, unidade_compra = ?,
+         fator_conversao = ?, tipo = ?, grupo = ?,
+         subgrupo = ?, situacao = ?, marca = ?, estoque_minimo = ? WHERE id = ?`,
+        [codigo_produto, descricao, descricao_detalhada || null, estoqueNovo, Number(custo_fornecedor),
+         qtde_embalagem ? Number(qtde_embalagem) : null, unidade_medida || 'un',
+         unidade_compra || null, Number(fator_conversao) || 1,
+         tipo || null, grupo || null,
+         subgrupo || null, situacaoFinal, marca || null, Number(estoque_minimo) || 0, req.params.id]
+      );
+      if (result.affectedRows === 0)
+        return res.status(404).json({ success: false, message: "Material não encontrado" });
+
+      // Registra movimentação se estoque mudou
+      if (estoqueAnterior !== null && estoqueAnterior !== estoqueNovo) {
+        await criarTabelaMovimentacoes();
+        const diff = estoqueNovo - estoqueAnterior;
+        const tipoMov = diff > 0 ? 'ENTRADA' : 'SAIDA';
+        await db.promise().query(
+          `INSERT INTO movimentacoes_estoque
+             (material_id, codigo_produto, descricao, tipo, quantidade,
+              estoque_anterior, estoque_novo, referencia_tipo, referencia_label,
+              usuario_id, usuario_nome)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 'AJUSTE_MANUAL', ?, ?, ?)`,
+          [req.params.id, codigo_produto, descricao,
+           tipoMov, Math.abs(diff),
+           estoqueAnterior, estoqueNovo,
+           `Ajuste manual`,
+           req.user.id, req.user.nome]
+        );
       }
-    );
+
+      res.json({ success: true, message: "Material atualizado" });
+      registrarLog({
+        usuario_id: req.user.id, usuario_nome: req.user.nome,
+        modulo: "MATERIAL", acao: "Editar Material",
+        descricao: `Material ID ${req.params.id} atualizado — Código: ${codigo_produto}, Estoque: ${estoque}, Custo: R$ ${custo_fornecedor}`,
+        referencia_id: Number(req.params.id), referencia_label: codigo_produto,
+      });
+    } catch (err) {
+      return serverError(res, err);
+    }
   }
 );
-
 /* =======================
    MATERIAIS — DELETE
 ======================= */
@@ -353,7 +456,6 @@ app.delete(
     });
   }
 );
-
 /* =======================
    ORDENS DE PRODUÇÃO — helpers
 ======================= */
@@ -363,19 +465,17 @@ function getNextNumeroOP(callback) {
     callback(null, (rows[0].max_op || 0) + 1);
   });
 }
-
 /* =======================
    OPs — GET (listar)
 ======================= */
 app.get(
   "/ordens_producao",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica", "vendas"]),
+  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao"]),
   (req, res) => {
     const search = req.query.search || "";
     const where  = search ? "WHERE is_deleted = 0 AND numero_op LIKE ?" : "WHERE is_deleted = 0";
     const params = search ? [`%${search}%`] : [];
-
     db.query(
       `SELECT op.*,
               COALESCE(op.codigo_produto,    m.codigo_produto) AS codigo_produto,
@@ -392,7 +492,6 @@ app.get(
     );
   }
 );
-
 /* =====================================================
    INSUMOS DA OP — devem vir ANTES de /:id para o
    Express não interpretar "insumos" como parâmetro
@@ -400,7 +499,7 @@ app.get(
 app.get(
   "/ordens_producao/:id/insumos",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica", "vendas"]),
+  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao"]),
   async (req, res) => {
     try {
       await db.promise().query(`
@@ -418,27 +517,57 @@ app.get(
           KEY idx_op_insumos_op (op_id)
         )
       `);
-      // Busca da ficha técnica cruzando com materiais (insumos automáticos)
+      // 1. Tenta retornar insumos já salvos em op_insumos, com custo atualizado de materiais
+      const [savedRows] = await db.promise().query(
+        `SELECT
+           oi.material_id,
+           oi.codigo_produto,
+           oi.descricao,
+           oi.unidade_medida,
+           oi.quantidade,
+           COALESCE(m.custo_fornecedor, oi.custo_unitario) AS custo_unitario,
+           ROUND(oi.quantidade * COALESCE(m.custo_fornecedor, oi.custo_unitario), 2) AS subtotal
+         FROM op_insumos oi
+         LEFT JOIN materiais m ON m.id = oi.material_id
+         WHERE oi.op_id = ?
+         ORDER BY oi.id ASC`,
+        [req.params.id]
+      );
+      if (savedRows.length > 0) {
+        return res.json({ success: true, data: savedRows });
+      }
+
+      // 2. Fallback: calcula dinamicamente da ficha técnica (OP ainda sem insumos salvos)
       const [[op]] = await db.promise().query(
-        `SELECT material_id, qtde_total FROM ordens_producao WHERE id = ?`, [req.params.id]
+        `SELECT material_id, codigo_produto, COALESCE(qtde_total, quantidade, 1) AS qtde_total
+         FROM ordens_producao WHERE id = ?`, [req.params.id]
       );
       if (!op) return res.json({ success: true, data: [] });
 
+      // Se material_id não estiver direto, tenta resolver pelo codigo_produto
+      let matId = op.material_id;
+      if (!matId && op.codigo_produto) {
+        const [[mat]] = await db.promise().query(
+          `SELECT id FROM materiais WHERE codigo_produto = ?`, [op.codigo_produto]
+        );
+        matId = mat?.id || null;
+      }
+      if (!matId) return res.json({ success: true, data: [] });
+
       const [rows] = await db.promise().query(`
         SELECT
+          ft.insumo_material_id             AS material_id,
+          m.codigo_produto,
           ft.insumo_descricao               AS descricao,
-          ft.quantidade_por_unidade         AS qtde_por_unidade,
           ft.unidade_medida,
           ROUND(ft.quantidade_por_unidade * ?, 4) AS quantidade,
-          m.codigo_produto,
-          COALESCE(m.custo_fornecedor, 0)   AS custo_unitario,
+          COALESCE(m.custo_fornecedor, 0) AS custo_unitario,
           ROUND(ft.quantidade_por_unidade * ? * COALESCE(m.custo_fornecedor, 0), 2) AS subtotal
         FROM ficha_tecnica ft
         LEFT JOIN materiais m ON m.id = ft.insumo_material_id
         WHERE ft.material_id = ?
         ORDER BY ft.id ASC
-      `, [op.qtde_total, op.qtde_total, op.material_id]);
-
+      `, [op.qtde_total, op.qtde_total, matId]);
       res.json({ success: true, data: rows });
     } catch (err) {
       console.error("Erro ao buscar insumos:", err);
@@ -446,18 +575,16 @@ app.get(
     }
   }
 );
-
 app.post(
   "/ordens_producao/:id/insumos",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica"]),
+  roleMiddleware(["admin", "pcp", "logistica", "producao"]),
   async (req, res) => {
     try {
       const op_id   = req.params.id;
       const insumos = req.body.insumos;
       if (!Array.isArray(insumos))
         return res.status(400).json({ success: false, message: "insumos deve ser um array." });
-
       await db.promise().query(`
         CREATE TABLE IF NOT EXISTS op_insumos (
           id             INT NOT NULL AUTO_INCREMENT,
@@ -473,7 +600,6 @@ app.post(
           KEY idx_op_insumos_op (op_id)
         )
       `);
-
       await db.promise().query(`DELETE FROM op_insumos WHERE op_id = ?`, [op_id]);
       for (const ins of insumos) {
         const qtde    = Number(ins.quantidade     || 0);
@@ -485,8 +611,12 @@ app.post(
            ins.unidade_medida || "un", qtde, custo, qtde * custo]
         );
       }
-      res.json({ success: true, message: `${insumos.length} insumo(s) salvos.` });
+      // Recalcula custo total da OP (insumos + prestadores)
+      console.log(`[POST insumos] Chamando recalcularCustoOP para OP ${op_id}...`);
+      const custoTotal = await recalcularCustoOP(op_id);
+      console.log(`[POST insumos] Resultado:`, custoTotal);
 
+      res.json({ success: true, message: `${insumos.length} insumo(s) salvos.`, custo_total: custoTotal });
       registrarLog({
         usuario_id: req.user.id, usuario_nome: req.user.nome,
         modulo: "OP", acao: "Salvar Insumos",
@@ -500,13 +630,173 @@ app.post(
   }
 );
 
+// ─── Recalcular custo da OP: total = insumos + prestadores, unitário = total / qtde
+async function recalcularCustoOP(opId) {
+  try {
+    console.log(`[recalcularCustoOP] Iniciando para OP ID ${opId}`);
+
+    // Quantidade da OP
+    let qtde = 1;
+    try {
+      const [rows] = await db.promise().query(
+        `SELECT COALESCE(qtde_total, quantidade, 1) AS qtde FROM ordens_producao WHERE id = ?`, [opId]
+      );
+      qtde = Number(rows[0]?.qtde) || 1;
+    } catch (e) { console.error('[recalcularCustoOP] Erro ao buscar qtde:', e.message); }
+
+    // Soma insumos
+    let totalInsumos = 0;
+    try {
+      const [rows] = await db.promise().query(
+        `SELECT COALESCE(SUM(subtotal), 0) AS total FROM op_insumos WHERE op_id = ?`, [opId]
+      );
+      totalInsumos = Number(rows[0]?.total) || 0;
+    } catch (e) { console.error('[recalcularCustoOP] Erro ao somar insumos:', e.message); }
+
+    // Soma prestadores
+    let totalPrestadores = 0;
+    try {
+      const [rows] = await db.promise().query(
+        `SELECT COALESCE(SUM(valor_servico), 0) AS total FROM op_prestadores WHERE op_id = ?`, [opId]
+      );
+      totalPrestadores = Number(rows[0]?.total) || 0;
+    } catch (e) { console.error('[recalcularCustoOP] Erro ao somar prestadores:', e.message); }
+
+    const custoTotal    = totalInsumos + totalPrestadores;
+    const custoUnitario = custoTotal / qtde;
+
+    console.log(`[recalcularCustoOP] OP ${opId}: insumos=${totalInsumos}, prestadores=${totalPrestadores}, total=${custoTotal}, unit=${custoUnitario}, qtde=${qtde}`);
+
+    await db.promise().query(
+      `UPDATE ordens_producao SET custo_unitario = ?, custo_total = ? WHERE id = ?`,
+      [custoUnitario, custoTotal, opId]
+    );
+
+    console.log(`[recalcularCustoOP] OP ${opId} atualizada com sucesso.`);
+    return { custo_unitario: custoUnitario, custo_total: custoTotal };
+  } catch (e) {
+    console.error(`[recalcularCustoOP] ERRO FATAL OP ${opId}:`, e.message);
+    return { custo_unitario: 0, custo_total: 0 };
+  }
+}
+/* =====================================================
+   PERDAS DA OP
+===================================================== */
+const OP_PERDAS_DDL = `
+  CREATE TABLE IF NOT EXISTS op_perdas (
+    id             INT NOT NULL AUTO_INCREMENT,
+    op_id          INT NOT NULL,
+    material_id    INT NULL,
+    codigo_produto VARCHAR(50)  NULL,
+    descricao      VARCHAR(255) NOT NULL,
+    quantidade     DECIMAL(10,3) NOT NULL DEFAULT 0,
+    unidade_medida VARCHAR(20)  NOT NULL DEFAULT 'un',
+    motivo         VARCHAR(255) NULL,
+    criado_em      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY idx_op_perdas_op (op_id)
+  )
+`;
+
+app.get(
+  "/ordens_producao/:id/perdas",
+  authMiddleware,
+  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao"]),
+  async (req, res) => {
+    try {
+      await db.promise().query(OP_PERDAS_DDL);
+      const [rows] = await db.promise().query(
+        `SELECT id, material_id, codigo_produto, descricao, quantidade, unidade_medida, motivo, criado_em
+         FROM op_perdas WHERE op_id = ? ORDER BY id ASC`,
+        [req.params.id]
+      );
+      res.json({ success: true, data: rows });
+    } catch (err) {
+      console.error("Erro ao buscar perdas:", err);
+      res.status(500).json({ success: false, message: err.message });
+    }
+  }
+);
+
+app.post(
+  "/ordens_producao/:id/perdas",
+  authMiddleware,
+  roleMiddleware(["admin", "pcp", "logistica", "producao"]),
+  async (req, res) => {
+    try {
+      await db.promise().query(OP_PERDAS_DDL);
+      const op_id = req.params.id;
+      const { material_id, codigo_produto, descricao, quantidade, unidade_medida, motivo } = req.body;
+      if (!descricao) return res.status(400).json({ success: false, message: "Descrição é obrigatória." });
+      const [result] = await db.promise().query(
+        `INSERT INTO op_perdas (op_id, material_id, codigo_produto, descricao, quantidade, unidade_medida, motivo)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [op_id, material_id || null, codigo_produto || null, descricao,
+         Number(quantidade) || 0, unidade_medida || "un", motivo || null]
+      );
+      res.json({ success: true, id: result.insertId });
+    } catch (err) {
+      console.error("Erro ao salvar perda:", err);
+      res.status(500).json({ success: false, message: err.message });
+    }
+  }
+);
+
+app.delete(
+  "/ordens_producao/:id/perdas/:perdaId",
+  authMiddleware,
+  roleMiddleware(["admin", "pcp", "logistica", "producao"]),
+  async (req, res) => {
+    try {
+      await db.promise().query(
+        `DELETE FROM op_perdas WHERE id = ? AND op_id = ?`,
+        [req.params.perdaId, req.params.id]
+      );
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  }
+);
+
+// PUT /ordens_producao/:id/perdas — substitui todas as perdas da OP de uma vez
+app.put(
+  "/ordens_producao/:id/perdas",
+  authMiddleware,
+  roleMiddleware(["admin", "pcp", "logistica", "producao"]),
+  async (req, res) => {
+    try {
+      await db.promise().query(OP_PERDAS_DDL);
+      const op_id = req.params.id;
+      const perdas = req.body.perdas;
+      if (!Array.isArray(perdas))
+        return res.status(400).json({ success: false, message: "perdas deve ser um array." });
+
+      await db.promise().query(`DELETE FROM op_perdas WHERE op_id = ?`, [op_id]);
+      for (const p of perdas) {
+        if (!p.descricao) continue;
+        await db.promise().query(
+          `INSERT INTO op_perdas (op_id, material_id, codigo_produto, descricao, quantidade, unidade_medida, motivo)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [op_id, p.material_id || null, p.codigo_produto || null, p.descricao,
+           Number(p.quantidade), p.unidade_medida || "un", p.motivo || null]
+        );
+      }
+      res.json({ success: true, message: "Perdas salvas." });
+    } catch (err) {
+      console.error("Erro ao salvar perdas em lote:", err);
+      res.status(500).json({ success: false, message: err.message });
+    }
+  }
+);
+
 /* =======================
    OPs — GET (por id)
 ======================= */
 app.get(
   "/ordens_producao/:id",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica", "vendas"]),
+  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao"]),
   (req, res) => {
     db.query(
       `SELECT op.*,
@@ -525,11 +815,10 @@ app.get(
     );
   }
 );
-
 /* =======================
    OPs — POST (criar)
 ======================= */
-app.post("/ordens_producao", async (req, res) => {
+app.post("/ordens_producao", authMiddleware, roleMiddleware(["admin", "pcp", "producao"]), async (req, res) => {
   try {
     const {
       processo_id,
@@ -538,86 +827,48 @@ app.post("/ordens_producao", async (req, res) => {
       descricao_material,
       quantidade,
       unidade_medida,
-      custo_unitario,
       responsavel,
       observacoes,
-      criado_por
     } = req.body;
-
     if (!material_id)
       return res.status(400).json({ success: false, message: "material_id é obrigatório" });
-
     const qtdeTotal = Number(quantidade) || 0;
-    const custoUnit = Number(custo_unitario) || 0;
-    const custoTotal = qtdeTotal * custoUnit;
-
-    // 🔹 Gera número automático da OP
+    // Custo inicial = 0; será recalculado após salvar insumos + prestadores
+    const custoUnit = 0;
+    const custoTotal = 0;
     getNextNumeroOP_Real(async (err, { seq, ano, numero_op }) => {
       if (err) return serverError(res, err);
-
       const sql = `
         INSERT INTO ordens_producao (
-          numero_op,
-          seq_ano,
-          ano,
-          processo_id,
-          material_id,
-          codigo_produto,
-          descricao_material,
-          qtde_total,
-          quantidade,
-          unidade_medida,
-          custo_unitario,
-          custo_total,
-          status,
-          responsavel,
-          observacoes,
-          criado_por,
-          is_deleted
+          numero_op, seq_ano, ano, processo_id,
+          material_id, codigo_produto, descricao_material,
+          qtde_total, quantidade, unidade_medida,
+          custo_unitario, custo_total, status,
+          responsavel, observacoes, criado_por, is_deleted
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ABERTA', ?, ?, ?, 0)
       `;
-
       const valores = [
-        numero_op,
-        seq,
-        ano,
-        processo_id || null,
-        material_id,
-        codigo_produto || null,
-        descricao_material || null,
-        qtdeTotal,
-        qtdeTotal,
-        unidade_medida || 'UN',
-        custoUnit,
-        custoTotal,
-        responsavel || null,
-        observacoes || null,
-        criado_por || null
+        numero_op, seq, ano, processo_id || null,
+        material_id, codigo_produto || null, descricao_material || null,
+        qtdeTotal, qtdeTotal, unidade_medida || 'UN',
+        custoUnit, custoTotal,
+        responsavel || null, observacoes || null, req.user.id
       ];
-
       const [result] = await db.promise().query(sql, valores);
-
-      res.json({
-        success: true,
-        id: result.insertId,
-        numero_op
-      });
-
+      res.json({ success: true, id: result.insertId, numero_op });
       registrarLog({
-        usuario_id: criado_por || null, usuario_nome: "Sistema",
+        usuario_id: req.user.id, usuario_nome: req.user.nome,
         modulo: "OP", acao: "Criar OP",
         descricao: `OP ${numero_op} criada — Material: ${codigo_produto || ""}, Qtde: ${quantidade || 0}`,
         referencia_id: result.insertId, referencia_label: numero_op,
       });
     });
-
   } catch (error) {
     console.error("Erro ao gerar OP:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
-
 /* =======================
    OPs — PUT (atualizar parcial)
    Só atualiza os campos que vierem no body — nunca sobrescreve
@@ -626,15 +877,22 @@ app.post("/ordens_producao", async (req, res) => {
 app.put(
   "/ordens_producao/:id",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica"]),
-  (req, res) => {
+  roleMiddleware(["admin", "pcp", "logistica", "producao"]),
+  async (req, res) => {
+    // Bloqueia edição de OP concluída
+    try {
+      const [[opCheck]] = await db.promise().query(
+        "SELECT status FROM ordens_producao WHERE id = ? AND is_deleted = 0", [req.params.id]
+      );
+      if (opCheck?.status === "CONCLUIDA")
+        return res.status(403).json({ success: false, message: "OP concluída não pode ser editada." });
+    } catch (e) { return res.status(500).json({ success: false, message: e.message }); }
+
     const { material_id, quantidade, unidade_medida, cliente_id,
             pedido_de_venda, ordem_de_compra, status,
             responsavel, data_finalizacao, observacoes } = req.body;
-
     const setClauses = [];
     const values     = [];
-
     if (material_id      !== undefined) { setClauses.push("material_id = ?");      values.push(material_id); }
     if (quantidade       !== undefined) { setClauses.push("quantidade = ?");        values.push(quantidade); }
     if (unidade_medida   !== undefined) { setClauses.push("unidade_medida = ?");    values.push(unidade_medida); }
@@ -643,16 +901,16 @@ app.put(
     if (ordem_de_compra  !== undefined) { setClauses.push("ordem_de_compra = ?");   values.push(ordem_de_compra || null); }
     if (status           !== undefined) { setClauses.push("status = ?");            values.push(status); }
     if (responsavel      !== undefined) { setClauses.push("responsavel = ?");       values.push(responsavel || null); }
-    if (data_finalizacao !== undefined) { setClauses.push("data_finalizacao = ?");  values.push(data_finalizacao || null); }
-    if (observacoes      !== undefined) { setClauses.push("observacoes = ?");       values.push(observacoes || null); }
-
+    if (data_finalizacao !== undefined) {
+      setClauses.push("data_finalizacao = ?");
+      values.push(data_finalizacao ? normalizeDateToSql(data_finalizacao) : null);
+    }
+    if (observacoes !== undefined) { setClauses.push("observacoes = ?"); values.push(observacoes || null); }
     if (setClauses.length === 0)
       return res.status(400).json({ success: false, message: "Nenhum campo para atualizar" });
-
     const executarUpdate = (extraClauses = [], extraValues = []) => {
       const allClauses = [...setClauses, ...extraClauses];
       const allValues  = [...values, ...extraValues, req.params.id];
-
       db.query(
         `UPDATE ordens_producao SET ${allClauses.join(", ")} WHERE id = ?`,
         allValues,
@@ -661,7 +919,6 @@ app.put(
           if (result.affectedRows === 0)
             return res.status(404).json({ success: false, message: "OP não encontrada" });
           res.json({ success: true, message: "OP atualizada" });
-
           registrarLog({
             usuario_id: req.user.id, usuario_nome: req.user.nome,
             modulo: "OP", acao: "Editar OP",
@@ -671,7 +928,6 @@ app.put(
         }
       );
     };
-
     // Se material ou quantidade mudaram, recalcula o custo total
     if (material_id !== undefined && quantidade !== undefined) {
       db.query("SELECT custo_fornecedor FROM materiais WHERE id = ?", [material_id], (err, rows) => {
@@ -689,11 +945,9 @@ app.put(
     }
   }
 );
-
 /* ══════════════════════════════════════════════════════════════
    ROTAS — NOVA ORDENS DE PRODUÇÃO (OP REAL)
    Adicionar no server.js após as rotas de /processos
-
    Fluxo:
      1. GET /op/buscar-pedidos?material_id=X  → lista pedidos disponíveis
      2. POST /op                               → cria OP com número 001/2026
@@ -702,7 +956,6 @@ app.put(
      5. PUT  /op/:id                           → atualiza status / dados
      6. DELETE /op/:id                         → soft delete
 ══════════════════════════════════════════════════════════════ */
-
 /* ──────────────────────────────────────────────────────────────
    HELPER — Gera próximo número de OP no formato 001/YYYY
    Garante sequência por ano mesmo com concorrência usando
@@ -710,7 +963,6 @@ app.put(
 ────────────────────────────────────────────────────────────── */
 function getNextNumeroOP_Real(callback) {
   const ano = new Date().getFullYear();
-
   db.query(
     "SELECT MAX(seq_ano) AS max_seq FROM ordens_producao WHERE ano = ?",
     [ano],
@@ -722,24 +974,17 @@ function getNextNumeroOP_Real(callback) {
     }
   );
 }
-
 /* ──────────────────────────────────────────────────────────────
    GET /op/buscar-pedidos?material_id=X
-   Busca todos os pedidos de controle_pedidos cujo campo "zerb"
-   bate com o codigo_produto do material selecionado.
-   Retorna pedidos com dados do cliente via codigos_clientes.
 ────────────────────────────────────────────────────────────── */
 app.get(
   "/op/buscar-pedidos",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica"]),
+  roleMiddleware(["admin", "pcp", "logistica", "producao"]),
   (req, res) => {
     const { material_id } = req.query;
-
     if (!material_id)
       return res.status(400).json({ success: false, message: "material_id é obrigatório" });
-
-    // Pega o codigo_produto do material para cruzar com controle_pedidos.zerb
     db.query(
       "SELECT codigo_produto, descricao FROM materiais WHERE id = ?",
       [material_id],
@@ -747,11 +992,7 @@ app.get(
         if (err) return serverError(res, err);
         if (!matRows.length)
           return res.status(404).json({ success: false, message: "Material não encontrado" });
-
         const { codigo_produto, descricao } = matRows[0];
-
-        // Busca pedidos onde zerb = codigo_produto e que ainda não estão concluídos
-        // LEFT JOIN com codigos_clientes para trazer a descrição do cliente
         db.query(
           `SELECT
              cp.id,
@@ -779,7 +1020,6 @@ app.get(
           [codigo_produto],
           (err, pedidos) => {
             if (err) return serverError(res, err);
-
             res.json({
               success: true,
               material: { id: material_id, codigo_produto, descricao },
@@ -791,51 +1031,33 @@ app.get(
     );
   }
 );
-
 /* ──────────────────────────────────────────────────────────────
-   POST /op
-   Cria uma nova OP real com número 001/2026.
-   Body: {
-     material_id,
-     unidade_medida,
-     pedidos: [{ id, qtde_atendida }],   ← pedidos selecionados
-     observacoes?,
-     responsavel?
-   }
+   POST /op — Cria OP (destino: estoque)
 ────────────────────────────────────────────────────────────── */
 app.post(
   "/op",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica"]),
+  roleMiddleware(["admin", "pcp", "logistica", "producao"]),
   (req, res) => {
-    const { material_id, unidade_medida, pedidos = [], observacoes, responsavel } = req.body;
-
+    const { material_id, quantidade, unidade_medida, observacoes, responsavel } = req.body;
     if (!material_id)
       return res.status(400).json({ success: false, message: "material_id é obrigatório" });
-    if (!pedidos.length)
-      return res.status(400).json({ success: false, message: "Selecione ao menos um pedido" });
-
-    // Busca dados do material
+    if (!quantidade || Number(quantidade) <= 0)
+      return res.status(400).json({ success: false, message: "Informe a quantidade" });
     db.query(
-      "SELECT codigo_produto, descricao, custo_fornecedor FROM materiais WHERE id = ?",
+      "SELECT codigo_produto, descricao, custo_fornecedor, qtde_embalagem FROM materiais WHERE id = ?",
       [material_id],
       (err, matRows) => {
         if (err) return serverError(res, err);
         if (!matRows.length)
           return res.status(404).json({ success: false, message: "Material não encontrado" });
-
         const mat = matRows[0];
-        const custo_unitario = Number(mat.custo_fornecedor);
-
-        // Calcula quantidade total somando qtde_atendida dos pedidos selecionados
-        const qtde_total = pedidos.reduce((sum, p) => sum + Number(p.qtde_atendida || 0), 0);
-        const custo_total = custo_unitario * qtde_total;
-
-        // Gera o próximo número de OP
+        const qtde_total = Number(quantidade);
+        // Custo inicial = 0; será recalculado após salvar insumos + prestadores
+        const custo_unitario = 0;
+        const custo_total = 0;
         getNextNumeroOP_Real((err, { seq, ano, numero_op }) => {
           if (err) return serverError(res, err);
-
-          // Insere a OP
           db.query(
             `INSERT INTO ordens_producao
                (numero_op, seq_ano, ano, material_id, codigo_produto,
@@ -854,72 +1076,22 @@ app.post(
             ],
             (err, result) => {
               if (err) return serverError(res, err);
-
               const op_id = result.insertId;
-
-              // Busca dados completos dos pedidos selecionados para desnormalizar
-              const pedidoIds = pedidos.map(p => p.id);
-
-              db.query(
-                `SELECT id, codigo_cliente, cliente, estado, pedido_venda,
-                        ordem_compra, zerb, qtde_solicitada, data_contratual
-                 FROM controle_pedidos WHERE id IN (?)`,
-                [pedidoIds],
-                (err, pedidoRows) => {
-                  if (err) return serverError(res, err);
-
-
-                  // Monta os inserts de op_pedidos
-                  const opPedidosValues = pedidoRows.map(p => {
-                    const selecionado = pedidos.find(ps => ps.id === p.id);
-                    return [
-                      op_id,
-                      p.id,
-                      p.codigo_cliente,
-                      p.cliente,
-                      p.estado,
-                      p.pedido_venda,
-                      p.ordem_compra,
-                      p.zerb,
-                      p.qtde_solicitada,
-                      selecionado?.qtde_atendida || p.qtde_solicitada,
-                      p.data_contratual ? p.data_contratual.split('T')[0] : null
-                    ]; 
-                  });
-
-                  
-
-                  db.query(
-                    `INSERT INTO op_pedidos
-                       (op_id, pedido_id, codigo_cliente, cliente, estado,
-                        pedido_venda, ordem_compra, zerb, qtde_solicitada,
-                        qtde_atendida, data_contratual)
-                     VALUES ?`,
-                    [opPedidosValues],
-                    (err) => {
-                      if (err) return serverError(res, err);
-
-                      res.status(201).json({
-                        success: true,
-                        id: op_id,
-                        numero_op,
-                        message: `OP ${numero_op} criada com sucesso`,
-                      });
-
-                      // Log
-                      registrarLog({
-                        usuario_id:      req.user.id,
-                        usuario_nome:    req.user.nome,
-                        modulo:          "OP",
-                        acao:            "Criar OP",
-                        descricao:       `OP ${numero_op} criada — Material: ${mat.codigo_produto} (${mat.descricao}), Qtde: ${qtde_total} ${unidade_medida || ""}`,
-                        referencia_id:   op_id,
-                        referencia_label: numero_op,
-                      });
-                    }
-                  );
-                }
-              );
+              res.status(201).json({
+                success: true,
+                id: op_id,
+                numero_op,
+                message: `OP ${numero_op} criada com sucesso`,
+              });
+              registrarLog({
+                usuario_id:      req.user.id,
+                usuario_nome:    req.user.nome,
+                modulo:          "OP",
+                acao:            "Criar OP",
+                descricao:       `OP ${numero_op} criada — Material: ${mat.codigo_produto} (${mat.descricao}), Qtde: ${qtde_total} ${unidade_medida || ""}`,
+                referencia_id:   op_id,
+                referencia_label: numero_op,
+              });
             }
           );
         });
@@ -927,21 +1099,18 @@ app.post(
     );
   }
 );
-
 /* ──────────────────────────────────────────────────────────────
    GET /op — Lista OPs reais
 ────────────────────────────────────────────────────────────── */
 app.get(
   "/op",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica", "vendas"]),
+  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao"]),
   (req, res) => {
     const search = req.query.search || "";
     const status = req.query.status || "";
-
     let where  = "WHERE op.is_deleted = 0";
     const params = [];
-
     if (search) {
       where += " AND (op.numero_op LIKE ? OR op.codigo_produto LIKE ? OR op.descricao_material LIKE ?)";
       params.push(`%${search}%`, `%${search}%`, `%${search}%`);
@@ -950,15 +1119,9 @@ app.get(
       where += " AND op.status = ?";
       params.push(status);
     }
-
     db.query(
-      `SELECT op.*,
-              COUNT(opp.id) AS total_pedidos,
-              SUM(opp.qtde_atendida) AS qtde_confirmada
-       FROM ordens_producao op
-       LEFT JOIN op_pedidos opp ON opp.op_id = op.id
+      `SELECT * FROM ordens_producao op
        ${where}
-       GROUP BY op.id
        ORDER BY op.id DESC`,
       params,
       (err, rows) => {
@@ -968,14 +1131,13 @@ app.get(
     );
   }
 );
-
 /* ──────────────────────────────────────────────────────────────
-   GET /op/:id — Busca OP com seus pedidos vinculados
+   GET /op/:id — Busca OP
 ────────────────────────────────────────────────────────────── */
 app.get(
   "/op/:id",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica", "vendas"]),
+  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao"]),
   (req, res) => {
     db.query(
       "SELECT * FROM ordens_producao WHERE id = ? AND is_deleted = 0",
@@ -984,47 +1146,39 @@ app.get(
         if (err) return serverError(res, err);
         if (!opRows.length)
           return res.status(404).json({ success: false, message: "OP não encontrada" });
-
-        const op = opRows[0];
-
-        // Busca os pedidos vinculados
-        db.query(
-          "SELECT * FROM op_pedidos WHERE op_id = ? ORDER BY id ASC",
-          [op.id],
-          (err, pedidos) => {
-            if (err) return serverError(res, err);
-            res.json({ success: true, data: { ...op, pedidos } });
-          }
-        );
+        res.json({ success: true, data: opRows[0] });
       }
     );
   }
 );
-
 /* ──────────────────────────────────────────────────────────────
    PUT /op/:id — Atualização parcial (status, datas, responsavel)
 ────────────────────────────────────────────────────────────── */
 app.put(
   "/opsalvar/:id",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica"]),
-  (req, res) => {
-    const fields = req.body;
+  roleMiddleware(["admin", "pcp", "logistica", "producao"]),
+  async (req, res) => {
+    // Bloqueia edição de OP concluída
+    try {
+      const [[opCheck]] = await db.promise().query(
+        "SELECT status FROM ordens_producao WHERE id = ? AND is_deleted = 0", [req.params.id]
+      );
+      if (opCheck?.status === "CONCLUIDA")
+        return res.status(403).json({ success: false, message: "OP concluída não pode ser editada." });
+    } catch (e) { return res.status(500).json({ success: false, message: e.message }); }
 
+    const fields = req.body;
     if (!fields || Object.keys(fields).length === 0) {
       return res.status(400).json({ success: false, message: "Nenhum campo para atualizar" });
     }
-
     const setClauses = [];
     const values = [];
-
     for (const [key, value] of Object.entries(fields)) {
       setClauses.push(`${key} = ?`);
       values.push(value);
     }
-
     values.push(req.params.id);
-
     db.query(
       `UPDATE ordens_producao SET ${setClauses.join(", ")} WHERE id = ? AND is_deleted = 0`,
       values,
@@ -1033,7 +1187,6 @@ app.put(
         if (result.affectedRows === 0)
           return res.status(404).json({ success: false, message: "OP não encontrada" });
         res.json({ success: true, message: "OP atualizada" });
-
         registrarLog({
           usuario_id: req.user.id, usuario_nome: req.user.nome,
           modulo: "OP", acao: "Salvar OP",
@@ -1044,10 +1197,8 @@ app.put(
     );
   }
 );
-
-
 /* ──────────────────────────────────────────────────────────────
-   DELETE /op/:id — Soft delete + libera pedidos vinculados
+   DELETE /op/:id — Soft delete
 ────────────────────────────────────────────────────────────── */
 app.delete(
   "/op/:id",
@@ -1056,40 +1207,16 @@ app.delete(
   async (req, res) => {
     try {
       const op_id = req.params.id;
-
-      // 1. Busca pedidos vinculados para reverter qtde_produzida
-      const [vinculados] = await db.promise().query(
-        `SELECT opp.pedido_id, opp.qtde_atendida FROM op_pedidos opp WHERE opp.op_id = ?`,
-        [op_id]
-      );
-
-      // 2. Reverte qtde_produzida e libera pedido
-      for (const p of vinculados) {
-        await db.promise().query(
-          `UPDATE controle_pedidos
-           SET qtde_produzida = GREATEST(0, COALESCE(qtde_produzida, 0) - ?),
-               data_finalizada = NULL, status_producao = 'Curso normal'
-           WHERE id = ?`,
-          [Number(p.qtde_atendida || 0), p.pedido_id]
-        );
-      }
-
-      // 3. Remove vínculos
-      await db.promise().query("DELETE FROM op_pedidos WHERE op_id = ?", [op_id]);
-
-      // 4. Soft delete da OP
       const [result] = await db.promise().query(
         "UPDATE ordens_producao SET is_deleted = 1 WHERE id = ?", [op_id]
       );
       if (result.affectedRows === 0)
         return res.status(404).json({ success: false, message: "OP não encontrada" });
-
-      res.json({ success: true, message: `OP removida. ${vinculados.length} pedido(s) liberado(s).` });
-
+      res.json({ success: true, message: "OP removida." });
       registrarLog({
         usuario_id: req.user.id, usuario_nome: req.user.nome,
         modulo: "OP", acao: "Excluir OP",
-        descricao: `OP ID ${op_id} excluída. ${vinculados.length} pedido(s) liberado(s).`,
+        descricao: `OP ID ${op_id} excluída.`,
         referencia_id: Number(op_id),
       });
     } catch (err) {
@@ -1098,9 +1225,8 @@ app.delete(
     }
   }
 );
-
 /* =======================
-   OPs — DELETE (soft delete + libera pedidos)
+   OPs — DELETE /ordens_producao/:id (soft delete)
 ======================= */
 app.delete(
   "/ordens_producao/:id",
@@ -1109,36 +1235,16 @@ app.delete(
   async (req, res) => {
     try {
       const op_id = req.params.id;
-
-      const [vinculados] = await db.promise().query(
-        `SELECT opp.pedido_id, opp.qtde_atendida FROM op_pedidos opp WHERE opp.op_id = ?`,
-        [op_id]
-      );
-
-      for (const p of vinculados) {
-        await db.promise().query(
-          `UPDATE controle_pedidos
-           SET qtde_produzida = GREATEST(0, COALESCE(qtde_produzida, 0) - ?),
-               data_finalizada = NULL, status_producao = 'Curso normal'
-           WHERE id = ?`,
-          [Number(p.qtde_atendida || 0), p.pedido_id]
-        );
-      }
-
-      await db.promise().query("DELETE FROM op_pedidos WHERE op_id = ?", [op_id]);
-
       const [result] = await db.promise().query(
         "UPDATE ordens_producao SET is_deleted = 1 WHERE id = ?", [op_id]
       );
       if (result.affectedRows === 0)
         return res.status(404).json({ success: false, message: "OP não encontrada" });
-
-      res.json({ success: true, message: `OP removida. ${vinculados.length} pedido(s) liberado(s).` });
-
+      res.json({ success: true, message: "OP removida." });
       registrarLog({
         usuario_id: req.user.id, usuario_nome: req.user.nome,
         modulo: "OP", acao: "Excluir OP",
-        descricao: `OP ID ${op_id} excluída. ${vinculados.length} pedido(s) liberado(s).`,
+        descricao: `OP ID ${op_id} excluída.`,
         referencia_id: Number(op_id),
       });
     } catch (err) {
@@ -1153,19 +1259,19 @@ app.delete(
 app.get(
   "/pedidos",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica", "vendas"]),
+  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao"]),
   (req, res) => {
     const { cliente, status } = req.query;
     let where = "WHERE 1=1";
     const params = [];
-
     if (cliente) { where += " AND (cp.cliente LIKE ? OR cc.codigo_cliente LIKE ?)"; params.push(`%${cliente}%`, `%${cliente}%`); }
     if (status)  { where += " AND cp.status_producao = ?"; params.push(status); }
-
     db.query(
-      `SELECT cp.*, cc.codigo_cliente, cc.codigo_zerb
+      `SELECT cp.*, cc.codigo_cliente, cc.codigo_zerb,
+              m.codigo_produto, m.descricao AS descricao_material
        FROM controle_pedidos cp
        LEFT JOIN codigos_clientes cc ON cp.codigo_cliente = cc.codigo_cliente
+       LEFT JOIN materiais m ON m.codigo_produto = cp.zerb
        ${where}
        ORDER BY cp.id DESC`,
       params,
@@ -1176,14 +1282,13 @@ app.get(
     );
   }
 );
-
 /* =======================
    PEDIDOS — GET (por id)    ← estava faltando
 ======================= */
 app.get(
   "/pedidos/:id",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica", "vendas"]),
+  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao"]),
   (req, res) => {
     db.query(
       `SELECT cp.*, cc.codigo_zerb
@@ -1200,32 +1305,32 @@ app.get(
     );
   }
 );
-
 /* =======================
    PEDIDOS — POST (criar)    ← adicionado auth
 ======================= */
 app.post(
   "/pedidos",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica", "vendas"]),
+  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao"]),
   (req, res) => {
     const { ordem_compra, codigo_cliente, zerb, controle, cliente, estado, pedido_venda,
             qtde_solicitada, qtde_produzida, status_producao,
             data_contratual, data_finalizada } = req.body;
-
-
-    // Auto-preenche zerb se não veio mas tem codigo_cliente
     const resolverZerb = (cb) => {
       if (zerb) return cb(zerb);
       if (!codigo_cliente) return cb(null);
       db.query(
         "SELECT codigo_zerb FROM codigos_clientes WHERE codigo_cliente = ? LIMIT 1",
         [codigo_cliente],
-        (err, rows) => cb((!err && rows.length) ? rows[0].codigo_zerb : null)
+        (err, rows) => {
+          if (err || !rows.length) return cb(null);
+          let z = rows[0].codigo_zerb;
+          // Regra especial: código 40000003488 + cliente RGE → produto 202
+          if (String(codigo_cliente) === "40000003488" && /rge/i.test(cliente || "")) z = "202";
+          cb(z);
+        }
       );
     };
-
-    // Auto-preenche controle: compara estoque vs qtde_solicitada
     const resolverControle = (zerbFinal, cb) => {
       if (controle) return cb(controle);
       if (!zerbFinal || !qtde_solicitada) return cb(null);
@@ -1239,7 +1344,6 @@ app.post(
         }
       );
     };
-
     resolverZerb((zerbFinal) => {
       resolverControle(zerbFinal, (controleFinal) => {
         db.query(
@@ -1251,11 +1355,10 @@ app.post(
            cliente || null, estado || null, pedido_venda || null,
            qtde_solicitada || null, qtde_produzida || null,
            status_producao || "Curso normal",
-           data_contratual || null, data_finalizada || null],
+           normalizeDateToSql(data_contratual), normalizeDateToSql(data_finalizada)],
           (err, result) => {
             if (err) return serverError(res, err);
             res.status(201).json({ success: true, id: result.insertId, message: "Pedido criado" });
-
             registrarLog({
               usuario_id: req.user.id, usuario_nome: req.user.nome,
               modulo: "PEDIDO", acao: "Criar Pedido",
@@ -1268,31 +1371,32 @@ app.post(
     });
   }
 );
-
 /* =======================
    PEDIDOS — PUT (atualizar) ← estava faltando
 ======================= */
 app.put(
   "/pedidos/:id",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica", "vendas"]),
+  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao"]),
   (req, res) => {
     const { ordem_compra, codigo_cliente, zerb, controle, cliente, estado, pedido_venda,
             qtde_solicitada, qtde_produzida, status_producao,
             data_contratual, data_finalizada } = req.body;
-
-    // Auto-preenche zerb se não veio mas tem codigo_cliente
     const resolverZerb = (cb) => {
       if (zerb) return cb(zerb);
       if (!codigo_cliente) return cb(null);
       db.query(
         "SELECT codigo_zerb FROM codigos_clientes WHERE codigo_cliente = ? LIMIT 1",
         [codigo_cliente],
-        (err, rows) => cb((!err && rows.length) ? rows[0].codigo_zerb : null)
+        (err, rows) => {
+          if (err || !rows.length) return cb(null);
+          let z = rows[0].codigo_zerb;
+          // Regra especial: código 40000003488 + cliente RGE → produto 202
+          if (String(codigo_cliente) === "40000003488" && /rge/i.test(cliente || "")) z = "202";
+          cb(z);
+        }
       );
     };
-
-    // Auto-preenche controle: compara estoque vs qtde_solicitada
     const resolverControle = (zerbFinal, cb) => {
       if (controle) return cb(controle);
       if (!zerbFinal || !qtde_solicitada) return cb(null);
@@ -1306,7 +1410,6 @@ app.put(
         }
       );
     };
-
     resolverZerb((zerbFinal) => {
       resolverControle(zerbFinal, (controleFinal) => {
         db.query(
@@ -1319,14 +1422,13 @@ app.put(
            cliente || null, estado || null, pedido_venda || null,
            qtde_solicitada || null, qtde_produzida || null,
            status_producao || "Curso normal",
-           data_contratual || null, data_finalizada || null,
+           normalizeDateToSql(data_contratual), normalizeDateToSql(data_finalizada),
            req.params.id],
           (err, result) => {
             if (err) return serverError(res, err);
             if (result.affectedRows === 0)
               return res.status(404).json({ success: false, message: "Pedido não encontrado" });
             res.json({ success: true, message: "Pedido atualizado" });
-
             registrarLog({
               usuario_id: req.user.id, usuario_nome: req.user.nome,
               modulo: "PEDIDO", acao: "Editar Pedido",
@@ -1339,14 +1441,13 @@ app.put(
     });
   }
 );
-
 /* =======================
    PEDIDOS — DELETE (excluir)
 ======================= */
 app.delete(
   "/pedidos/:id",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica"]),
+  roleMiddleware(["admin", "pcp", "logistica", "producao"]),
   (req, res) => {
     db.query(
       "DELETE FROM controle_pedidos WHERE id = ?",
@@ -1366,7 +1467,6 @@ app.delete(
     );
   }
 );
-
 /* =======================
    CLIENTES
 ======================= */
@@ -1379,13 +1479,13 @@ app.get("/clientes", authMiddleware, (req, res) => {
     }
   );
 });
-
 /* =======================
    CLIENTE ↔ MATERIAL
 ======================= */
 app.get("/cliente-material/:codigo_cliente", authMiddleware, (req, res) => {
+  const clienteNome = (req.query.cliente || "").trim();
   db.query(
-    `SELECT 
+    `SELECT
        cc.codigo_cliente,
        cc.codigo_zerb,
        cc.descricao   AS cliente_descricao,
@@ -1402,305 +1502,182 @@ app.get("/cliente-material/:codigo_cliente", authMiddleware, (req, res) => {
       if (err) return serverError(res, err);
       if (!rows.length)
         return res.json({ success: true, data: null });
-      res.json({ success: true, data: rows[0] });
+
+      const data = rows[0];
+
+      // Regra especial: código 40000003488 + cliente RGE → produto 202
+      if (String(data.codigo_cliente) === "40000003488" && /rge/i.test(clienteNome)) {
+        return db.query(
+          `SELECT id AS material_id, codigo_produto, descricao AS material_descricao,
+                  custo_fornecedor, estoque
+           FROM materiais WHERE codigo_produto = '202' LIMIT 1`,
+          (err2, matRows) => {
+            if (!err2 && matRows.length) {
+              data.codigo_zerb        = "202";
+              data.material_id        = matRows[0].material_id;
+              data.codigo_produto     = matRows[0].codigo_produto;
+              data.material_descricao = matRows[0].material_descricao;
+              data.custo_fornecedor   = matRows[0].custo_fornecedor;
+              data.estoque            = matRows[0].estoque;
+            }
+            res.json({ success: true, data });
+          }
+        );
+      }
+
+      res.json({ success: true, data });
     }
   );
 });
-
-
-app.get(
-  "/controle_pedidos/material/:codigoProduto",
-  authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica", "vendas"]),
-  async (req, res) => {
-    try {
-      const { codigoProduto } = req.params;
-
-      const [rows] = await db.promise().query(
-        `SELECT 
-            id,
-            codigo_cliente,
-            cliente,
-            estado,
-            pedido_venda,
-            ordem_compra,
-            zerb,
-            qtde_solicitada,
-            COALESCE(qtde_produzida, 0) AS qtde_produzida,
-            (COALESCE(qtde_solicitada, 0) - COALESCE(qtde_produzida, 0)) AS qtde_pendente,
-            data_contratual,
-            status_producao
-         FROM controle_pedidos
-         WHERE zerb = ?
-         AND data_finalizada IS NULL
-         AND (
-              qtde_produzida IS NULL 
-              OR qtde_produzida < qtde_solicitada
-         )
-         ORDER BY data_contratual ASC`,
-        [codigoProduto]
-      );
-
-      res.json({
-        success: true,
-        total: rows.length,
-        data: rows
-      });
-    } catch (err) {
-      console.error("Erro ao buscar pedidos:", err);
-      res.status(500).json({
-        success: false,
-        message: "Erro ao buscar pedidos."
-      });
-    }
-  }
-);
-
 /* =====================================================
-   VINCULAR PEDIDOS A UMA OP
+   INICIAR OP — muda status ABERTA → EM_PRODUCAO
 ===================================================== */
 app.post(
-  "/op_pedidos/vincular",
+  "/ordens_producao/:id/iniciar",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica"]),
+  roleMiddleware(["admin", "pcp", "logistica", "producao"]),
   async (req, res) => {
     try {
-      const { op_id, pedidos } = req.body;
+      const op_id = req.params.id;
+      const [[op]] = await db.promise().query(
+        `SELECT numero_op, status FROM ordens_producao WHERE id = ?`, [op_id]
+      );
+      if (!op) return res.status(404).json({ success: false, message: "OP não encontrada." });
+      if (op.status !== "ABERTA")
+        return res.status(400).json({ success: false, message: `OP já está com status "${op.status}".` });
 
-      if (!op_id || !Array.isArray(pedidos) || pedidos.length === 0) {
-        return res.status(400).json({ success: false, message: "Dados inválidos." });
-      }
-
-      // Verificar se a tabela op_pedidos existe, criar se não existir
-      await db.promise().query(`
-        CREATE TABLE IF NOT EXISTS op_pedidos (
-          id              INT NOT NULL AUTO_INCREMENT,
-          op_id           INT NOT NULL,
-          pedido_id       INT NOT NULL,
-          codigo_cliente  VARCHAR(50) NULL,
-          cliente         VARCHAR(100) NULL,
-          estado          VARCHAR(50) NULL,
-          pedido_venda    VARCHAR(50) NULL,
-          ordem_compra    VARCHAR(50) NULL,
-          zerb            VARCHAR(50) NULL,
-          qtde_solicitada INT NULL,
-          qtde_atendida   INT NULL DEFAULT 0,
-          data_contratual DATE NULL,
-          PRIMARY KEY (id),
-          UNIQUE KEY uq_op_pedido (op_id, pedido_id)
-        )
-      `);
-
-      let inseridos = 0;
-      let ignorados = 0;
-
-      for (const p of pedidos) {
-        try {
-          // Busca qtde real pendente para não exceder
-          const [[pedidoReal]] = await db.promise().query(
-            `SELECT COALESCE(qtde_solicitada, 0) AS sol, COALESCE(qtde_produzida, 0) AS prod
-             FROM controle_pedidos WHERE id = ?`,
-            [p.id]
-          );
-          const pendente = Math.max(0, Number(pedidoReal?.sol || 0) - Number(pedidoReal?.prod || 0));
-          const qtdeAtendida = Math.min(Number(p.qtde_atendida || 0), pendente || Number(p.qtde_atendida || 0));
-
-          await db.promise().query(
-            `INSERT INTO op_pedidos (
-              op_id, pedido_id, codigo_cliente, cliente, estado,
-              pedido_venda, ordem_compra, zerb, qtde_solicitada,
-              qtde_atendida, data_contratual
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON DUPLICATE KEY UPDATE qtde_atendida = VALUES(qtde_atendida)`,
-            [
-              op_id,
-              p.id,
-              p.codigo_cliente  || null,
-              p.cliente         || null,
-              p.estado          || null,
-              p.pedido_venda    || null,
-              p.ordem_compra    || null,
-              p.zerb            || null,
-              p.qtde_solicitada || 0,
-              qtdeAtendida,
-              p.data_contratual ? String(p.data_contratual).split("T")[0] : null,
-            ]
-          );
-          inseridos++;
-        } catch (innerErr) {
-          console.warn(`Pedido ${p.id} não inserido:`, innerErr.message);
-          ignorados++;
-        }
-      }
-
-      res.json({
-        success: true,
-        message: `${inseridos} pedido(s) vinculado(s).${ignorados ? ` ${ignorados} ignorado(s).` : ""}`,
-      });
-
-      // Log
+      await db.promise().query(
+        `UPDATE ordens_producao SET status = 'EM_PRODUCAO' WHERE id = ?`, [op_id]
+      );
+      res.json({ success: true, message: "Produção iniciada." });
       registrarLog({
-        usuario_id:   req.user.id,
-        usuario_nome: req.user.nome,
-        modulo:       "OP",
-        acao:         "Iniciar Produção",
-        descricao:    `Produção iniciada — OP ID ${op_id}, ${inseridos} pedido(s) vinculado(s)`,
-        referencia_id: op_id,
+        usuario_id: req.user.id, usuario_nome: req.user.nome,
+        modulo: "OP", acao: "Iniciar Produção",
+        descricao: `OP ${op.numero_op} iniciada (status: EM_PRODUCAO).`,
+        referencia_id: Number(op_id), referencia_label: op.numero_op,
       });
-
     } catch (err) {
-      console.error("Erro ao vincular pedidos:", err);
+      console.error("Erro ao iniciar OP:", err);
       res.status(500).json({ success: false, message: err.message });
     }
   }
 );
 
-
 /* =====================================================
-   CONCLUIR OP — Soma qtde_atendida no qtde_produzida dos pedidos
-   Só marca "Entregue" se qtde_produzida >= qtde_solicitada
+   CONCLUIR OP — adiciona produção ao estoque + baixa insumos
 ===================================================== */
 app.post(
   "/ordens_producao/:id/concluir",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica"]),
+  roleMiddleware(["admin", "pcp", "logistica", "producao"]),
   async (req, res) => {
     try {
-      const op_id      = req.params.id;
-      const data_final = req.body.data_finalizacao || new Date().toISOString().split("T")[0];
-
-      // 1. Atualiza status e data_finalizacao da OP
+      const op_id = req.params.id;
+      const data_final = normalizeDateToSql(req.body.data_finalizacao) || todaySqlDate();
       await db.promise().query(
         `UPDATE ordens_producao SET status = 'CONCLUIDA', data_finalizacao = ? WHERE id = ?`,
         [data_final, op_id]
       );
-
-      // 2. Busca pedidos vinculados com suas qtde_atendida
-      const [pedidosVinculados] = await db.promise().query(
-        `SELECT opp.pedido_id, opp.qtde_atendida, cp.qtde_solicitada, cp.qtde_produzida
-         FROM op_pedidos opp
-         JOIN controle_pedidos cp ON cp.id = opp.pedido_id
-         WHERE opp.op_id = ?`,
+      // Adiciona quantidade total produzida ao estoque do material
+      await criarTabelaMovimentacoes();
+      const [[opData]] = await db.promise().query(
+        `SELECT material_id, qtde_total, codigo_produto, numero_op, descricao_material FROM ordens_producao WHERE id = ?`,
         [op_id]
       );
-
-      let pedidosEntregues = 0;
-      let pedidosParciais  = 0;
-
-      for (const p of pedidosVinculados) {
-        const prodAnterior      = Number(p.qtde_produzida || 0);
-        const atendidaNestaOP   = Number(p.qtde_atendida || 0);
-        const solicitada        = Number(p.qtde_solicitada || 0);
-        // Nunca excede o solicitado
-        const novaQtdeProduzida = Math.min(prodAnterior + atendidaNestaOP, solicitada || Infinity);
-        const completo          = solicitada > 0 && novaQtdeProduzida >= solicitada;
-
-        console.log(`[Concluir OP ${op_id}] Pedido ${p.pedido_id}: produzida_anterior=${prodAnterior} + atendida=${atendidaNestaOP} = ${novaQtdeProduzida} / solicitada=${solicitada} → ${completo ? "ENTREGUE" : "PARCIAL"}`);
-
-        if (completo) {
-          await db.promise().query(
-            `UPDATE controle_pedidos
-             SET qtde_produzida = ?, data_finalizada = ?, status_producao = 'Entregue'
-             WHERE id = ?`,
-            [novaQtdeProduzida, data_final, p.pedido_id]
+      let qtdeAdicionada = 0;
+      if (opData && opData.material_id) {
+        const qtde = Number(opData.qtde_total || 0);
+        if (qtde > 0) {
+          const [[matProd]] = await db.promise().query(
+            `SELECT estoque, descricao FROM materiais WHERE id = ?`, [opData.material_id]
           );
-          pedidosEntregues++;
-        } else {
+          const estAnterior = Number(matProd?.estoque || 0);
           await db.promise().query(
-            `UPDATE controle_pedidos
-             SET qtde_produzida = ?, status_producao = 'Item em Produção'
-             WHERE id = ?`,
-            [novaQtdeProduzida, p.pedido_id]
+            `UPDATE materiais SET estoque = estoque + ? WHERE id = ?`,
+            [qtde, opData.material_id]
           );
-          pedidosParciais++;
+          qtdeAdicionada = qtde;
+          // Registra ENTRADA (produção) no extrato
+          await db.promise().query(
+            `INSERT INTO movimentacoes_estoque
+               (material_id, codigo_produto, descricao, tipo, quantidade,
+                estoque_anterior, estoque_novo, referencia_tipo, referencia_id,
+                referencia_label, usuario_id, usuario_nome)
+             VALUES (?, ?, ?, 'ENTRADA', ?, ?, ?, 'PRODUCAO_OP', ?, ?, ?, ?)`,
+            [opData.material_id, opData.codigo_produto,
+             matProd?.descricao || opData.descricao_material || '',
+             qtde, estAnterior, estAnterior + qtde,
+             Number(op_id), `OP ${opData.numero_op || op_id}`,
+             req.user.id, req.user.nome]
+          );
         }
       }
-
-      // 3. Calcula saldo e adiciona ao estoque
-      const [[opData]] = await db.promise().query(
-        `SELECT op.material_id, op.qtde_total, op.codigo_produto
-         FROM ordens_producao op WHERE op.id = ?`,
-        [op_id]
-      );
-
-      const [[{ total_atendida }]] = await db.promise().query(
-        `SELECT COALESCE(SUM(qtde_atendida), 0) AS total_atendida FROM op_pedidos WHERE op_id = ?`,
-        [op_id]
-      );
-
-      const saldo = Number(opData?.qtde_total || 0) - Number(total_atendida || 0);
-      let qtdeAdicionada = 0;
-
-      if (opData && opData.material_id && saldo > 0) {
-        await db.promise().query(
-          `UPDATE materiais SET estoque = estoque + ? WHERE id = ?`,
-          [saldo, opData.material_id]
-        );
-        qtdeAdicionada = saldo;
-      }
-
-      // 4. Busca insumos da OP e subtrai do estoque
+      // Baixa insumos do estoque
       const [insumos] = await db.promise().query(
-        `SELECT material_id, quantidade FROM op_insumos WHERE op_id = ? AND material_id IS NOT NULL`,
+        `SELECT oi.material_id, oi.quantidade, m.codigo_produto, m.descricao, m.estoque
+         FROM op_insumos oi
+         LEFT JOIN materiais m ON m.id = oi.material_id
+         WHERE oi.op_id = ? AND oi.material_id IS NOT NULL`,
         [op_id]
       );
-
       let estoqueInsuficiente = [];
       for (const ins of insumos) {
-        const [[mat]] = await db.promise().query(
-          `SELECT estoque, codigo_produto FROM materiais WHERE id = ?`,
-          [ins.material_id]
-        );
-        if (!mat) continue;
-        if (Number(mat.estoque) - Number(ins.quantidade) < 0) {
-          estoqueInsuficiente.push({ codigo: mat.codigo_produto, estoque_atual: mat.estoque, necessario: ins.quantidade });
+        const estAnterior = Number(ins.estoque || 0);
+        const qtdeIns = Number(ins.quantidade);
+        if (estAnterior - qtdeIns < 0) {
+          estoqueInsuficiente.push({ codigo: ins.codigo_produto, estoque_atual: estAnterior, necessario: qtdeIns });
         }
         await db.promise().query(
           `UPDATE materiais SET estoque = estoque - ? WHERE id = ?`,
-          [Number(ins.quantidade), ins.material_id]
+          [qtdeIns, ins.material_id]
+        );
+        const estoqueNovo = estAnterior - qtdeIns;
+        // Registra SAIDA (baixa insumo) no extrato
+        await db.promise().query(
+          `INSERT INTO movimentacoes_estoque
+             (material_id, codigo_produto, descricao, tipo, quantidade,
+              estoque_anterior, estoque_novo, referencia_tipo, referencia_id,
+              referencia_label, usuario_id, usuario_nome)
+           VALUES (?, ?, ?, 'SAIDA', ?, ?, ?, 'PRODUCAO_OP', ?, ?, ?, ?)`,
+          [ins.material_id, ins.codigo_produto, ins.descricao || '',
+           qtdeIns, estAnterior, estoqueNovo,
+           Number(op_id), `OP ${opData?.numero_op || op_id} (insumo)`,
+           req.user.id, req.user.nome]
         );
       }
-
       const avisoEstoque = estoqueInsuficiente.length > 0
         ? ` ⚠️ Estoque negativo: ${estoqueInsuficiente.map(e => `${e.codigo} (tinha ${e.estoque_atual}, usou ${e.necessario})`).join(", ")}`
         : "";
-
       res.json({
         success: true,
-        message: `OP concluída. Saldo: +${qtdeAdicionada} ao estoque. ${pedidosEntregues} entregue(s), ${pedidosParciais} parcial(is). ${insumos.length} insumo(s) baixados.${avisoEstoque}`,
-        pedidos_finalizados: pedidosEntregues,
-        pedidos_parciais:    pedidosParciais,
+        message: `OP concluída. +${qtdeAdicionada} ao estoque. ${insumos.length} insumo(s) baixados.${avisoEstoque}`,
         insumos_baixados:    insumos.length,
         estoque_insuficiente: estoqueInsuficiente,
       });
-
       registrarLog({
         usuario_id: req.user.id, usuario_nome: req.user.nome,
         modulo: "OP", acao: "Concluir OP",
-        descricao: `OP ID ${op_id} concluída em ${data_final}. ${pedidosEntregues} entregue(s), ${pedidosParciais} parcial(is), saldo +${qtdeAdicionada}, ${insumos.length} insumo(s) baixados${avisoEstoque}`,
+        descricao: `OP ID ${op_id} concluída em ${data_final}. +${qtdeAdicionada} ao estoque, ${insumos.length} insumo(s) baixados${avisoEstoque}`,
         referencia_id: Number(op_id),
       });
-
     } catch (err) {
       console.error("Erro ao concluir OP:", err);
       res.status(500).json({ success: false, message: err.message });
     }
   }
 );
-
 /* =======================
    CONTROLE_PEDIDOS — GET (busca por texto para saída de estoque)
 ======================= */
 app.get(
   "/controle_pedidos",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica", "vendas"]),
+  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao"]),
   async (req, res) => {
     try {
       const { search, limit = 20 } = req.query;
       let where = "WHERE data_finalizada IS NULL";
       const params = [];
-
       if (search) {
         where += ` AND (cliente LIKE ? OR pedido_venda LIKE ?
                     OR ordem_compra LIKE ? OR zerb LIKE ?
@@ -1708,7 +1685,6 @@ app.get(
         const q = `%${search}%`;
         params.push(q, q, q, q, q);
       }
-
       const [rows] = await db.promise().query(
         `SELECT * FROM controle_pedidos ${where}
          ORDER BY data_contratual ASC LIMIT ?`,
@@ -1720,14 +1696,13 @@ app.get(
     }
   }
 );
-
 /* =====================================================
    SAÍDAS DE ESTOQUE
 ===================================================== */
 app.get(
   "/saidas_estoque",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica", "vendas"]),
+  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao"]),
   async (req, res) => {
     try {
       await criarTabelasSaida();
@@ -1749,11 +1724,10 @@ app.get(
     }
   }
 );
-
 app.get(
   "/saidas_estoque/:id",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica", "vendas"]),
+  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao"]),
   async (req, res) => {
     try {
       await criarTabelasSaida();
@@ -1761,7 +1735,6 @@ app.get(
         `SELECT * FROM saidas_estoque WHERE id = ?`, [req.params.id]
       );
       if (!saida) return res.status(404).json({ success: false, message: "Saída não encontrada" });
-
       const [itens] = await db.promise().query(
         `SELECT * FROM saidas_estoque_itens WHERE saida_id = ? ORDER BY id`, [req.params.id]
       );
@@ -1771,79 +1744,99 @@ app.get(
     }
   }
 );
-
 app.post(
   "/saidas_estoque",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica"]),
+  roleMiddleware(["admin", "pcp", "logistica", "producao"]),
   async (req, res) => {
     try {
       await criarTabelasSaida();
-      const { pedido_id, usuario, observacoes, itens } = req.body;
-
-      if (!pedido_id || !Array.isArray(itens) || itens.length === 0)
+      const { usuario, observacoes, itens } = req.body;
+      if (!Array.isArray(itens) || itens.length === 0)
         return res.status(400).json({ success: false, message: "Dados inválidos." });
 
-      // Busca dados do pedido para gravar no comprovante
-      const [[pedido]] = await db.promise().query(
-        `SELECT * FROM controle_pedidos WHERE id = ?`, [pedido_id]
-      );
-      if (!pedido) return res.status(404).json({ success: false, message: "Pedido não encontrado." });
-
-      // Próximo número sequencial
       const [[{ ultimo }]] = await db.promise().query(
         `SELECT COALESCE(MAX(numero), 0) AS ultimo FROM saidas_estoque`
       );
       const numero = ultimo + 1;
       const hoje   = new Date().toISOString().split("T")[0];
 
-      // Insere cabeçalho da saída
+      // Coleta info do primeiro pedido vinculado (para compatibilidade do header)
+      const primeiroPedido = itens.find(i => i.pedido_id) || {};
       const [ins] = await db.promise().query(
         `INSERT INTO saidas_estoque
            (numero, pedido_id, codigo_cliente, cliente, estado,
             pedido_venda, ordem_compra, zerb, data_saida, usuario, observacoes)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [numero, pedido_id, pedido.codigo_cliente || null, pedido.cliente || null,
-         pedido.estado || null, pedido.pedido_venda || null, pedido.ordem_compra || null,
-         pedido.zerb || null, hoje, usuario || "Sistema", observacoes || null]
+        [numero, primeiroPedido.pedido_id || null,
+         primeiroPedido.codigo_cliente || null, primeiroPedido.cliente || null,
+         primeiroPedido.estado || null, primeiroPedido.pedido_venda || null,
+         primeiroPedido.ordem_compra || null, primeiroPedido.zerb || null,
+         hoje, usuario || "Sistema", observacoes || null]
       );
       const saida_id = ins.insertId;
 
-      // Insere itens e baixa estoque
+      await criarTabelaMovimentacoes();
+
+      // IDs de pedidos únicos vinculados (para atualizar status depois)
+      const pedidoIds = new Set();
+
       for (const it of itens) {
-        const qtde    = Number(it.quantidade     || 0);
-        const custo   = Number(it.custo_unitario || 0);
+        const qtde  = Number(it.quantidade     || 0);
+        const custo = Number(it.custo_unitario || 0);
         await db.promise().query(
           `INSERT INTO saidas_estoque_itens
-             (saida_id, material_id, codigo_produto, descricao, unidade_medida, quantidade, custo_unitario, subtotal)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+             (saida_id, material_id, codigo_produto, descricao, unidade_medida,
+              quantidade, custo_unitario, subtotal,
+              pedido_id, pedido_venda, ordem_compra, cliente)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [saida_id, it.material_id || null, it.codigo_produto, it.descricao,
-           it.unidade_medida || "un", qtde, custo, Number((qtde * custo).toFixed(2))]
+           it.unidade_medida || "un", qtde, custo, Number((qtde * custo).toFixed(2)),
+           it.pedido_id || null, it.pedido_venda || null,
+           it.ordem_compra || null, it.cliente || null]
         );
 
-        // Baixa estoque
         if (it.material_id) {
+          const [[matAntes]] = await db.promise().query(
+            `SELECT estoque FROM materiais WHERE id = ?`, [it.material_id]
+          );
+          const estoqueAnterior = Number(matAntes?.estoque || 0);
           await db.promise().query(
             `UPDATE materiais SET estoque = GREATEST(0, estoque - ?) WHERE id = ?`,
             [qtde, it.material_id]
           );
+          const estoqueNovo = Math.max(0, estoqueAnterior - qtde);
+          await db.promise().query(
+            `INSERT INTO movimentacoes_estoque
+               (material_id, codigo_produto, descricao, tipo, quantidade,
+                estoque_anterior, estoque_novo, referencia_tipo, referencia_id,
+                referencia_label, pedido_venda, ordem_compra, usuario_id, usuario_nome)
+             VALUES (?, ?, ?, 'SAIDA', ?, ?, ?, 'SAIDA_ESTOQUE', ?, ?, ?, ?, ?, ?)`,
+            [it.material_id, it.codigo_produto, it.descricao, qtde,
+             estoqueAnterior, estoqueNovo, saida_id,
+             `Saída #${numero}${it.pedido_venda ? ' — PV ' + it.pedido_venda : ''}${it.ordem_compra ? ' — OC ' + it.ordem_compra : ''}`,
+             it.pedido_venda || null, it.ordem_compra || null,
+             req.user.id, req.user.nome]
+          );
         }
+
+        if (it.pedido_id) pedidoIds.add(it.pedido_id);
       }
 
-      // Marca pedido como atendido via estoque
-      await db.promise().query(
-        `UPDATE controle_pedidos SET data_finalizada = ?, status_producao = 'Entregue' WHERE id = ?`,
-        [hoje, pedido_id]
-      );
+      // Atualiza status dos pedidos vinculados
+      for (const pid of pedidoIds) {
+        await db.promise().query(
+          `UPDATE controle_pedidos SET data_finalizada = ?, status_producao = 'Entregue' WHERE id = ?`,
+          [hoje, pid]
+        );
+      }
 
-      // Retorna saída completa para exibir o comprovante
       const [[saidaFull]] = await db.promise().query(
         `SELECT * FROM saidas_estoque WHERE id = ?`, [saida_id]
       );
       const [itensFull] = await db.promise().query(
         `SELECT * FROM saidas_estoque_itens WHERE saida_id = ? ORDER BY id`, [saida_id]
       );
-
       res.json({
         success: true,
         numero,
@@ -1851,25 +1844,24 @@ app.post(
         saida: { ...saidaFull, itens: itensFull },
       });
 
-      // Log
+      const pedidoLabel = pedidoIds.size > 0
+        ? `${pedidoIds.size} pedido(s) atendido(s)`
+        : "sem vínculo a pedidos";
       registrarLog({
         usuario_id:      req.user.id,
         usuario_nome:    req.user.nome,
         modulo:          "ESTOQUE",
         acao:            "Saída de Estoque",
-        descricao:       `Saída Nº ${numero} — Cliente: ${pedido.cliente || "—"}, ${itens.length} item(s) retirado(s) do estoque para atender pedido ID ${pedido_id}`,
+        descricao:       `Saída Nº ${numero} — ${itens.length} item(s) retirado(s) do estoque, ${pedidoLabel}`,
         referencia_id:   saida_id,
         referencia_label: `Saída #${numero}`,
       });
-
     } catch (err) {
       console.error("Erro ao registrar saída:", err);
       res.status(500).json({ success: false, message: err.message });
     }
   }
 );
-
-// Cria tabelas de saída se não existirem
 async function criarTabelasSaida() {
   await db.promise().query(`
     CREATE TABLE IF NOT EXISTS saidas_estoque (
@@ -1900,11 +1892,454 @@ async function criarTabelasSaida() {
       quantidade     DECIMAL(10,3) NOT NULL DEFAULT 0,
       custo_unitario DECIMAL(10,4) NOT NULL DEFAULT 0,
       subtotal       DECIMAL(10,2) NOT NULL DEFAULT 0,
+      pedido_id      INT NULL,
+      pedido_venda   VARCHAR(50) NULL,
+      ordem_compra   VARCHAR(50) NULL,
+      cliente        VARCHAR(100) NULL,
       PRIMARY KEY (id),
       KEY idx_sei_saida (saida_id)
     )
   `);
+  // Migration: add pedido columns to existing table
+  await db.promise().query(`ALTER TABLE saidas_estoque_itens ADD COLUMN pedido_id INT NULL`).catch(() => {});
+  await db.promise().query(`ALTER TABLE saidas_estoque_itens ADD COLUMN pedido_venda VARCHAR(50) NULL`).catch(() => {});
+  await db.promise().query(`ALTER TABLE saidas_estoque_itens ADD COLUMN ordem_compra VARCHAR(50) NULL`).catch(() => {});
+  await db.promise().query(`ALTER TABLE saidas_estoque_itens ADD COLUMN cliente VARCHAR(100) NULL`).catch(() => {});
 }
+/* =====================================================
+   MOVIMENTAÇÕES DE ESTOQUE
+===================================================== */
+async function criarTabelaMovimentacoes() {
+  await db.promise().query(`
+    CREATE TABLE IF NOT EXISTS movimentacoes_estoque (
+      id              INT NOT NULL AUTO_INCREMENT,
+      material_id     INT NOT NULL,
+      codigo_produto  VARCHAR(100) NULL,
+      descricao       VARCHAR(500) NULL,
+      tipo            ENUM('ENTRADA','SAIDA','PRODUCAO','AJUSTE') NOT NULL,
+      quantidade      DECIMAL(14,4) NOT NULL,
+      estoque_anterior DECIMAL(14,4) NULL,
+      estoque_novo    DECIMAL(14,4) NULL,
+      referencia_tipo VARCHAR(50) NULL,
+      referencia_id   INT NULL,
+      referencia_label VARCHAR(100) NULL,
+      pedido_venda    VARCHAR(50) NULL,
+      ordem_compra    VARCHAR(50) NULL,
+      observacoes     TEXT NULL,
+      usuario_id      INT NULL,
+      usuario_nome    VARCHAR(100) NULL,
+      criado_em       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      KEY idx_mov_material (material_id),
+      KEY idx_mov_tipo (tipo),
+      KEY idx_mov_data (criado_em)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+}
+
+// GET /movimentacoes — lista paginada com filtros
+app.get(
+  "/movimentacoes",
+  authMiddleware,
+  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao"]),
+  async (req, res) => {
+    try {
+      await criarTabelaMovimentacoes();
+      const { material_id, tipo, page = 1, limit = 50 } = req.query;
+      let where = "WHERE 1=1";
+      const params = [];
+      if (material_id) { where += " AND m.material_id = ?"; params.push(material_id); }
+      if (tipo)        { where += " AND m.tipo = ?"; params.push(tipo); }
+      const offset = (Math.max(1, Number(page)) - 1) * Number(limit);
+      const [[{ total }]] = await db.promise().query(
+        `SELECT COUNT(*) AS total FROM movimentacoes_estoque m ${where}`, params
+      );
+      const [rows] = await db.promise().query(
+        `SELECT m.* FROM movimentacoes_estoque m ${where} ORDER BY m.criado_em DESC LIMIT ? OFFSET ?`,
+        [...params, Number(limit), offset]
+      );
+      res.json({ success: true, data: rows, total, page: Number(page), limit: Number(limit), totalPages: Math.ceil(total / Number(limit)) });
+    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+  }
+);
+
+// GET /estoque/detalhe/:id — dados completos do material + ficha técnica
+app.get(
+  "/estoque/detalhe/:id",
+  authMiddleware,
+  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao"]),
+  async (req, res) => {
+    try {
+      const [[mat]] = await db.promise().query(
+        `SELECT * FROM materiais WHERE id = ?`, [req.params.id]
+      );
+      if (!mat) return res.status(404).json({ success: false, message: "Material não encontrado" });
+
+      // Ficha técnica com custo dos insumos
+      const [ft] = await db.promise().query(
+        `SELECT ft.*, m2.descricao AS insumo_descricao, m2.codigo_produto AS insumo_codigo,
+                COALESCE(m2.custo_fornecedor, 0) AS custo_unit
+         FROM ficha_tecnica ft
+         LEFT JOIN materiais m2 ON m2.id = ft.insumo_material_id
+         WHERE ft.material_id = ?
+         ORDER BY ft.id ASC`, [req.params.id]
+      ).catch(() => [[]]);
+
+      res.json({ success: true, data: { ...mat, ficha_tecnica: ft } });
+    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+  }
+);
+
+// GET /estoque/extrato/:id — movimentações de um material específico (paginado)
+app.get(
+  "/estoque/extrato/:id",
+  authMiddleware,
+  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao"]),
+  async (req, res) => {
+    try {
+      await criarTabelaMovimentacoes();
+      const { page = 1, limit = 30 } = req.query;
+      const offset = (Math.max(1, Number(page)) - 1) * Number(limit);
+      const [[{ total }]] = await db.promise().query(
+        `SELECT COUNT(*) AS total FROM movimentacoes_estoque WHERE material_id = ?`, [req.params.id]
+      );
+      const [rows] = await db.promise().query(
+        `SELECT * FROM movimentacoes_estoque WHERE material_id = ? ORDER BY criado_em DESC LIMIT ? OFFSET ?`,
+        [req.params.id, Number(limit), offset]
+      );
+      res.json({ success: true, data: rows, total, page: Number(page), limit: Number(limit), totalPages: Math.ceil(total / Number(limit)) });
+    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+  }
+);
+
+// GET /estoque/lista — materiais paginados com filtros para a página de estoque
+app.get(
+  "/estoque/lista",
+  authMiddleware,
+  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao"]),
+  async (req, res) => {
+    try {
+      const { search, tipo, grupo, page = 1, limit = 50 } = req.query;
+      let where = "WHERE 1=1";
+      const params = [];
+      if (search) {
+        where += " AND (codigo_produto LIKE ? OR descricao LIKE ?)";
+        params.push(`%${search}%`, `%${search}%`);
+      }
+      if (tipo)  { where += " AND tipo = ?"; params.push(tipo); }
+      if (grupo) { where += " AND grupo = ?"; params.push(grupo); }
+      const offset = (Math.max(1, Number(page)) - 1) * Number(limit);
+      const [[{ total }]] = await db.promise().query(
+        `SELECT COUNT(*) AS total FROM materiais ${where}`, params
+      );
+      const [rows] = await db.promise().query(
+        `SELECT id, codigo_produto, descricao, unidade_medida, tipo, grupo, subgrupo, marca, situacao, estoque, custo_fornecedor
+         FROM materiais ${where}
+         ORDER BY CAST(codigo_produto AS UNSIGNED) ASC
+         LIMIT ? OFFSET ?`,
+        [...params, Number(limit), offset]
+      );
+      res.json({ success: true, data: rows, total, page: Number(page), limit: Number(limit), totalPages: Math.ceil(total / Number(limit)) });
+    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+  }
+);
+
+/* =======================
+   DASHBOARD — KPIs e indicadores
+======================= */
+app.get(
+  "/dashboard",
+  authMiddleware,
+  async (req, res) => {
+    try {
+      // OPs por status
+      const [opsStatus] = await db.promise().query(`
+        SELECT status, COUNT(*) AS total FROM ordens_producao WHERE is_deleted = 0 GROUP BY status
+      `);
+      const ops = { ABERTA: 0, EM_PRODUCAO: 0, CONCLUIDA: 0, CANCELADA: 0 };
+      opsStatus.forEach(r => { ops[r.status] = r.total; });
+
+      // OPs concluídas este mês
+      const [[opsMes]] = await db.promise().query(`
+        SELECT COUNT(*) AS total, COALESCE(SUM(qtde_total), 0) AS qtde_produzida
+        FROM ordens_producao
+        WHERE is_deleted = 0 AND status = 'CONCLUIDA'
+          AND MONTH(data_finalizacao) = MONTH(CURDATE()) AND YEAR(data_finalizacao) = YEAR(CURDATE())
+      `);
+
+      // Materiais com estoque abaixo do mínimo
+      const [abaixoMinimo] = await db.promise().query(`
+        SELECT id, codigo_produto, descricao, estoque, estoque_minimo, unidade_medida
+        FROM materiais
+        WHERE estoque_minimo > 0 AND estoque < estoque_minimo
+        ORDER BY (estoque_minimo - estoque) DESC
+        LIMIT 20
+      `);
+
+      // Materiais com estoque zerado
+      const [[{ estoque_zerado }]] = await db.promise().query(`
+        SELECT COUNT(*) AS estoque_zerado FROM materiais WHERE estoque <= 0
+      `);
+
+      // Total de materiais e valor total em estoque
+      const [[matStats]] = await db.promise().query(`
+        SELECT COUNT(*) AS total_materiais,
+               COALESCE(SUM(estoque * custo_fornecedor), 0) AS valor_total_estoque
+        FROM materiais
+      `);
+
+      // Pedidos pendentes vs entregues
+      const [pedidosStatus] = await db.promise().query(`
+        SELECT status_producao, COUNT(*) AS total FROM controle_pedidos GROUP BY status_producao
+      `).catch(() => [[]]);
+      const pedidos = {};
+      (pedidosStatus || []).forEach(r => { pedidos[r.status_producao || "Pendente"] = r.total; });
+
+      // Últimas 10 movimentações de estoque
+      const [ultMovs] = await db.promise().query(`
+        SELECT m.*, mat.codigo_produto AS mat_codigo
+        FROM movimentacoes_estoque m
+        LEFT JOIN materiais mat ON mat.id = m.material_id
+        ORDER BY m.criado_em DESC LIMIT 10
+      `).catch(() => [[]]);
+
+      // Produção últimos 6 meses (para gráfico)
+      const [prod6m] = await db.promise().query(`
+        SELECT DATE_FORMAT(data_finalizacao, '%Y-%m') AS mes,
+               COUNT(*) AS total_ops,
+               COALESCE(SUM(qtde_total), 0) AS qtde_total
+        FROM ordens_producao
+        WHERE is_deleted = 0 AND status = 'CONCLUIDA'
+          AND data_finalizacao >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
+        GROUP BY mes ORDER BY mes ASC
+      `);
+
+      res.json({
+        success: true,
+        data: {
+          ops,
+          ops_mes: { total: opsMes.total, qtde_produzida: Number(opsMes.qtde_produzida) },
+          materiais: {
+            total: matStats.total_materiais,
+            valor_estoque: Number(matStats.valor_total_estoque),
+            estoque_zerado,
+            abaixo_minimo: abaixoMinimo,
+          },
+          pedidos,
+          ultimas_movimentacoes: ultMovs || [],
+          producao_6m: prod6m || [],
+        }
+      });
+    } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+  }
+);
+
+/* =======================
+   DASHBOARD PEDIDOS — dados avançados + OPs
+======================= */
+app.get(
+  "/dashboard-pedidos",
+  authMiddleware,
+  async (req, res) => {
+    try {
+      const p = db.promise();
+
+      // ── Todas as queries em paralelo (Promise.all) ──
+      const [
+        [_kpis], [porStatus], [porMes], [entregasPorMes], [topClientes],
+        [porUF], [pedidosAtrasados], [proximasEntregas], [ultimosPedidos],
+        [_taxaPrazo],
+        [_opsKpis], [opsStatus], [ops6m], [opsRecentes], [opsPerdas]
+      ] = await Promise.all([
+        p.query(`SELECT COUNT(*) AS total_pedidos,
+          SUM(CASE WHEN status_producao NOT IN ('Entregue') THEN 1 ELSE 0 END) AS pedidos_ativos,
+          SUM(CASE WHEN status_producao = 'Entregue' THEN 1 ELSE 0 END) AS pedidos_entregues,
+          SUM(CASE WHEN status_producao = 'Item em Produção' THEN 1 ELSE 0 END) AS em_producao,
+          SUM(CASE WHEN status_producao IN ('Pedido atrasado','Entrega com Atraso') THEN 1 ELSE 0 END) AS atrasados,
+          SUM(CASE WHEN status_producao = 'Curso normal' THEN 1 ELSE 0 END) AS curso_normal,
+          COALESCE(SUM(qtde_solicitada), 0) AS total_pecas_solicitadas,
+          COALESCE(SUM(qtde_produzida), 0) AS total_pecas_produzidas
+          FROM controle_pedidos`),
+        p.query(`SELECT status_producao AS status, COUNT(*) AS total
+          FROM controle_pedidos GROUP BY status_producao ORDER BY total DESC`),
+        p.query(`SELECT DATE_FORMAT(criado_em, '%Y-%m') AS mes, COUNT(*) AS total,
+          COALESCE(SUM(qtde_solicitada), 0) AS pecas FROM controle_pedidos
+          WHERE criado_em >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH) GROUP BY mes ORDER BY mes ASC`),
+        p.query(`SELECT DATE_FORMAT(data_finalizada, '%Y-%m') AS mes, COUNT(*) AS total,
+          COALESCE(SUM(qtde_produzida), 0) AS pecas FROM controle_pedidos
+          WHERE status_producao = 'Entregue' AND data_finalizada >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
+          GROUP BY mes ORDER BY mes ASC`),
+        p.query(`SELECT cliente, COUNT(*) AS total_pedidos,
+          COALESCE(SUM(qtde_solicitada), 0) AS total_pecas,
+          SUM(CASE WHEN status_producao = 'Entregue' THEN 1 ELSE 0 END) AS entregues
+          FROM controle_pedidos WHERE cliente IS NOT NULL AND cliente != ''
+          GROUP BY cliente ORDER BY total_pedidos DESC LIMIT 10`),
+        p.query(`SELECT UPPER(TRIM(estado)) AS uf, COUNT(*) AS total
+          FROM controle_pedidos WHERE estado IS NOT NULL AND estado != ''
+          GROUP BY uf ORDER BY total DESC LIMIT 15`),
+        p.query(`SELECT id, ordem_compra, cliente, estado, codigo_cliente, zerb,
+          qtde_solicitada, qtde_produzida, status_producao,
+          data_contratual, data_finalizada, controle FROM controle_pedidos
+          WHERE status_producao IN ('Pedido atrasado','Entrega com Atraso')
+          ORDER BY data_contratual ASC LIMIT 20`),
+        p.query(`SELECT id, ordem_compra, cliente, estado, codigo_cliente, zerb,
+          qtde_solicitada, qtde_produzida, status_producao, data_contratual, controle
+          FROM controle_pedidos WHERE status_producao NOT IN ('Entregue')
+          AND data_contratual IS NOT NULL AND data_contratual >= CURDATE()
+          ORDER BY data_contratual ASC LIMIT 15`),
+        p.query(`SELECT id, ordem_compra, cliente, estado, codigo_cliente, zerb,
+          qtde_solicitada, qtde_produzida, status_producao,
+          data_contratual, criado_em, controle FROM controle_pedidos ORDER BY id DESC LIMIT 10`),
+        p.query(`SELECT COUNT(*) AS total_entregues,
+          SUM(CASE WHEN data_finalizada <= data_contratual THEN 1 ELSE 0 END) AS no_prazo
+          FROM controle_pedidos WHERE status_producao = 'Entregue'
+          AND data_contratual IS NOT NULL AND data_finalizada IS NOT NULL`),
+        // OPs
+        p.query(`SELECT COUNT(*) AS total_ops,
+          SUM(CASE WHEN status = 'ABERTA' THEN 1 ELSE 0 END) AS abertas,
+          SUM(CASE WHEN status = 'EM_PRODUCAO' THEN 1 ELSE 0 END) AS em_producao,
+          SUM(CASE WHEN status = 'CONCLUIDA' THEN 1 ELSE 0 END) AS concluidas,
+          SUM(CASE WHEN status = 'CANCELADA' THEN 1 ELSE 0 END) AS canceladas,
+          COALESCE(SUM(qtde_total), 0) AS total_pecas,
+          COALESCE(SUM(custo_total), 0) AS custo_total
+          FROM ordens_producao WHERE is_deleted = 0`),
+        p.query(`SELECT status, COUNT(*) AS total FROM ordens_producao WHERE is_deleted = 0
+          GROUP BY status ORDER BY FIELD(status,'ABERTA','EM_PRODUCAO','CONCLUIDA','CANCELADA')`),
+        p.query(`SELECT DATE_FORMAT(data_finalizacao, '%Y-%m') AS mes,
+          COUNT(*) AS total, COALESCE(SUM(qtde_total), 0) AS pecas FROM ordens_producao
+          WHERE is_deleted = 0 AND status = 'CONCLUIDA'
+          AND data_finalizacao >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH) GROUP BY mes ORDER BY mes ASC`),
+        p.query(`SELECT id, numero_op, codigo_produto, descricao_material,
+          qtde_total, status, responsavel, data_finalizacao, custo_total
+          FROM ordens_producao WHERE is_deleted = 0 ORDER BY id DESC LIMIT 10`),
+        p.query(`SELECT p.op_id, p.codigo_produto, p.descricao, p.quantidade,
+          p.unidade_medida, p.motivo, p.criado_em, o.numero_op FROM op_perdas p
+          LEFT JOIN ordens_producao o ON o.id = p.op_id
+          ORDER BY p.criado_em DESC LIMIT 15`).catch(() => [[]]),
+      ]);
+
+      const kpis = _kpis[0];
+      const taxaPrazo = _taxaPrazo[0];
+      const opsKpis = _opsKpis[0];
+
+      res.json({
+        success: true,
+        data: {
+          kpis,
+          taxa_prazo: {
+            total: taxaPrazo.total_entregues || 0,
+            no_prazo: taxaPrazo.no_prazo || 0,
+            percentual: taxaPrazo.total_entregues > 0
+              ? Math.round((taxaPrazo.no_prazo / taxaPrazo.total_entregues) * 100) : 0
+          },
+          por_status: porStatus,
+          por_mes: porMes,
+          entregas_por_mes: entregasPorMes,
+          top_clientes: topClientes,
+          por_uf: porUF,
+          pedidos_atrasados: pedidosAtrasados,
+          proximas_entregas: proximasEntregas,
+          ultimos_pedidos: ultimosPedidos,
+          // OPs
+          ops_kpis: opsKpis,
+          ops_status: opsStatus,
+          ops_6m: ops6m,
+          ops_recentes: opsRecentes,
+          ops_perdas: opsPerdas || [],
+        }
+      });
+    } catch (e) {
+      console.error("Erro dashboard-pedidos:", e);
+      res.status(500).json({ success: false, message: e.message });
+    }
+  }
+);
+
+/* =======================
+   DASHBOARD ESTOQUE — movimentações, alertas, perdas
+======================= */
+app.get(
+  "/dashboard-estoque",
+  authMiddleware,
+  async (req, res) => {
+    try {
+      const p = db.promise();
+
+      const [
+        [_matKpis], [movsPorTipo], [movsPorMes], [topSaidas],
+        [abaixoMinimo], [estoqueZerado], [ultimasMovs],
+        [ultimasSaidas], [perdas], [_saidasValor], [_perdasTotal]
+      ] = await Promise.all([
+        p.query(`SELECT COUNT(*) AS total_materiais,
+          COALESCE(SUM(estoque * custo_fornecedor), 0) AS valor_total,
+          SUM(CASE WHEN estoque <= 0 THEN 1 ELSE 0 END) AS estoque_zerado,
+          SUM(CASE WHEN estoque_minimo > 0 AND estoque < estoque_minimo THEN 1 ELSE 0 END) AS abaixo_minimo
+          FROM materiais`),
+        p.query(`SELECT tipo, COUNT(*) AS total, COALESCE(SUM(quantidade), 0) AS qtde_total
+          FROM movimentacoes_estoque WHERE criado_em >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+          GROUP BY tipo ORDER BY total DESC`),
+        p.query(`SELECT DATE_FORMAT(criado_em, '%Y-%m') AS mes, tipo,
+          COUNT(*) AS total, COALESCE(SUM(quantidade), 0) AS qtde
+          FROM movimentacoes_estoque WHERE criado_em >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
+          GROUP BY mes, tipo ORDER BY mes ASC`),
+        p.query(`SELECT m.codigo_produto, m.descricao, m.unidade_medida,
+          COUNT(*) AS total_saidas, COALESCE(SUM(mov.quantidade), 0) AS qtde_saida,
+          m.estoque AS estoque_atual, m.estoque_minimo
+          FROM movimentacoes_estoque mov JOIN materiais m ON m.id = mov.material_id
+          WHERE mov.tipo = 'SAIDA' AND mov.criado_em >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+          GROUP BY mov.material_id ORDER BY qtde_saida DESC LIMIT 10`),
+        p.query(`SELECT id, codigo_produto, descricao, estoque, estoque_minimo, unidade_medida
+          FROM materiais WHERE estoque_minimo > 0 AND estoque < estoque_minimo
+          ORDER BY (estoque_minimo - estoque) DESC LIMIT 20`),
+        p.query(`SELECT id, codigo_produto, descricao, unidade_medida, estoque_minimo
+          FROM materiais WHERE estoque <= 0 ORDER BY codigo_produto ASC LIMIT 20`),
+        p.query(`SELECT m.*, mat.codigo_produto AS mat_codigo, mat.descricao AS mat_descricao
+          FROM movimentacoes_estoque m LEFT JOIN materiais mat ON mat.id = m.material_id
+          ORDER BY m.criado_em DESC LIMIT 15`),
+        p.query(`SELECT s.id, s.numero, s.cliente, s.estado, s.pedido_venda,
+          s.ordem_compra, s.data_saida, s.usuario,
+          (SELECT COUNT(*) FROM saidas_estoque_itens WHERE saida_id = s.id) AS total_itens,
+          (SELECT COALESCE(SUM(subtotal), 0) FROM saidas_estoque_itens WHERE saida_id = s.id) AS valor_total
+          FROM saidas_estoque s ORDER BY s.id DESC LIMIT 10`).catch(() => [[]]),
+        p.query(`SELECT p.op_id, p.codigo_produto, p.descricao, p.quantidade,
+          p.unidade_medida, p.motivo, p.criado_em, o.numero_op FROM op_perdas p
+          LEFT JOIN ordens_producao o ON o.id = p.op_id
+          ORDER BY p.criado_em DESC LIMIT 15`).catch(() => [[]]),
+        p.query(`SELECT COALESCE(SUM(i.subtotal), 0) AS valor_total, COUNT(DISTINCT s.id) AS total_saidas
+          FROM saidas_estoque s JOIN saidas_estoque_itens i ON i.saida_id = s.id
+          WHERE s.data_saida >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)`)
+          .catch(() => [[{ valor_total: 0, total_saidas: 0 }]]),
+        p.query(`SELECT COUNT(*) AS total, COALESCE(SUM(quantidade), 0) AS qtde_total
+          FROM op_perdas WHERE criado_em >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)`)
+          .catch(() => [[{ total: 0, qtde_total: 0 }]]),
+      ]);
+
+      const matKpis = _matKpis[0];
+      const saidasValor = _saidasValor[0] || { valor_total: 0, total_saidas: 0 };
+      const perdasTotal = _perdasTotal[0] || { total: 0, qtde_total: 0 };
+
+      res.json({
+        success: true,
+        data: {
+          kpis: matKpis,
+          saidas_valor: saidasValor,
+          perdas_total: perdasTotal,
+          movs_por_tipo: movsPorTipo,
+          movs_por_mes: movsPorMes,
+          top_saidas: topSaidas,
+          abaixo_minimo: abaixoMinimo,
+          estoque_zerado: estoqueZerado,
+          ultimas_movs: ultimasMovs,
+          ultimas_saidas: ultimasSaidas || [],
+          perdas: perdas || [],
+        }
+      });
+    } catch (e) {
+      console.error("Erro dashboard-estoque:", e);
+      res.status(500).json({ success: false, message: e.message });
+    }
+  }
+);
 
 /* =======================
    USUÁRIOS — CRUD (apenas admin)
@@ -1924,7 +2359,6 @@ app.get(
     }
   }
 );
-
 app.get(
   "/usuarios/:id",
   authMiddleware,
@@ -1942,7 +2376,6 @@ app.get(
     }
   }
 );
-
 app.post(
   "/usuarios",
   authMiddleware,
@@ -1952,14 +2385,12 @@ app.post(
       const { nome, email, senha, perfil, ativo } = req.body;
       if (!nome || !email || !senha)
         return res.status(400).json({ success: false, message: "Nome, email e senha são obrigatórios" });
-
       const senha_hash = await bcrypt.hash(senha, 10);
       const [result] = await db.promise().query(
         "INSERT INTO usuarios (nome, email, senha_hash, perfil, ativo) VALUES (?, ?, ?, ?, ?)",
         [nome, email, senha_hash, perfil || "pcp", ativo !== undefined ? ativo : 1]
       );
       res.status(201).json({ success: true, id: result.insertId, message: "Usuário criado" });
-
       registrarLog({
         usuario_id: req.user.id, usuario_nome: req.user.nome,
         modulo: "USUARIO", acao: "Criar Usuário",
@@ -1973,7 +2404,6 @@ app.post(
     }
   }
 );
-
 app.put(
   "/usuarios/:id",
   authMiddleware,
@@ -1983,7 +2413,6 @@ app.put(
       const { nome, email, senha, perfil, ativo } = req.body;
       const sets = [];
       const vals = [];
-
       if (nome  !== undefined) { sets.push("nome = ?");  vals.push(nome); }
       if (email !== undefined) { sets.push("email = ?"); vals.push(email); }
       if (perfil !== undefined) { sets.push("perfil = ?"); vals.push(perfil); }
@@ -1992,19 +2421,15 @@ app.put(
         const hash = await bcrypt.hash(senha, 10);
         sets.push("senha_hash = ?"); vals.push(hash);
       }
-
       if (sets.length === 0)
         return res.status(400).json({ success: false, message: "Nenhum campo para atualizar" });
-
       vals.push(req.params.id);
       const [result] = await db.promise().query(
         `UPDATE usuarios SET ${sets.join(", ")} WHERE id = ?`, vals
       );
       if (result.affectedRows === 0)
         return res.status(404).json({ success: false, message: "Usuário não encontrado" });
-
       res.json({ success: true, message: "Usuário atualizado" });
-
       registrarLog({
         usuario_id: req.user.id, usuario_nome: req.user.nome,
         modulo: "USUARIO", acao: "Editar Usuário",
@@ -2018,25 +2443,20 @@ app.put(
     }
   }
 );
-
 app.delete(
   "/usuarios/:id",
   authMiddleware,
   roleMiddleware(["admin"]),
   async (req, res) => {
     try {
-      // Não deixa excluir a si mesmo
       if (Number(req.params.id) === req.user.id)
         return res.status(400).json({ success: false, message: "Você não pode excluir seu próprio usuário" });
-
       const [result] = await db.promise().query(
         "DELETE FROM usuarios WHERE id = ?", [req.params.id]
       );
       if (result.affectedRows === 0)
         return res.status(404).json({ success: false, message: "Usuário não encontrado" });
-
       res.json({ success: true, message: "Usuário excluído" });
-
       registrarLog({
         usuario_id: req.user.id, usuario_nome: req.user.nome,
         modulo: "USUARIO", acao: "Excluir Usuário",
@@ -2048,10 +2468,26 @@ app.delete(
     }
   }
 );
-
 /* =======================
-   SISTEMA — BACKUP (cria banco backup_pcp_DATA com cópia de todas as tabelas)
+   SISTEMA — BACKUP
 ======================= */
+function escapeSQL(v) {
+  if (v === null || v === undefined) return "NULL";
+  // Buffer (JSON columns, blobs)
+  if (Buffer.isBuffer(v)) v = v.toString("utf8");
+  // Boolean
+  if (typeof v === "boolean") return v ? "1" : "0";
+  // Date
+  if (v instanceof Date) {
+    const pad = (n) => String(n).padStart(2, "0");
+    return `'${v.getFullYear()}-${pad(v.getMonth()+1)}-${pad(v.getDate())} ${pad(v.getHours())}:${pad(v.getMinutes())}:${pad(v.getSeconds())}'`;
+  }
+  // Number
+  if (typeof v === "number" || typeof v === "bigint") return String(v);
+  // String
+  const s = String(v);
+  return `'${s.replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/\n/g, "\\n").replace(/\r/g, "\\r").replace(/\x00/g, "")}'`;
+}
 
 app.get(
   "/sistema/backup",
@@ -2059,77 +2495,99 @@ app.get(
   roleMiddleware(["admin"]),
   async (req, res) => {
     try {
-      const hoje     = new Date().toISOString().slice(0, 10).replace(/-/g, "_");
-      const hora     = new Date().toTimeString().slice(0, 8).replace(/:/g, "");
-      const backupDb = `backup_pcp_${hoje}_${hora}`;
+      const hoje = new Date().toISOString().slice(0, 10).replace(/-/g, "_");
+      const hora = new Date().toTimeString().slice(0, 8).replace(/:/g, "");
+      const filename = `backup_pcp_${hoje}_${hora}.sql`;
 
-      // 1. Cria banco de backup
-      await db.promise().query(`CREATE DATABASE IF NOT EXISTS \`${backupDb}\``);
-
-      // 2. Lista todas as tabelas do banco pcp
+      // Busca todas as tabelas do banco pcp
       const [tables] = await db.promise().query("SHOW TABLES");
+      if (!tables.length) {
+        return res.status(400).json({ success: false, message: "Nenhuma tabela encontrada no banco." });
+      }
       const tableKey = Object.keys(tables[0])[0];
       const tableNames = tables.map(t => t[tableKey]);
 
-      // 3. Copia cada tabela (estrutura + dados)
-      for (const table of tableNames) {
-        await db.promise().query(`CREATE TABLE \`${backupDb}\`.\`${table}\` LIKE \`pcp\`.\`${table}\``);
-        await db.promise().query(`INSERT INTO \`${backupDb}\`.\`${table}\` SELECT * FROM \`pcp\`.\`${table}\``);
-      }
+      // Monta o SQL completo na memoria
+      const parts = [];
+      parts.push(`-- ================================================`);
+      parts.push(`-- Backup completo do banco PCP`);
+      parts.push(`-- Data: ${new Date().toLocaleString("pt-BR")}`);
+      parts.push(`-- Tabelas: ${tableNames.length}`);
+      parts.push(`-- ================================================`);
+      parts.push(``);
+      parts.push(`SET FOREIGN_KEY_CHECKS = 0;`);
+      parts.push(`SET SQL_MODE = 'NO_AUTO_VALUE_ON_ZERO';`);
+      parts.push(`SET NAMES utf8mb4;`);
+      parts.push(``);
 
-      // 4. Também gera o .sql para download
-      let sql = `-- Backup PCP - ${new Date().toLocaleString("pt-BR")}\n`;
-      sql += `-- Banco de backup: ${backupDb}\n`;
-      sql += `-- Todas as ${tableNames.length} tabelas copiadas\n`;
-      sql += `SET FOREIGN_KEY_CHECKS = 0;\n\n`;
-
       for (const table of tableNames) {
+        parts.push(`-- ------------------------------------------------`);
+        parts.push(`-- Tabela: ${table}`);
+        parts.push(`-- ------------------------------------------------`);
+
+        // DROP + CREATE
+        parts.push(`DROP TABLE IF EXISTS \`${table}\`;`);
         const [[createResult]] = await db.promise().query(`SHOW CREATE TABLE \`pcp\`.\`${table}\``);
         const createSQL = createResult["Create Table"];
-        sql += `-- Tabela: ${table}\n`;
-        sql += `${createSQL.replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS")};\n\n`;
+        parts.push(`${createSQL};`);
+        parts.push(``);
 
+        // INSERT dos dados
         const [rows] = await db.promise().query(`SELECT * FROM \`pcp\`.\`${table}\``);
         if (rows.length > 0) {
           const cols = Object.keys(rows[0]).map(c => `\`${c}\``).join(", ");
+          // Insere em chunks de 100 linhas
           for (let i = 0; i < rows.length; i += 100) {
             const chunk = rows.slice(i, i + 100);
             const values = chunk.map(row => {
-              const vals = Object.values(row).map(v => {
-                if (v === null) return "NULL";
-                if (v instanceof Date) return `'${v.toISOString().slice(0, 19).replace("T", " ")}'`;
-                if (typeof v === "number") return v;
-                return `'${String(v).replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/\n/g, "\\n")}'`;
-              });
+              const vals = Object.values(row).map(escapeSQL);
               return `(${vals.join(", ")})`;
             }).join(",\n  ");
-            sql += `INSERT INTO \`${table}\` (${cols}) VALUES\n  ${values};\n`;
+            parts.push(`INSERT INTO \`${table}\` (${cols}) VALUES`);
+            parts.push(`  ${values};`);
           }
-          sql += `\n`;
+          parts.push(``);
         }
       }
-      sql += `SET FOREIGN_KEY_CHECKS = 1;\n`;
 
-      const filename = `${backupDb}.sql`;
-      res.setHeader("Content-Type", "application/sql");
+      parts.push(`SET FOREIGN_KEY_CHECKS = 1;`);
+      parts.push(`-- Fim do backup`);
+
+      const sqlContent = parts.join("\n");
+
+      // Envia como arquivo para download
+      res.setHeader("Content-Type", "application/octet-stream");
       res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-      res.send(sql);
+      res.setHeader("Content-Length", Buffer.byteLength(sqlContent, "utf8"));
+      res.end(sqlContent, "utf8");
+
+      // Tenta criar copia no servidor (nao bloqueia se falhar)
+      const backupDb = filename.replace(".sql", "");
+      try {
+        await db.promise().query(`CREATE DATABASE IF NOT EXISTS \`${backupDb}\``);
+        for (const table of tableNames) {
+          await db.promise().query(`CREATE TABLE \`${backupDb}\`.\`${table}\` LIKE \`pcp\`.\`${table}\``);
+          await db.promise().query(`INSERT INTO \`${backupDb}\`.\`${table}\` SELECT * FROM \`pcp\`.\`${table}\``);
+        }
+      } catch (dbErr) {
+        console.warn("Copia do backup no servidor falhou (sem privilegios?):", dbErr.message);
+      }
 
       registrarLog({
         usuario_id: req.user.id, usuario_nome: req.user.nome,
         modulo: "SISTEMA", acao: "Backup",
-        descricao: `Backup criado: banco ${backupDb} + arquivo ${filename} (${tableNames.length} tabelas)`,
+        descricao: `Backup gerado: ${filename} (${tableNames.length} tabelas, ${sqlContent.length} bytes)`,
       });
-
     } catch (err) {
       console.error("Erro no backup:", err);
-      res.status(500).json({ success: false, message: "Erro ao gerar backup: " + err.message });
+      if (!res.headersSent) {
+        res.status(500).json({ success: false, message: "Erro ao gerar backup: " + err.message });
+      }
     }
   }
 );
-
 /* =======================
-   SISTEMA — LISTAR BACKUPS (bancos backup_pcp_*)
+   SISTEMA — LISTAR BACKUPS
 ======================= */
 app.get(
   "/sistema/backups",
@@ -2146,9 +2604,8 @@ app.get(
     }
   }
 );
-
 /* =======================
-   SISTEMA — RESTAURAR BACKUP (de um banco backup_pcp_*)
+   SISTEMA — RESTAURAR BACKUP
 ======================= */
 app.post(
   "/sistema/restaurar",
@@ -2160,48 +2617,51 @@ app.post(
       if (!banco || !banco.startsWith("backup_pcp_")) {
         return res.status(400).json({ success: false, message: "Nome de banco inválido." });
       }
-
-      // Verifica se o banco existe
       const [check] = await db.promise().query(`SHOW DATABASES LIKE ?`, [banco]);
       if (check.length === 0) {
         return res.status(404).json({ success: false, message: `Banco ${banco} não encontrado.` });
       }
-
-      // Lista tabelas do backup
       const [tables] = await db.promise().query(`SHOW TABLES FROM \`${banco}\``);
       const tableKey = Object.keys(tables[0])[0];
       const tableNames = tables.map(t => t[tableKey]);
-
+      // Tabelas que existem no pcp (destino)
+      const [ppcTables] = await db.promise().query(`SHOW TABLES FROM \`pcp\``);
+      const ppcKey = Object.keys(ppcTables[0])[0];
+      const ppcTableNames = new Set(ppcTables.map(t => t[ppcKey]));
       await db.promise().query("SET FOREIGN_KEY_CHECKS = 0");
-
       let restauradas = 0;
       for (const table of tableNames) {
-        // Limpa tabela atual e copia dados do backup
-        await db.promise().query(`TRUNCATE TABLE \`pcp\`.\`${table}\``);
-        await db.promise().query(`INSERT INTO \`pcp\`.\`${table}\` SELECT * FROM \`${banco}\`.\`${table}\``);
-        restauradas++;
+        try {
+          if (!ppcTableNames.has(table)) {
+            // Tabela existe no backup mas não no pcp — cria e copia
+            const [[createRow]] = await db.promise().query(`SHOW CREATE TABLE \`${banco}\`.\`${table}\``);
+            const createSql = createRow["Create Table"].replace(`\`${table}\``, `\`pcp\`.\`${table}\``);
+            await db.promise().query(createSql);
+          } else {
+            await db.promise().query(`TRUNCATE TABLE \`pcp\`.\`${table}\``);
+          }
+          await db.promise().query(`INSERT INTO \`pcp\`.\`${table}\` SELECT * FROM \`${banco}\`.\`${table}\``);
+          restauradas++;
+        } catch (tableErr) {
+          console.warn(`Aviso ao restaurar tabela ${table}:`, tableErr.message);
+        }
       }
-
       await db.promise().query("SET FOREIGN_KEY_CHECKS = 1");
-
       res.json({
         success: true,
         message: `Restauração concluída! ${restauradas} tabela(s) restauradas do banco ${banco}.`,
       });
-
       registrarLog({
         usuario_id: req.user.id, usuario_nome: req.user.nome,
         modulo: "SISTEMA", acao: "Restaurar Backup",
         descricao: `Banco restaurado de ${banco} — ${restauradas} tabelas`,
       });
-
     } catch (err) {
       console.error("Erro ao restaurar:", err);
       res.status(500).json({ success: false, message: "Erro ao restaurar: " + err.message });
     }
   }
 );
-
 /* =======================
    SISTEMA — EXCLUIR BACKUP
 ======================= */
@@ -2217,7 +2677,6 @@ app.delete(
       }
       await db.promise().query(`DROP DATABASE IF EXISTS \`${banco}\``);
       res.json({ success: true, message: `Backup ${banco} excluído.` });
-
       registrarLog({
         usuario_id: req.user.id, usuario_nome: req.user.nome,
         modulo: "SISTEMA", acao: "Excluir Backup",
@@ -2228,7 +2687,6 @@ app.delete(
     }
   }
 );
-
 /* =======================
    SISTEMA — EXPORTAR DADOS PARA EXCEL (Power BI)
 ======================= */
@@ -2242,8 +2700,6 @@ app.get(
       const wb = new ExcelJS.Workbook();
       wb.creator = "PCP Sistema";
       wb.created = new Date();
-
-      // Helper: cria aba — colunas auto-detectadas dos dados ou manual
       const criarAba = (nome, rows, colunasManual) => {
         const ws = wb.addWorksheet(nome);
         if (rows.length === 0) {
@@ -2265,35 +2721,18 @@ app.get(
         ws.autoFilter = { from: "A1", to: `${colLetter}1` };
         return ws;
       };
-
-      // 1. Ordens de Produção
       const [ops] = await db.promise().query(
         `SELECT * FROM ordens_producao WHERE is_deleted = 0 ORDER BY id DESC`
       );
       criarAba("Ordens de Produção", ops);
-
-      // 2. Pedidos Vinculados (op_pedidos)
-      const [opPedidos] = await db.promise().query(
-        `SELECT opp.*, op.numero_op
-         FROM op_pedidos opp
-         LEFT JOIN ordens_producao op ON op.id = opp.op_id
-         ORDER BY opp.op_id DESC, opp.id ASC`
-      );
-      criarAba("Pedidos por OP", opPedidos);
-
-      // 3. Controle de Pedidos
       const [pedidos] = await db.promise().query(
         `SELECT * FROM controle_pedidos ORDER BY id DESC`
       );
       criarAba("Controle de Pedidos", pedidos);
-
-      // 4. Materiais
       const [materiais] = await db.promise().query(
         `SELECT * FROM materiais ORDER BY CAST(codigo_produto AS UNSIGNED) ASC`
       );
       criarAba("Materiais", materiais);
-
-      // 5. Insumos
       const [insumos] = await db.promise().query(
         `SELECT ins.*, op.numero_op
          FROM op_insumos ins
@@ -2301,14 +2740,10 @@ app.get(
          ORDER BY ins.op_id DESC, ins.id ASC`
       );
       criarAba("Insumos por OP", insumos);
-
-      // 6. Saídas de Estoque
       const [saidas] = await db.promise().query(
         `SELECT * FROM saidas_estoque ORDER BY id DESC`
       );
       criarAba("Saídas de Estoque", saidas);
-
-      // 7. Itens de Saída
       const [saidaItens] = await db.promise().query(
         `SELECT si.*, s.numero AS saida_numero
          FROM saidas_estoque_itens si
@@ -2316,44 +2751,32 @@ app.get(
          ORDER BY si.saida_id DESC, si.id ASC`
       );
       criarAba("Itens de Saída", saidaItens);
-
-      // 8. Logs
       const [logs] = await db.promise().query(
         `SELECT * FROM logs_sistema ORDER BY id DESC LIMIT 5000`
       );
       criarAba("Logs", logs);
-
-      // 9. Usuários (sem senha)
       const [usuarios] = await db.promise().query(
         `SELECT * FROM usuarios ORDER BY id`
       );
-      // Remove senha_hash dos dados
       const usuariosSafe = usuarios.map(u => { const { senha_hash, ...rest } = u; return rest; });
       criarAba("Usuários", usuariosSafe);
-
-      // Gera e envia
       const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
       const filename  = `PCP_Export_${timestamp}.xlsx`;
-
       res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
       res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-
       await wb.xlsx.write(res);
       res.end();
-
       registrarLog({
         usuario_id: req.user.id, usuario_nome: req.user.nome,
         modulo: "SISTEMA", acao: "Exportar Dados",
         descricao: `Exportação completa gerada: ${filename} (${ops.length} OPs, ${pedidos.length} pedidos, ${materiais.length} materiais, ${logs.length} logs)`,
       });
-
     } catch (err) {
       console.error("Erro ao exportar:", err);
       res.status(500).json({ success: false, message: err.message });
     }
   }
 );
-
 /* =======================
    SISTEMA — INFO DO BANCO (contadores)
 ======================= */
@@ -2369,13 +2792,427 @@ app.get(
       const [[{ logs }]]      = await db.promise().query("SELECT COUNT(*) AS logs FROM logs_sistema");
       const [[{ usuarios }]]  = await db.promise().query("SELECT COUNT(*) AS usuarios FROM usuarios");
       const [[{ saidas }]]    = await db.promise().query("SELECT COUNT(*) AS saidas FROM saidas_estoque");
-
       res.json({ success: true, data: { ops, pedidos, materiais, logs, usuarios, saidas } });
     } catch (err) {
       res.status(500).json({ success: false, message: err.message });
     }
   }
 );
+/* =====================================================
+   ENTRADA DE NOTAS — processa itens do XML e atualiza estoque
+===================================================== */
+const ENTRADAS_NF_DDL = `
+  CREATE TABLE IF NOT EXISTS entradas_nf (
+    id              INT NOT NULL AUTO_INCREMENT,
+    chave_nfe       VARCHAR(50) NULL,
+    numero_nf       VARCHAR(20) NULL,
+    serie           VARCHAR(5)  NULL,
+    natureza_op     VARCHAR(255) NULL,
+    data_emissao    DATETIME    NULL,
+    data_entrada    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    emit_cnpj       VARCHAR(20) NULL,
+    emit_nome       VARCHAR(255) NULL,
+    emit_fantasia   VARCHAR(255) NULL,
+    emit_uf         VARCHAR(2)  NULL,
+    emit_cidade     VARCHAR(100) NULL,
+    dest_cnpj       VARCHAR(20) NULL,
+    dest_nome       VARCHAR(255) NULL,
+    valor_produtos  DECIMAL(12,2) NULL,
+    valor_total     DECIMAL(12,2) NULL,
+    qtde_itens      INT          NULL,
+    qtde_atualizado INT          NULL,
+    criado_por      INT          NULL,
+    criado_por_nome VARCHAR(100) NULL,
+    criado_em       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_chave (chave_nfe),
+    KEY idx_entrada_data  (data_entrada),
+    KEY idx_entrada_emit  (emit_cnpj),
+    KEY idx_entrada_nf    (numero_nf)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+`;
+
+const ENTRADAS_NF_ITENS_DDL = `
+  CREATE TABLE IF NOT EXISTS entradas_nf_itens (
+    id              INT NOT NULL AUTO_INCREMENT,
+    entrada_id      INT NOT NULL,
+    n_item          INT NULL,
+    codigo_produto  VARCHAR(100) NULL,
+    descricao       VARCHAR(500) NULL,
+    ncm             VARCHAR(20)  NULL,
+    cfop            VARCHAR(10)  NULL,
+    unidade         VARCHAR(20)  NULL,
+    quantidade      DECIMAL(14,4) NULL,
+    valor_unitario  DECIMAL(14,4) NULL,
+    valor_total     DECIMAL(12,2) NULL,
+    material_id     INT          NULL,
+    status          VARCHAR(20)  NOT NULL DEFAULT 'NAO_ENCONTRADO',
+    estoque_anterior DECIMAL(14,4) NULL,
+    estoque_novo    DECIMAL(14,4) NULL,
+    PRIMARY KEY (id),
+    KEY idx_entrada_itens_entrada (entrada_id),
+    KEY idx_entrada_itens_material (material_id),
+    CONSTRAINT fk_entrada_itens_entrada FOREIGN KEY (entrada_id) REFERENCES entradas_nf(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+`;
+
+async function garantirTabelasEntrada() {
+  await db.promise().query(ENTRADAS_NF_DDL);
+  await db.promise().query(ENTRADAS_NF_ITENS_DDL);
+}
+
+// GET /entrada-notas — listar entradas
+app.get("/entrada-notas", authMiddleware, roleMiddleware(["admin","pcp","logistica"]), async (req, res) => {
+  try {
+    await garantirTabelasEntrada();
+    const { search } = req.query;
+    let sql = `SELECT id, chave_nfe, numero_nf, serie, natureza_op, data_emissao, data_entrada,
+                      emit_cnpj, emit_nome, emit_fantasia, valor_produtos, valor_total,
+                      qtde_itens, qtde_atualizado, criado_por_nome, criado_em
+               FROM entradas_nf`;
+    const params = [];
+    if (search) {
+      sql += ` WHERE emit_nome LIKE ? OR emit_fantasia LIKE ? OR numero_nf LIKE ? OR chave_nfe LIKE ?`;
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
+    }
+    sql += ` ORDER BY criado_em DESC`;
+    const [rows] = await db.promise().query(sql, params);
+    res.json({ success: true, data: rows });
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
+
+// GET /entrada-notas/:id — detalhes de uma entrada com itens
+app.get("/entrada-notas/:id", authMiddleware, roleMiddleware(["admin","pcp","logistica"]), async (req, res) => {
+  try {
+    await garantirTabelasEntrada();
+    const [[entrada]] = await db.promise().query(`SELECT * FROM entradas_nf WHERE id = ?`, [req.params.id]);
+    if (!entrada) return res.status(404).json({ success: false, message: "Entrada não encontrada." });
+    const [itens] = await db.promise().query(
+      `SELECT * FROM entradas_nf_itens WHERE entrada_id = ? ORDER BY n_item ASC`, [req.params.id]
+    );
+    res.json({ success: true, data: { ...entrada, itens } });
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
+
+// POST /entrada-notas — processa XML e dá entrada no estoque
+app.post("/entrada-notas", authMiddleware, roleMiddleware(["admin","pcp","logistica"]), async (req, res) => {
+  try {
+    await garantirTabelasEntrada();
+    const { chave_nfe, numero_nf, serie, natureza_op, data_emissao,
+            emit_cnpj, emit_nome, emit_fantasia, emit_uf, emit_cidade,
+            dest_cnpj, dest_nome, valor_produtos, valor_total, itens } = req.body;
+
+    if (!itens || !itens.length)
+      return res.status(400).json({ success: false, message: "Nenhum item na nota." });
+
+    // Verifica duplicata pela chave
+    if (chave_nfe) {
+      const [[existe]] = await db.promise().query(
+        `SELECT id FROM entradas_nf WHERE chave_nfe = ?`, [chave_nfe]
+      );
+      if (existe)
+        return res.status(409).json({ success: false, message: `Nota já importada (ID ${existe.id}).` });
+    }
+
+    // Processa cada item: tenta vincular ao material e atualizar estoque
+    const processados = [];
+    for (const item of itens) {
+      const { nItem, cProd, xProd, qCom, vUnCom, vProd, CFOP, uCom, NCM } = item;
+      const qtde = parseFloat(qCom) || 0;
+      const vUnit = parseFloat(vUnCom) || 0;
+      const vTot  = parseFloat(vProd) || 0;
+
+      // Busca material pelo codigo_produto (inclui dados de conversão)
+      const [matches] = await db.promise().query(
+        `SELECT id, codigo_produto, descricao, estoque, unidade_medida,
+                unidade_compra, fator_conversao
+         FROM materiais WHERE codigo_produto = ? LIMIT 1`,
+        [cProd]
+      );
+
+      let material_id = null;
+      let status = "NAO_ENCONTRADO";
+      let estoque_anterior = null;
+      let estoque_novo = null;
+      let fator_aplicado = 1;
+      let qtde_convertida = qtde;
+
+      if (matches.length) {
+        const mat = matches[0];
+        material_id = mat.id;
+        estoque_anterior = Number(mat.estoque || 0);
+
+        // Aplica fator de conversão quando a unidade da NF bate com a unidade de compra
+        // Ex: material estocado em "m", compra em "rolo", fator = 25
+        // NF vem com uCom="rolo" e qCom=2 → converte para 2 * 25 = 50 metros
+        const fator = Number(mat.fator_conversao) || 1;
+        const unCompra = (mat.unidade_compra || "").toLowerCase().trim();
+        const unNF = (uCom || "").toLowerCase().trim();
+        const unEstoque = (mat.unidade_medida || "").toLowerCase().trim();
+
+        if (fator > 1 && unCompra && unNF && unNF !== unEstoque) {
+          // Unidade da NF é diferente da unidade de estoque → aplica conversão
+          fator_aplicado = fator;
+          qtde_convertida = qtde * fator;
+        } else if (fator > 1 && unCompra && unNF === unCompra) {
+          // Unidade da NF bate exatamente com a unidade de compra configurada
+          fator_aplicado = fator;
+          qtde_convertida = qtde * fator;
+        }
+
+        await db.promise().query(
+          `UPDATE materiais SET estoque = estoque + ? WHERE id = ?`,
+          [qtde_convertida, material_id]
+        );
+        estoque_novo = estoque_anterior + qtde_convertida;
+        status = "ATUALIZADO";
+
+        // Registra movimentação de estoque
+        await criarTabelaMovimentacoes();
+        const obsConversao = fator_aplicado > 1
+          ? `NF: ${qtde} ${uCom || '?'} × ${fator_aplicado} = ${qtde_convertida} ${unEstoque}`
+          : null;
+        await db.promise().query(
+          `INSERT INTO movimentacoes_estoque
+             (material_id, codigo_produto, descricao, tipo, quantidade,
+              estoque_anterior, estoque_novo, referencia_tipo, referencia_label,
+              observacoes, usuario_id, usuario_nome)
+           VALUES (?, ?, ?, 'ENTRADA', ?, ?, ?, 'ENTRADA_NF', ?, ?, ?, ?)`,
+          [material_id, cProd, xProd, qtde_convertida,
+           estoque_anterior, estoque_novo,
+           `NF ${numero_nf || '?'}`,
+           obsConversao,
+           req.user.id, req.user.nome]
+        );
+      }
+
+      processados.push({
+        nItem: parseInt(nItem) || null,
+        cProd,
+        xProd,
+        NCM: NCM || "",
+        CFOP: CFOP || "",
+        uCom: uCom || "",
+        qCom: qtde,
+        vUnCom: vUnit,
+        vProd: vTot,
+        material_id,
+        status,
+        estoque_anterior,
+        estoque_novo,
+        fator_aplicado,
+        qtde_convertida,
+      });
+    }
+
+    const qtdeAtualizado = processados.filter(p => p.status === "ATUALIZADO").length;
+
+    // Salva registro da entrada (header)
+    const [result] = await db.promise().query(
+      `INSERT INTO entradas_nf (chave_nfe, numero_nf, serie, natureza_op, data_emissao,
+        emit_cnpj, emit_nome, emit_fantasia, emit_uf, emit_cidade,
+        dest_cnpj, dest_nome, valor_produtos, valor_total,
+        qtde_itens, qtde_atualizado, criado_por, criado_por_nome)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [chave_nfe || null, numero_nf || null, serie || null, natureza_op || null, data_emissao || null,
+       emit_cnpj || null, emit_nome || null, emit_fantasia || null, emit_uf || null, emit_cidade || null,
+       dest_cnpj || null, dest_nome || null, valor_produtos || null, valor_total || null,
+       processados.length, qtdeAtualizado, req.user.id, req.user.nome]
+    );
+
+    const entradaId = result.insertId;
+
+    // Salva itens individualmente na tabela de rastreabilidade
+    for (const p of processados) {
+      await db.promise().query(
+        `INSERT INTO entradas_nf_itens
+          (entrada_id, n_item, codigo_produto, descricao, ncm, cfop, unidade,
+           quantidade, valor_unitario, valor_total, material_id, status, estoque_anterior, estoque_novo)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [entradaId, p.nItem, p.cProd, p.xProd, p.NCM, p.CFOP, p.uCom,
+         p.qCom, p.vUnCom, p.vProd, p.material_id, p.status, p.estoque_anterior, p.estoque_novo]
+      );
+    }
+
+    // Log
+    await registrarLog({
+      usuario_id: req.user.id, usuario_nome: req.user.nome,
+      modulo: "ESTOQUE", acao: "Entrada NF",
+      descricao: `Entrada de NF ${numero_nf || '?'} (Série ${serie || '?'}) do emitente "${emit_nome || '?'}". ` +
+        `${qtdeAtualizado}/${processados.length} itens atualizados no estoque. Valor total: R$ ${(valor_total || 0).toFixed(2)}.`,
+      referencia_id: entradaId, referencia_label: numero_nf || chave_nfe,
+    });
+
+    res.json({
+      success: true,
+      id: entradaId,
+      message: "Entrada processada!",
+      processados,
+    });
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
+
+/* =====================================================
+   ESPELHOS DE NOTA FISCAL
+===================================================== */
+const ESPELHOS_NF_DDL = `
+  CREATE TABLE IF NOT EXISTS espelhos_nf (
+    id             INT NOT NULL AUTO_INCREMENT,
+    natureza       VARCHAR(255) NOT NULL DEFAULT 'REMESSA PARA INDUSTRIALIZAÇÃO',
+    cfop_nf        VARCHAR(10)  NOT NULL DEFAULT '5901',
+    outros         VARCHAR(255) NULL,
+    razao_social   VARCHAR(255) NULL,
+    cnpj_forn      VARCHAR(20)  NULL,
+    inscricao_est  VARCHAR(50)  NULL,
+    email_nf       VARCHAR(255) NULL,
+    transportadora VARCHAR(255) NULL,
+    cnpj_transp    VARCHAR(20)  NULL,
+    tipo_frete     VARCHAR(50)  NULL,
+    volume         VARCHAR(50)  NULL,
+    peso           VARCHAR(50)  NULL,
+    solicitado     VARCHAR(255) NULL,
+    pop            VARCHAR(100) NULL,
+    data_doc       DATE         NULL,
+    ref_nf         VARCHAR(100) NULL,
+    observacao     TEXT         NULL,
+    base_icms      VARCHAR(50)  NULL,
+    valor_icms     VARCHAR(50)  NULL,
+    base_icms_sub  VARCHAR(50)  NULL,
+    valor_icms_sub VARCHAR(50)  NULL,
+    outras_desp    VARCHAR(50)  NULL,
+    total_ipi      VARCHAR(50)  NULL,
+    total_produtos VARCHAR(50)  NULL,
+    total_nota     VARCHAR(50)  NULL,
+    itens          JSON         NULL,
+    criado_por     INT          NULL,
+    criado_por_nome VARCHAR(100) NULL,
+    criado_em      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY idx_espelhos_data (data_doc),
+    KEY idx_espelhos_ref  (ref_nf(50))
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+`;
+
+// GET /espelhos_nf
+app.get("/espelhos_nf", authMiddleware, roleMiddleware(["admin","pcp","logistica","vendas"]), async (req, res) => {
+  try {
+    await db.promise().query(ESPELHOS_NF_DDL);
+    const { search } = req.query;
+    let sql = `SELECT id, natureza, cfop_nf, razao_social, cnpj_forn, ref_nf, data_doc,
+                      total_nota, criado_por_nome, criado_em
+               FROM espelhos_nf`;
+    const params = [];
+    if (search) {
+      sql += ` WHERE razao_social LIKE ? OR ref_nf LIKE ? OR cnpj_forn LIKE ?`;
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+    }
+    sql += ` ORDER BY criado_em DESC`;
+    const [rows] = await db.promise().query(sql, params);
+    res.json({ success: true, data: rows });
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
+
+// GET /espelhos_nf/:id
+app.get("/espelhos_nf/:id", authMiddleware, roleMiddleware(["admin","pcp","logistica","vendas"]), async (req, res) => {
+  try {
+    await db.promise().query(ESPELHOS_NF_DDL);
+    const [[row]] = await db.promise().query(`SELECT * FROM espelhos_nf WHERE id = ?`, [req.params.id]);
+    if (!row) return res.status(404).json({ success: false, message: "Espelho não encontrado." });
+    res.json({ success: true, data: row });
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
+
+// POST /espelhos_nf — cria espelho e baixa estoque dos itens
+app.post("/espelhos_nf", authMiddleware, roleMiddleware(["admin","pcp","logistica"]), async (req, res) => {
+  try {
+    await db.promise().query(ESPELHOS_NF_DDL);
+    await criarTabelaMovimentacoes();
+    const d = req.body;
+    const [result] = await db.promise().query(
+      `INSERT INTO espelhos_nf (natureza,cfop_nf,outros,razao_social,cnpj_forn,inscricao_est,email_nf,
+        transportadora,cnpj_transp,tipo_frete,volume,peso,solicitado,pop,data_doc,ref_nf,observacao,
+        base_icms,valor_icms,base_icms_sub,valor_icms_sub,outras_desp,total_ipi,total_produtos,total_nota,
+        itens,criado_por,criado_por_nome)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [d.natureza,d.cfop_nf,d.outros||null,d.razao_social||null,d.cnpj_forn||null,
+       d.inscricao_est||null,d.email_nf||null,d.transportadora||null,d.cnpj_transp||null,
+       d.tipo_frete||null,d.volume||null,d.peso||null,d.solicitado||null,d.pop||null,
+       d.data_doc||null,d.ref_nf||null,d.observacao||null,
+       d.base_icms||null,d.valor_icms||null,d.base_icms_sub||null,d.valor_icms_sub||null,
+       d.outras_desp||null,d.total_ipi||null,d.total_produtos||null,d.total_nota||null,
+       JSON.stringify(d.itens||[]),req.user.id,req.user.nome]
+    );
+    const espelhoId = result.insertId;
+    const refLabel = `Espelho NF #${espelhoId}` + (d.ref_nf ? ` (${d.ref_nf})` : "");
+
+    // Baixa estoque para cada item com código de material
+    const itens = Array.isArray(d.itens) ? d.itens : [];
+    for (const it of itens) {
+      if (!it.cod) continue;
+      const qtde = parseFloat(String(it.qtd || "0").replace(/\./g, "").replace(",", ".")) || 0;
+      if (qtde <= 0) continue;
+      const [matches] = await db.promise().query(
+        `SELECT id, codigo_produto, descricao, estoque FROM materiais WHERE codigo_produto = ? LIMIT 1`, [it.cod]
+      );
+      if (!matches.length) continue;
+      const mat = matches[0];
+      const estoqueAnterior = Number(mat.estoque || 0);
+      await db.promise().query(
+        `UPDATE materiais SET estoque = GREATEST(0, estoque - ?) WHERE id = ?`, [qtde, mat.id]
+      );
+      const estoqueNovo = Math.max(0, estoqueAnterior - qtde);
+      await db.promise().query(
+        `INSERT INTO movimentacoes_estoque
+           (material_id, codigo_produto, descricao, tipo, quantidade,
+            estoque_anterior, estoque_novo, referencia_tipo, referencia_id,
+            referencia_label, usuario_id, usuario_nome)
+         VALUES (?, ?, ?, 'SAIDA', ?, ?, ?, 'ESPELHO_NF', ?, ?, ?, ?)`,
+        [mat.id, mat.codigo_produto, mat.descricao, qtde,
+         estoqueAnterior, estoqueNovo, espelhoId, refLabel,
+         req.user.id, req.user.nome]
+      );
+    }
+
+    registrarLog({
+      usuario_id: req.user.id, usuario_nome: req.user.nome,
+      modulo: "ESTOQUE", acao: "Espelho NF (Saída)",
+      descricao: `Espelho NF #${espelhoId} — ${d.natureza || "?"} para "${d.razao_social || "?"}". ${itens.length} item(s).`,
+      referencia_id: espelhoId, referencia_label: refLabel,
+    });
+    res.json({ success: true, id: espelhoId, message: "Espelho salvo!" });
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
+
+// PUT /espelhos_nf/:id
+app.put("/espelhos_nf/:id", authMiddleware, roleMiddleware(["admin","pcp","logistica"]), async (req, res) => {
+  try {
+    await db.promise().query(ESPELHOS_NF_DDL);
+    const d = req.body;
+    await db.promise().query(
+      `UPDATE espelhos_nf SET natureza=?,cfop_nf=?,outros=?,razao_social=?,cnpj_forn=?,inscricao_est=?,
+        email_nf=?,transportadora=?,cnpj_transp=?,tipo_frete=?,volume=?,peso=?,solicitado=?,pop=?,
+        data_doc=?,ref_nf=?,observacao=?,base_icms=?,valor_icms=?,base_icms_sub=?,valor_icms_sub=?,
+        outras_desp=?,total_ipi=?,total_produtos=?,total_nota=?,itens=?
+       WHERE id=?`,
+      [d.natureza,d.cfop_nf,d.outros||null,d.razao_social||null,d.cnpj_forn||null,
+       d.inscricao_est||null,d.email_nf||null,d.transportadora||null,d.cnpj_transp||null,
+       d.tipo_frete||null,d.volume||null,d.peso||null,d.solicitado||null,d.pop||null,
+       d.data_doc||null,d.ref_nf||null,d.observacao||null,
+       d.base_icms||null,d.valor_icms||null,d.base_icms_sub||null,d.valor_icms_sub||null,
+       d.outras_desp||null,d.total_ipi||null,d.total_produtos||null,d.total_nota||null,
+       JSON.stringify(d.itens||[]),req.params.id]
+    );
+    res.json({ success: true, message: "Espelho atualizado!" });
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
+
+// DELETE /espelhos_nf/:id
+app.delete("/espelhos_nf/:id", authMiddleware, roleMiddleware(["admin","pcp","logistica"]), async (req, res) => {
+  try {
+    await db.promise().query(`DELETE FROM espelhos_nf WHERE id = ?`, [req.params.id]);
+    res.json({ success: true, message: "Espelho excluído." });
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
 
   app.set('db', db);
   app.set('registrarLog', registrarLog);
@@ -2385,9 +3222,9 @@ app.get(
   app.use('/ficha-tecnica', authMiddleware, fichaTecnicaRoutes);
   const prestadoresRoutes = require('./prestadores-routes');
   app.use('/prestadores',   authMiddleware, prestadoresRoutes);
-const PORTA_SERVER = Number(process.env.SERVER_PORT) || 8080;
-
+const PORTA_SERVER = 8080; 
 app.listen(PORTA_SERVER, "0.0.0.0", () => {
   console.log(`🚀 Servidor Backend rodando!`);
   console.log(`🏠 Local: http://localhost:${PORTA_SERVER}`);
+  console.log(`📡 Rede:  http://192.168.1.190:${PORTA_SERVER}`);
 });

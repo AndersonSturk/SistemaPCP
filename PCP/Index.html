@@ -264,144 +264,15 @@
   <p>Selecione uma área para continuar</p>
 </div>
 
-<div class="categorias">
-
-  <!-- PRODUÇÃO -->
-  <div class="categoria producao">
-    <div class="cat-header">
-      <div class="cat-icon">⚙️</div>
-      <span class="cat-label">Produção</span>
-      <span class="cat-desc">Gerar OP · Gerenciar OPs · Saída de Estoque</span>
-      <span class="cat-chevron">▶</span>
-    </div>
-    <div class="cat-body">
-      <div class="cat-body-inner">
-        <div class="cards">
-          <a class="card" href="gerar-op.html">
-            <div class="card-ico">📝</div>
-            <div class="card-body">
-              <div class="card-titulo">Gerar OP</div>
-              <div class="card-desc">Criar nova Ordem de Produção</div>
-            </div>
-            <span class="card-arr">→</span>
-          </a>
-          <a class="card" href="processos.html">
-            <div class="card-ico">🏭</div>
-            <div class="card-body">
-              <div class="card-titulo">Gerenciar OPs</div>
-              <div class="card-desc">Acompanhar e controlar ordens em andamento</div>
-            </div>
-            <span class="card-arr">→</span>
-          </a>
-          <a class="card" href="saida_estoque.html">
-            <div class="card-ico">📤</div>
-            <div class="card-body">
-              <div class="card-titulo">Saída de Estoque</div>
-              <div class="card-desc">Atender pedidos diretamente pelo estoque</div>
-            </div>
-            <span class="card-arr">→</span>
-          </a>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- CADASTROS -->
-  <div class="categoria estoque">
-    <div class="cat-header">
-      <div class="cat-icon">🗂️</div>
-      <span class="cat-label">Cadastros</span>
-      <span class="cat-desc">Materiais · Prestadores</span>
-      <span class="cat-chevron">▶</span>
-    </div>
-    <div class="cat-body">
-      <div class="cat-body-inner">
-        <div class="cards">
-          <a class="card" href="produtos.html">
-            <div class="card-ico">📦</div>
-            <div class="card-body">
-              <div class="card-titulo">Materiais</div>
-              <div class="card-desc">Cadastro e controle de materiais e insumos</div>
-            </div>
-            <span class="card-arr">→</span>
-          </a>
-          <a class="card" href="prestadores.html">
-            <div class="card-ico">🤝</div>
-            <div class="card-body">
-              <div class="card-titulo">Prestadores</div>
-              <div class="card-desc">Cadastro de prestadores de serviço</div>
-            </div>
-            <span class="card-arr">→</span>
-          </a>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- PEDIDOS -->
-  <div class="categoria pedidos">
-    <div class="cat-header">
-      <div class="cat-icon">🧾</div>
-      <span class="cat-label">Pedidos</span>
-      <span class="cat-desc">Controle de Pedidos</span>
-      <span class="cat-chevron">▶</span>
-    </div>
-    <div class="cat-body">
-      <div class="cat-body-inner">
-        <div class="cards">
-          <a class="card" href="pedidos.html">
-            <div class="card-ico">💰</div>
-            <div class="card-body">
-              <div class="card-titulo">Controle de Pedidos</div>
-              <div class="card-desc">Pedidos de venda e ordens de compra</div>
-            </div>
-            <span class="card-arr">→</span>
-          </a>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- SISTEMA -->
-  <div class="categoria sistema">
-    <div class="cat-header">
-      <div class="cat-icon">🛠️</div>
-      <span class="cat-label">Sistema</span>
-      <span class="cat-desc">Logs · Relatórios</span>
-      <span class="cat-chevron">▶</span>
-    </div>
-    <div class="cat-body">
-      <div class="cat-body-inner">
-        <div class="cards">
-          <a class="card" href="sistema.html">
-            <div class="card-ico">📋</div>
-            <div class="card-body">
-              <div class="card-titulo">Sistema</div>
-              <div class="card-desc">Logs de atividade e configurações</div>
-            </div>
-            <span class="card-arr">→</span>
-          </a>
-          <a class="card" href="relatorios.html">
-            <div class="card-ico">📊</div>
-            <div class="card-body">
-              <div class="card-titulo">Relatórios</div>
-              <div class="card-desc">Estoque, pedidos, OPs e desempenho</div>
-            </div>
-            <span class="card-arr">→</span>
-          </a>
-        </div>
-      </div>
-    </div>
-  </div>
-
-</div>
+<div class="categorias" id="categorias"></div>
 
 <script>
   const user  = JSON.parse(localStorage.getItem("user"));
   const token = localStorage.getItem("token");
   if (!user || !token) window.location.href = "login.html";
 
-  const nome     = user?.nome || "Usuário";
+  const nome   = user?.nome || "Usuário";
+  const perfil = user?.perfil || "vendas";
   const iniciais = nome.split(" ").slice(0,2).map(p => p[0]).join("").toUpperCase();
   document.getElementById("userInfo").textContent   = `Olá, ${nome}`;
   document.getElementById("userAvatar").textContent = iniciais;
@@ -409,6 +280,129 @@
   document.getElementById("btnLogout").addEventListener("click", () => {
     localStorage.clear();
     window.location.href = "login.html";
+  });
+
+  // ══════════════════════════════════════════════════════════════
+  // MÓDULOS DO SISTEMA — visibilidade controlada por perfil
+  // ══════════════════════════════════════════════════════════════
+  // Perfis: admin, pcp, logistica, vendas, producao
+  // Cada card tem "perfis" → lista de quem pode ver
+
+  const MODULOS = [
+    // Dashboard desabilitado — reservado para atualizações futuras
+    // {
+    //   id: "dashboard", tipo: "destaque",
+    //   titulo: "Dashboard", desc: "Indicadores, alertas de estoque e gráficos de produção",
+    //   href: "dashboard.html", ico: "📊",
+    //   perfis: ["admin", "pcp", "logistica", "vendas"],
+    // },
+    {
+      id: "producao", tipo: "categoria", cor: "producao",
+      label: "Produção", descCat: "Gerar OP · Gerenciar OPs",
+      perfis: ["admin", "pcp", "producao", "logistica"],
+      cards: [
+        { titulo: "Gerar OP", desc: "Criar nova Ordem de Produção", href: "gerar-op.html", ico: "📝",
+          perfis: ["admin", "pcp", "producao", "logistica"] },
+        { titulo: "Gerenciar OPs", desc: "Acompanhar e controlar ordens em andamento", href: "processos.html", ico: "🏭",
+          perfis: ["admin", "pcp", "producao", "logistica"] },
+      ],
+    },
+    {
+      id: "estoque", tipo: "categoria", cor: "estoque",
+      label: "Estoque", descCat: "Consulta · Saída de Estoque · Entrada de Notas",
+      perfis: ["admin", "pcp", "logistica", "producao"],
+      cards: [
+        { titulo: "Estoque", desc: "Controle detalhado do estoque", href: "estoque.html", ico: "🏷️",
+          perfis: ["admin", "pcp", "logistica", "producao"] },
+        { titulo: "Saída de Estoque", desc: "Atender pedidos diretamente pelo estoque", href: "saida_estoque.html", ico: "📤",
+          perfis: ["admin", "pcp", "logistica"] },
+        { titulo: "Entrada de Notas", desc: "Importar XML ou PDF de NF-e e dar entrada no estoque", href: "entrada-notas.html", ico: "📥",
+          perfis: ["admin", "pcp", "logistica"] },
+      ],
+    },
+    {
+      id: "cadastros", tipo: "categoria", cor: "estoque",
+      label: "Cadastros", descCat: "Materiais · Prestadores",
+      perfis: ["admin", "pcp", "logistica"],
+      cards: [
+        { titulo: "Materiais", desc: "Cadastro e controle de materiais e insumos", href: "produtos.html", ico: "📦",
+          perfis: ["admin", "pcp", "logistica", "producao"] },
+        { titulo: "Prestadores", desc: "Cadastro de prestadores de serviço", href: "prestadores.html", ico: "🤝",
+          perfis: ["admin", "pcp", "logistica"] },
+        // Espelhos de NF desabilitado — reservado para atualizações futuras
+        // { titulo: "Espelhos de NF", desc: "Gerar e gerenciar espelhos de nota fiscal", href: "espelhos-nf.html", ico: "📋",
+        //   perfis: ["admin", "pcp", "logistica"] },
+      ],
+    },
+    {
+      id: "pedidos", tipo: "categoria", cor: "pedidos",
+      label: "Pedidos", descCat: "Controle de Pedidos",
+      perfis: ["admin", "pcp", "logistica", "vendas"],
+      cards: [
+        { titulo: "Controle de Pedidos", desc: "Pedidos de venda e ordens de compra", href: "pedidos.html", ico: "💰",
+          perfis: ["admin", "pcp", "logistica", "vendas"] },
+      ],
+    },
+    {
+      id: "sistema", tipo: "categoria", cor: "sistema",
+      label: "Sistema", descCat: "Logs · Relatórios · Backup",
+      perfis: ["admin"],
+      cards: [
+        { titulo: "Sistema", desc: "Backup, exportação e configurações", href: "sistema.html", ico: "📋",
+          perfis: ["admin"] },
+        { titulo: "Relatórios", desc: "Estoque, pedidos, OPs e desempenho", href: "relatorios.html", ico: "📊",
+          perfis: ["admin", "pcp"] },
+      ],
+    },
+  ];
+
+  // ── Renderiza módulos visíveis para o perfil ──
+  const container = document.getElementById("categorias");
+
+  MODULOS.forEach(mod => {
+    if (!mod.perfis.includes(perfil)) return;
+
+    if (mod.tipo === "destaque") {
+      container.innerHTML += `
+        <div class="categoria" style="margin-bottom:8px">
+          <a class="card" href="${mod.href}" style="border:1.5px solid rgba(59,130,246,.25);background:rgba(59,130,246,.06);border-radius:14px;">
+            <div class="card-ico">${mod.ico}</div>
+            <div class="card-body">
+              <div class="card-titulo" style="color:#60a5fa">${mod.titulo}</div>
+              <div class="card-desc">${mod.desc}</div>
+            </div>
+            <span class="card-arr">\u2192</span>
+          </a>
+        </div>`;
+      return;
+    }
+
+    // Filtra cards visíveis
+    const cardsVisiveis = (mod.cards || []).filter(c => c.perfis.includes(perfil));
+    if (!cardsVisiveis.length) return;
+
+    const descAtual = cardsVisiveis.map(c => c.titulo).join(" \u00b7 ");
+
+    container.innerHTML += `
+      <div class="categoria ${mod.cor}">
+        <div class="cat-header">
+          <div class="cat-icon">${{producao:"\u2699\uFE0F",estoque:"\uD83D\uDCE6",pedidos:"\uD83E\uDDFE",sistema:"\uD83D\uDEE0\uFE0F"}[mod.cor] || "\uD83D\uDCC1"}</div>
+          <span class="cat-label">${mod.label}</span>
+          <span class="cat-desc">${descAtual}</span>
+          <span class="cat-chevron">\u25B6</span>
+        </div>
+        <div class="cat-body"><div class="cat-body-inner"><div class="cards">
+          ${cardsVisiveis.map(c => `
+            <a class="card" href="${c.href}">
+              <div class="card-ico">${c.ico}</div>
+              <div class="card-body">
+                <div class="card-titulo">${c.titulo}</div>
+                <div class="card-desc">${c.desc}</div>
+              </div>
+              <span class="card-arr">\u2192</span>
+            </a>`).join("")}
+        </div></div></div>
+      </div>`;
   });
 </script>
 </body>

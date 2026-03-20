@@ -23,16 +23,30 @@ function showLoading(msg = "Aguarde...") {
     }
     ov = document.createElement("div");
     ov.id = "loadingOverlay";
-    ov.innerHTML = `<div id="loadingBox"><div id="loadingSpinner"></div><span id="loadingMsg"></span></div>`;
+
+    const loadingBox = document.createElement("div");
+    loadingBox.id = "loadingBox";
+
+    const loadingSpinner = document.createElement("div");
+    loadingSpinner.id = "loadingSpinner";
+
+    const loadingMsg = document.createElement("span");
+    loadingMsg.id = "loadingMsg";
+
+    loadingBox.appendChild(loadingSpinner);
+    loadingBox.appendChild(loadingMsg);
+    ov.appendChild(loadingBox);
+
     ov.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;
       align-items:center;justify-content:center;z-index:9998;opacity:0;transition:opacity .2s`;
-    ov.querySelector("#loadingBox").style.cssText = `background:#1e293b;border-radius:14px;
+    loadingBox.style.cssText = `background:#1e293b;border-radius:14px;
       padding:32px 44px;display:flex;flex-direction:column;align-items:center;gap:18px;
       box-shadow:0 8px 32px rgba(0,0,0,.4);min-width:210px;border:1px solid rgba(255,255,255,.1)`;
-    ov.querySelector("#loadingSpinner").style.cssText = `width:42px;height:42px;
+    loadingSpinner.style.cssText = `width:42px;height:42px;
       border:4px solid rgba(255,255,255,.1);border-top-color:#3b82f6;border-radius:50%;
       animation:pcpSpin .7s linear infinite`;
-    ov.querySelector("#loadingMsg").style.cssText = `font-size:14px;color:#f1f5f9;font-weight:500`;
+    loadingMsg.style.cssText = `font-size:14px;color:#f1f5f9;font-weight:500`;
+
     document.body.appendChild(ov);
   }
   ov.querySelector("#loadingMsg").textContent = msg;
@@ -88,16 +102,25 @@ async function selectMaterial(m) {
     materialInfo.classList.remove("hidden");
     document.getElementById("matCodigo").innerText    = m.codigo_produto;
     document.getElementById("matDescricao").innerText = m.descricao;
-    document.getElementById("matCusto").innerText     = Number(m.custo_fornecedor || 0).toFixed(2);
 
     // Unidade de medida do material
     const unSelect = document.getElementById("unidade_medida");
     if (unSelect && m.unidade_medida) unSelect.value = m.unidade_medida;
   }
 
-  // Carrega ficha técnica
+  // Carrega ficha técnica e recalcula custo com base nos insumos
   await carregarFichaTecnica(m.id);
   updateTotal();
+
+  // Atualiza custo exibido (baseado nos insumos, não no material)
+  const matCustoEl = document.getElementById("matCusto");
+  if (matCustoEl) {
+    let custoInsumos = 0;
+    fichaTecnica.forEach(it => {
+      custoInsumos += Number(it.custo_unit || 0) * Number(it.quantidade_por_unidade || 0);
+    });
+    matCustoEl.innerText = custoInsumos > 0 ? custoInsumos.toFixed(2) : "—";
+  }
 }
 
 document.addEventListener("click", e => {
@@ -116,8 +139,13 @@ async function carregarFichaTecnica(materialId) {
     fichaTecnica = res.data || [];
 
     if (!fichaTecnica.length) {
-      secao.innerHTML = `<p style="font-size:12px;color:var(--muted);margin:0">
-        Este material não possui ficha técnica cadastrada. Os insumos podem ser adicionados manualmente na OP.</p>`;
+      secao.innerHTML = "";
+      const msg = document.createElement("p");
+      msg.style.fontSize = "12px";
+      msg.style.color = "var(--muted)";
+      msg.style.margin = "0";
+      msg.textContent = "Este material não possui ficha técnica cadastrada. Os insumos podem ser adicionados manualmente na OP.";
+      secao.appendChild(msg);
       secao.style.display = "";
       return;
     }
@@ -135,42 +163,102 @@ function renderInsumosPreview() {
 
   const qtde = Number(quantidadeInput?.value || 1);
 
-  const linhas = fichaTecnica.map(it => {
-    const total     = (it.quantidade_por_unidade * qtde).toFixed(4).replace(/\.?0+$/, "");
-    const estoque   = Number(it.estoque_disponivel || 0);
-    const totalNum  = Number(it.quantidade_por_unidade * qtde);
+  secao.innerHTML = "";
+
+  const header = document.createElement("div");
+  header.style.marginBottom = "8px";
+  header.style.fontSize = "11px";
+  header.style.fontWeight = "700";
+  header.style.color = "var(--muted)";
+  header.style.textTransform = "uppercase";
+  header.style.letterSpacing = ".5px";
+  header.textContent = `🔧 Insumos da ficha técnica (calculado para ${qtde} ${selectedMaterial?.unidade_medida || "un"})`;
+  secao.appendChild(header);
+
+  const table = document.createElement("table");
+  table.style.width = "100%";
+  table.style.borderCollapse = "collapse";
+  table.style.background = "rgba(255,255,255,.02)";
+  table.style.border = "1px solid var(--border)";
+  table.style.borderRadius = "10px";
+  table.style.overflow = "hidden";
+
+  const thead = document.createElement("thead");
+  const headRow = document.createElement("tr");
+  headRow.style.background = "rgba(30,64,175,.4)";
+
+  const columns = ["Insumo", "Qtde Necessária", "Disponível"];
+  columns.forEach(text => {
+    const th = document.createElement("th");
+    th.style.padding = "7px 10px";
+    th.style.textAlign = text === "Insumo" ? "left" : "center";
+    th.style.fontSize = "10px";
+    th.style.color = "rgba(255,255,255,.6)";
+    th.style.textTransform = "uppercase";
+    th.textContent = text;
+    headRow.appendChild(th);
+  });
+
+  thead.appendChild(headRow);
+  table.appendChild(thead);
+
+  const tbody = document.createElement("tbody");
+
+  fichaTecnica.forEach(it => {
+    const total = (it.quantidade_por_unidade * qtde).toFixed(4).replace(/\.?0+$/, "");
+    const estoque = Number(it.estoque_disponivel ?? it.insumo_estoque_atual ?? 0);
+    const totalNum = Number(it.quantidade_por_unidade * qtde);
     const suficiente = estoque >= totalNum;
-    const badge = it.insumo_material_id
-      ? `<span style="font-size:10px;padding:2px 6px;border-radius:10px;background:rgba(${suficiente?"34,197,94":"239,68,68"},.15);color:${suficiente?"#4ade80":"#fca5a5"}">
-           Estoque: ${estoque} ${it.unidade_medida}
-         </span>`
-      : `<span style="font-size:10px;color:var(--muted)">sem estoque vinculado</span>`;
 
-    return `<tr>
-      <td style="padding:7px 10px;font-size:12px;color:var(--text)">
-        ${it.insumo_codigo ? `<strong>${it.insumo_codigo}</strong> — ` : ""}${it.insumo_descricao}
-      </td>
-      <td style="padding:7px 10px;font-size:12px;color:#93c5fd;text-align:center">${total} ${it.unidade_medida}</td>
-      <td style="padding:7px 10px;text-align:center">${badge}</td>
-    </tr>`;
-  }).join("");
+    const tr = document.createElement("tr");
 
-  secao.innerHTML = `
-    <div style="margin-bottom:8px;font-size:11px;font-weight:700;color:var(--muted);
-      text-transform:uppercase;letter-spacing:.5px">
-      🔧 Insumos da ficha técnica (calculado para ${qtde} ${selectedMaterial?.unidade_medida || "un"})
-    </div>
-    <table style="width:100%;border-collapse:collapse;background:rgba(255,255,255,.02);
-      border:1px solid var(--border);border-radius:10px;overflow:hidden">
-      <thead>
-        <tr style="background:rgba(30,64,175,.4)">
-          <th style="padding:7px 10px;text-align:left;font-size:10px;color:rgba(255,255,255,.6);text-transform:uppercase">Insumo</th>
-          <th style="padding:7px 10px;text-align:center;font-size:10px;color:rgba(255,255,255,.6);text-transform:uppercase">Qtde Necessária</th>
-          <th style="padding:7px 10px;text-align:center;font-size:10px;color:rgba(255,255,255,.6);text-transform:uppercase">Disponível</th>
-        </tr>
-      </thead>
-      <tbody>${linhas}</tbody>
-    </table>`;
+    const tdInsumo = document.createElement("td");
+    tdInsumo.style.padding = "7px 10px";
+    tdInsumo.style.fontSize = "12px";
+    tdInsumo.style.color = "var(--text)";
+
+    if (it.insumo_codigo) {
+      const strong = document.createElement("strong");
+      strong.textContent = it.insumo_codigo;
+      tdInsumo.appendChild(strong);
+      tdInsumo.appendChild(document.createTextNode(" — "));
+    }
+    tdInsumo.appendChild(document.createTextNode(it.insumo_descricao || ""));
+
+    const tdQtde = document.createElement("td");
+    tdQtde.style.padding = "7px 10px";
+    tdQtde.style.fontSize = "12px";
+    tdQtde.style.color = "#93c5fd";
+    tdQtde.style.textAlign = "center";
+    tdQtde.textContent = `${total} ${it.unidade_medida || ""}`;
+
+    const tdDisponivel = document.createElement("td");
+    tdDisponivel.style.padding = "7px 10px";
+    tdDisponivel.style.textAlign = "center";
+
+    const badge = document.createElement("span");
+    badge.style.fontSize = "10px";
+    badge.style.padding = "2px 6px";
+    badge.style.borderRadius = "10px";
+    if (it.insumo_material_id) {
+      badge.style.background = `rgba(${suficiente ? "34,197,94" : "239,68,68"},.15)`;
+      badge.style.color = suficiente ? "#4ade80" : "#fca5a5";
+      badge.textContent = `Estoque: ${estoque} ${it.unidade_medida || ""}`;
+    } else {
+      badge.style.color = "var(--muted)";
+      badge.textContent = "sem estoque vinculado";
+    }
+
+    tdDisponivel.appendChild(badge);
+
+    tr.appendChild(tdInsumo);
+    tr.appendChild(tdQtde);
+    tr.appendChild(tdDisponivel);
+    tbody.appendChild(tr);
+  });
+
+  table.appendChild(tbody);
+  secao.appendChild(table);
 }
 
 // ─── Recalcula ao mudar quantidade ───────────────────
@@ -183,9 +271,15 @@ if (quantidadeInput) {
 
 function updateTotal() {
   if (!selectedMaterial || !totalEl) return;
-  const q     = Number(quantidadeInput.value || 0);
-  const custo = Number(selectedMaterial.custo_fornecedor || 0);
-  totalEl.innerText = (q * custo).toFixed(2);
+  const q = Number(quantidadeInput.value || 0);
+  // Custo total = soma dos insumos (custo_unit * qtde_por_unidade * quantidade)
+  let custoInsumos = 0;
+  fichaTecnica.forEach(it => {
+    const custoUnit = Number(it.custo_unit || 0);
+    const qtdeTotal = Number(it.quantidade_por_unidade || 0) * q;
+    custoInsumos += custoUnit * qtdeTotal;
+  });
+  totalEl.innerText = custoInsumos.toFixed(2);
 }
 
 // ─── Criar OP ─────────────────────────────────────────
@@ -213,8 +307,8 @@ if (formOp) {
       descricao_material: selectedMaterial.descricao,
       quantidade,
       unidade_medida:     unidade,
-      custo_unitario:     Number(selectedMaterial.custo_fornecedor || 0),
-      custo_total:        quantidade * Number(selectedMaterial.custo_fornecedor || 0),
+      custo_unitario:     0,
+      custo_total:        0,
       status:             "ABERTA",
     };
 

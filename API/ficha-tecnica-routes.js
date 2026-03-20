@@ -17,7 +17,9 @@ router.get('/:material_id', async (req, res) => {
     const [rows] = await db.promise().query(
       `SELECT ft.*,
               m.descricao AS insumo_descricao_atual,
-              m.estoque   AS insumo_estoque_atual
+              m.estoque   AS insumo_estoque_atual,
+              m.codigo_produto AS insumo_codigo,
+              COALESCE(m.custo_fornecedor, 0) AS custo_unit
        FROM ficha_tecnica ft
        LEFT JOIN materiais m ON m.id = ft.insumo_material_id
        WHERE ft.material_id = ?
@@ -105,7 +107,7 @@ router.get('/:material_id/calcular', async (req, res) => {
       `SELECT ft.*,
               ROUND(ft.quantidade_por_unidade * ?, 4)  AS quantidade_total,
               m.estoque                                 AS estoque_disponivel,
-              m.custo_fornecedor                        AS custo_unit,
+              COALESCE(m.custo_fornecedor, 0)           AS custo_unit,
               ROUND(ft.quantidade_por_unidade * ? * COALESCE(m.custo_fornecedor, 0), 2) AS custo_total
        FROM ficha_tecnica ft
        LEFT JOIN materiais m ON m.id = ft.insumo_material_id

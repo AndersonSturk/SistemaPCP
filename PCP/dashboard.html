@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard — PCP</title>
+  <link rel="stylesheet" href="../Styles/shared-style.css">
+  <style>
+    body { padding: 16px 20px; }
+    .page { max-width: 1400px; margin: 0 auto; }
+
+    /* ── Main nav tabs ── */
+    .main-tabs {
+      display: flex; gap: 4px; margin-bottom: 20px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 4px; width: fit-content;
+    }
+    .main-tab {
+      padding: 10px 24px; border-radius: 8px; border: none;
+      font-size: 13px; font-weight: 700; cursor: pointer;
+      color: var(--muted); background: transparent;
+      transition: all .2s; display: flex; align-items: center; gap: 8px;
+    }
+    .main-tab:hover { color: var(--text); background: rgba(255,255,255,.04); }
+    .main-tab.active { color: #fff; background: var(--primary); box-shadow: 0 2px 8px rgba(59,130,246,.3); }
+    .main-tab .tab-icon { font-size: 14px; display: flex; }
+    .main-page { display: none; }
+    .main-page.active { display: block; }
+
+    /* ── Top bar ── */
+    .dash-topbar {
+      display: flex; justify-content: space-between; align-items: center;
+      flex-wrap: wrap; gap: 12px; margin-bottom: 20px;
+    }
+    .dash-topbar h1 {
+      font-size: 20px; font-weight: 800; color: var(--text); margin: 0;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .dash-topbar h1 .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #22c55e; animation: pulse-dot 2s infinite;
+    }
+    @keyframes pulse-dot {
+      0%,100% { box-shadow: 0 0 0 0 rgba(34,197,94,.4); }
+      50% { box-shadow: 0 0 0 6px rgba(34,197,94,0); }
+    }
+    .btn-refresh {
+      width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--border-2);
+      background: var(--surface-2); color: var(--muted); cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all .2s; font-size: 14px;
+    }
+    .btn-refresh:hover { color: var(--text); background: var(--surface); }
+    .btn-refresh.spinning svg { animation: spin .8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── KPI Cards ── */
+    .kpi-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px; margin-bottom: 20px;
+    }
+    .kpi-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 16px 18px;
+      cursor: pointer; transition: all .2s;
+      position: relative; overflow: hidden;
+    }
+    .kpi-card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0;
+      height: 3px; border-radius: 12px 12px 0 0; opacity: 0; transition: opacity .2s;
+    }
+    .kpi-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,.3); }
+    .kpi-card:hover::before { opacity: 1; }
+    .kpi-card .kpi-icon {
+      width: 32px; height: 32px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px; margin-bottom: 10px;
+    }
+    .kpi-card .kpi-value { font-size: 26px; font-weight: 800; line-height: 1; margin-bottom: 4px; }
+    .kpi-card .kpi-label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; }
+    .kpi-card .kpi-trend { font-size: 10px; font-weight: 700; margin-top: 6px; display: flex; align-items: center; gap: 3px; }
+
+    .kpi-blue .kpi-icon { background: rgba(59,130,246,.12); color: #60a5fa; }
+    .kpi-blue .kpi-value { color: #60a5fa; }
+    .kpi-blue::before { background: #3b82f6; }
+    .kpi-green .kpi-icon { background: rgba(34,197,94,.12); color: #4ade80; }
+    .kpi-green .kpi-value { color: #4ade80; }
+    .kpi-green::before { background: #22c55e; }
+    .kpi-amber .kpi-icon { background: rgba(245,158,11,.12); color: #fbbf24; }
+    .kpi-amber .kpi-value { color: #fbbf24; }
+    .kpi-amber::before { background: #f59e0b; }
+    .kpi-red .kpi-icon { background: rgba(239,68,68,.12); color: #f87171; }
+    .kpi-red .kpi-value { color: #f87171; }
+    .kpi-red::before { background: #ef4444; }
+    .kpi-cyan .kpi-icon { background: rgba(6,182,212,.12); color: #22d3ee; }
+    .kpi-cyan .kpi-value { color: #22d3ee; }
+    .kpi-cyan::before { background: #06b6d4; }
+    .kpi-purple .kpi-icon { background: rgba(139,92,246,.12); color: #a78bfa; }
+    .kpi-purple .kpi-value { color: #a78bfa; }
+    .kpi-purple::before { background: #8b5cf6; }
+    .kpi-slate .kpi-icon { background: rgba(148,163,184,.12); color: #94a3b8; }
+    .kpi-slate .kpi-value { color: #cbd5e1; }
+    .kpi-slate::before { background: #64748b; }
+    .kpi-orange .kpi-icon { background: rgba(249,115,22,.12); color: #fb923c; }
+    .kpi-orange .kpi-value { color: #fb923c; }
+    .kpi-orange::before { background: #f97316; }
+
+    /* ── Progress bar ── */
+    .progress-section {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 16px 20px; margin-bottom: 20px;
+      display: flex; align-items: center; gap: 20px;
+    }
+    .progress-info { display: flex; flex-direction: column; gap: 2px; min-width: 160px; }
+    .progress-title { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; }
+    .progress-value { font-size: 22px; font-weight: 800; color: var(--text); }
+    .progress-bar-container { flex: 1; height: 10px; background: rgba(255,255,255,.06); border-radius: 10px; overflow: hidden; }
+    .progress-bar-fill {
+      height: 100%; border-radius: 10px; transition: width 1s cubic-bezier(.4,0,.2,1);
+      position: relative;
+    }
+    .progress-bar-fill.blue { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+    .progress-bar-fill.green { background: linear-gradient(90deg, #22c55e, #4ade80); }
+    .progress-bar-fill::after {
+      content: ''; position: absolute; inset: 0;
+      background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,.15) 50%, transparent 100%);
+      animation: shimmer 2s infinite;
+    }
+    @keyframes shimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+    .progress-labels { display: flex; gap: 16px; min-width: 200px; }
+    .progress-labels .p-label { display: flex; flex-direction: column; gap: 1px; }
+    .progress-labels .p-label span:first-child { font-size: 10px; color: var(--muted); text-transform: uppercase; font-weight: 600; }
+    .progress-labels .p-label span:last-child { font-size: 14px; font-weight: 700; color: var(--text); }
+    @media (max-width: 768px) {
+      .progress-section { flex-direction: column; align-items: stretch; }
+      .progress-labels { justify-content: space-between; }
+    }
+
+    /* ── Charts ── */
+    .charts-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 20px; }
+    .charts-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+    @media (max-width: 900px) { .charts-grid, .charts-grid-2 { grid-template-columns: 1fr; } }
+
+    .chart-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 18px 20px;
+    }
+    .chart-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+    .chart-card-header h3 { font-size: 13px; font-weight: 700; color: var(--text); margin: 0; }
+    .chart-badge {
+      font-size: 10px; font-weight: 700; padding: 3px 8px;
+      border-radius: 6px; background: rgba(59,130,246,.1); color: #93c5fd;
+    }
+    .chart-card canvas { width: 100% !important; max-height: 280px; }
+
+    /* ── Tabs ── */
+    .tab-section {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; margin-bottom: 20px; overflow: hidden;
+    }
+    .tab-header {
+      display: flex; border-bottom: 1px solid var(--border);
+      background: rgba(255,255,255,.02); overflow-x: auto;
+    }
+    .tab-btn {
+      padding: 12px 20px; font-size: 12px; font-weight: 600;
+      color: var(--muted); background: transparent; border: none;
+      cursor: pointer; white-space: nowrap; border-bottom: 2px solid transparent; transition: all .2s;
+    }
+    .tab-btn:hover { color: var(--text); background: rgba(255,255,255,.03); }
+    .tab-btn.active { color: #60a5fa; border-bottom-color: #3b82f6; background: rgba(59,130,246,.05); }
+    .tab-count {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-width: 18px; height: 18px; padding: 0 5px; border-radius: 10px;
+      font-size: 10px; font-weight: 700; margin-left: 6px;
+      background: rgba(255,255,255,.08); color: var(--muted);
+    }
+    .tab-btn.active .tab-count { background: rgba(59,130,246,.15); color: #60a5fa; }
+    .tab-btn.tab-danger .tab-count { background: rgba(239,68,68,.15); color: #f87171; }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── Tables ── */
+    .dash-table { width: 100%; border-collapse: collapse; }
+    .dash-table th {
+      padding: 10px 16px; font-size: 10px; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .5px; text-align: left;
+      border-bottom: 1px solid var(--border); background: rgba(255,255,255,.02); position: sticky; top: 0;
+    }
+    .dash-table td { padding: 10px 16px; font-size: 12px; color: #cbd5e1; border-bottom: 1px solid rgba(255,255,255,.03); }
+    .dash-table tbody tr { transition: background .15s; cursor: pointer; }
+    .dash-table tbody tr:hover { background: rgba(59,130,246,.05); }
+    .dash-table tbody tr:last-child td { border-bottom: none; }
+
+    /* ── Status / badges ── */
+    .status-dot { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; }
+    .status-dot::before { content: ''; width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .status-dot.s-normal::before { background: #3b82f6; }
+    .status-dot.s-producao::before { background: #f59e0b; }
+    .status-dot.s-atrasado::before { background: #ef4444; animation: pulse-dot 1.5s infinite; }
+    .status-dot.s-atraso-entrega::before { background: #f97316; animation: pulse-dot 1.5s infinite; }
+    .status-dot.s-entregue::before { background: #22c55e; }
+
+    .op-status { font-size: 10px; font-weight: 700; padding: 3px 10px; border-radius: 6px; }
+    .op-aberta { background: rgba(59,130,246,.12); color: #60a5fa; }
+    .op-producao { background: rgba(245,158,11,.12); color: #fbbf24; }
+    .op-concluida { background: rgba(34,197,94,.12); color: #4ade80; }
+    .op-cancelada { background: rgba(107,114,128,.15); color: #9ca3af; }
+
+    .badge-mov { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 6px; }
+    .badge-entrada { background: rgba(34,197,94,.12); color: #4ade80; }
+    .badge-saida { background: rgba(239,68,68,.12); color: #f87171; }
+    .badge-producao-mov { background: rgba(59,130,246,.12); color: #93c5fd; }
+    .badge-ajuste { background: rgba(245,158,11,.12); color: #fbbf24; }
+
+    .badge-controle { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 6px; }
+    .badge-estoque { background: rgba(34,197,94,.12); color: #4ade80; }
+    .badge-producao-ctrl { background: rgba(245,158,11,.12); color: #fbbf24; }
+
+    .countdown { font-size: 11px; font-weight: 700; }
+    .countdown.urgente { color: #f87171; }
+    .countdown.proximo { color: #fbbf24; }
+    .countdown.tranquilo { color: #4ade80; }
+
+    /* ── Ranking ── */
+    .ranking-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 16px; border-bottom: 1px solid rgba(255,255,255,.03); transition: background .15s;
+    }
+    .ranking-item:hover { background: rgba(255,255,255,.03); }
+    .ranking-item:last-child { border-bottom: none; }
+    .ranking-pos {
+      width: 24px; height: 24px; border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 800; background: rgba(255,255,255,.06); color: var(--muted);
+    }
+    .ranking-pos.top-1 { background: rgba(245,158,11,.15); color: #fbbf24; }
+    .ranking-pos.top-2 { background: rgba(148,163,184,.15); color: #94a3b8; }
+    .ranking-pos.top-3 { background: rgba(180,83,9,.15); color: #d97706; }
+    .ranking-info { flex: 1; }
+    .ranking-nome { font-size: 13px; font-weight: 600; color: var(--text); }
+    .ranking-sub { font-size: 10px; color: var(--muted); }
+    .ranking-bar-wrap { flex: 1; height: 6px; background: rgba(255,255,255,.06); border-radius: 6px; overflow: hidden; max-width: 200px; }
+    .ranking-bar { height: 100%; border-radius: 6px; background: linear-gradient(90deg, #3b82f6, #60a5fa); transition: width .8s ease; }
+    .ranking-total { font-size: 13px; font-weight: 700; color: var(--text); min-width: 36px; text-align: right; }
+
+    /* ── Alert item (estoque) ── */
+    .alerta-item {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 16px; border-bottom: 1px solid rgba(255,255,255,.03);
+    }
+    .alerta-item:last-child { border-bottom: none; }
+    .alerta-item-nome { color: var(--text); font-weight: 600; font-size: 12px; }
+    .alerta-item-nome span { display: block; font-size: 10px; color: var(--muted); font-weight: 400; }
+    .alerta-item-vals { text-align: right; }
+    .alerta-item-vals .atual { color: #f87171; font-weight: 700; font-size: 13px; }
+    .alerta-item-vals .minimo { color: var(--muted); font-size: 10px; }
+
+    /* ── Footer ── */
+    .dash-footer { text-align: center; padding: 16px; font-size: 11px; color: var(--muted); }
+    .dash-footer span { font-weight: 600; color: #64748b; }
+    .empty-msg { text-align: center; padding: 32px; color: var(--muted); font-size: 12px; }
+  </style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-content">
+    <div class="header-left">
+      <div class="logo">PCP</div>
+      <h2 class="header-text">Dashboard</h2>
+    </div>
+    <div class="header-right">
+      <span id="userInfo"></span>
+      <button class="btn-voltar" onclick="window.location.href='Index.html'">&#8592; Voltar</button>
+      <button class="btn-logout" id="btnLogout">Sair</button>
+    </div>
+  </div>
+</header>
+
+<div class="page">
+
+  <!-- ══════ ABAS PRINCIPAIS ══════ -->
+  <div class="main-tabs">
+    <button class="main-tab active" data-page="pedidos">
+      <span class="tab-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
+      Pedidos &amp; OPs
+    </button>
+    <button class="main-tab" data-page="estoque">
+      <span class="tab-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></span>
+      Estoque
+    </button>
+  </div>
+
+  <!-- ╔══════════════════════════════════════════════════╗ -->
+  <!-- ║           PÁGINA: PEDIDOS & OPs                 ║ -->
+  <!-- ╚══════════════════════════════════════════════════╝ -->
+  <div class="main-page active" id="pagePedidos">
+
+    <div class="dash-topbar">
+      <h1><span class="dot"></span> Painel de Pedidos</h1>
+      <button class="btn-refresh" id="btnRefresh" title="Atualizar dados">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
+      </button>
+    </div>
+
+    <!-- KPIs Pedidos -->
+    <div class="kpi-grid">
+      <div class="kpi-card kpi-blue" data-filter="ativos">
+        <div class="kpi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+        <div class="kpi-value" id="kpiAtivos">—</div>
+        <div class="kpi-label">Pedidos Ativos</div>
+        <div class="kpi-trend" id="kpiAtivosSub"></div>
+      </div>
+      <div class="kpi-card kpi-green" data-filter="entregues">
+        <div class="kpi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
+        <div class="kpi-value" id="kpiEntregues">—</div>
+        <div class="kpi-label">Entregues</div>
+        <div class="kpi-trend" id="kpiEntreguesSub"></div>
+      </div>
+      <div class="kpi-card kpi-amber" data-filter="producao">
+        <div class="kpi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+        <div class="kpi-value" id="kpiProducao">—</div>
+        <div class="kpi-label">Em Produ&#231;&#227;o</div>
+      </div>
+      <div class="kpi-card kpi-red" data-filter="atrasados">
+        <div class="kpi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+        <div class="kpi-value" id="kpiAtrasados">—</div>
+        <div class="kpi-label">Atrasados</div>
+      </div>
+      <div class="kpi-card kpi-cyan">
+        <div class="kpi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg></div>
+        <div class="kpi-value" id="kpiTaxaPrazo">—</div>
+        <div class="kpi-label">No Prazo</div>
+        <div class="kpi-trend" id="kpiTaxaSub"></div>
+      </div>
+      <div class="kpi-card kpi-purple">
+        <div class="kpi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div>
+        <div class="kpi-value" id="kpiPecas">—</div>
+        <div class="kpi-label">Pe&#231;as Solicitadas</div>
+        <div class="kpi-trend" id="kpiPecasSub"></div>
+      </div>
+    </div>
+
+    <!-- Progress Pedidos -->
+    <div class="progress-section">
+      <div class="progress-info">
+        <div class="progress-title">Progresso de Produ&#231;&#227;o</div>
+        <div class="progress-value" id="progressPercent">—</div>
+      </div>
+      <div class="progress-bar-container">
+        <div class="progress-bar-fill blue" id="progressBar" style="width:0%"></div>
+      </div>
+      <div class="progress-labels">
+        <div class="p-label"><span>Produzidas</span><span id="progressProduzidas">0</span></div>
+        <div class="p-label"><span>Solicitadas</span><span id="progressSolicitadas">0</span></div>
+      </div>
+    </div>
+
+    <!-- Charts: Timeline + Status pedidos -->
+    <div class="charts-grid">
+      <div class="chart-card">
+        <div class="chart-card-header">
+          <h3>Pedidos vs Entregas — &#218;ltimos 6 Meses</h3>
+          <span class="chart-badge">Mensal</span>
+        </div>
+        <canvas id="chartTimeline" height="280"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-card-header">
+          <h3>Status dos Pedidos</h3>
+          <span class="chart-badge" id="badgeTotalPedidos">—</span>
+        </div>
+        <canvas id="chartStatus" height="280"></canvas>
+      </div>
+    </div>
+
+    <!-- Charts: UF + OPs status -->
+    <div class="charts-grid-2">
+      <div class="chart-card">
+        <div class="chart-card-header">
+          <h3>Pedidos por Estado (UF)</h3>
+          <span class="chart-badge">Top 15</span>
+        </div>
+        <canvas id="chartUF" height="260"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-card-header">
+          <h3>Ordens de Produ&#231;&#227;o por Status</h3>
+          <span class="chart-badge" id="badgeTotalOPs">—</span>
+        </div>
+        <canvas id="chartOPsStatus" height="260"></canvas>
+      </div>
+    </div>
+
+    <!-- Charts: OPs 6 meses -->
+    <div class="charts-grid">
+      <div class="chart-card">
+        <div class="chart-card-header">
+          <h3>OPs Conclu&#237;das — &#218;ltimos 6 Meses</h3>
+          <span class="chart-badge">Produ&#231;&#227;o</span>
+        </div>
+        <canvas id="chartOPs6m" height="260"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-card-header"><h3>Resumo de OPs</h3></div>
+        <div class="kpi-grid" style="margin-bottom:0">
+          <div class="kpi-card kpi-blue" style="cursor:default">
+            <div class="kpi-value" style="font-size:22px" id="opAberta">—</div>
+            <div class="kpi-label">Abertas</div>
+          </div>
+          <div class="kpi-card kpi-amber" style="cursor:default">
+            <div class="kpi-value" style="font-size:22px" id="opEmProd">—</div>
+            <div class="kpi-label">Em Produ&#231;&#227;o</div>
+          </div>
+          <div class="kpi-card kpi-green" style="cursor:default">
+            <div class="kpi-value" style="font-size:22px" id="opConcluida">—</div>
+            <div class="kpi-label">Conclu&#237;das</div>
+          </div>
+          <div class="kpi-card kpi-slate" style="cursor:default">
+            <div class="kpi-value" style="font-size:22px" id="opCancelada">—</div>
+            <div class="kpi-label">Canceladas</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tables: pedidos -->
+    <div class="tab-section">
+      <div class="tab-header" data-group="pedidos">
+        <button class="tab-btn active" data-tab="atrasados">Atrasados <span class="tab-count" id="countAtrasados">0</span></button>
+        <button class="tab-btn" data-tab="proximas">Pr&#243;ximas Entregas <span class="tab-count" id="countProximas">0</span></button>
+        <button class="tab-btn" data-tab="recentes">Recentes <span class="tab-count" id="countRecentes">0</span></button>
+        <button class="tab-btn" data-tab="clientes">Top Clientes <span class="tab-count" id="countClientes">0</span></button>
+        <button class="tab-btn" data-tab="opsRecentes">&#218;ltimas OPs <span class="tab-count" id="countOps">0</span></button>
+      </div>
+
+      <div class="tab-panel active" id="panelAtrasados" data-group="pedidos">
+        <table class="dash-table"><thead><tr>
+          <th>Ordem</th><th>Cliente</th><th>UF</th><th>Produto</th><th>Qtde</th><th>Status</th><th>Vencimento</th><th>Atraso</th>
+        </tr></thead><tbody id="tbAtrasados"><tr><td colspan="8" class="empty-msg">Carregando...</td></tr></tbody></table>
+      </div>
+      <div class="tab-panel" id="panelProximas" data-group="pedidos">
+        <table class="dash-table"><thead><tr>
+          <th>Ordem</th><th>Cliente</th><th>UF</th><th>Produto</th><th>Qtde</th><th>Status</th><th>Vencimento</th><th>Faltam</th>
+        </tr></thead><tbody id="tbProximas"><tr><td colspan="8" class="empty-msg">Carregando...</td></tr></tbody></table>
+      </div>
+      <div class="tab-panel" id="panelRecentes" data-group="pedidos">
+        <table class="dash-table"><thead><tr>
+          <th>Ordem</th><th>Cliente</th><th>UF</th><th>Produto</th><th>Qtde</th><th>Status</th><th>Entrada</th><th>Vencimento</th>
+        </tr></thead><tbody id="tbRecentes"><tr><td colspan="8" class="empty-msg">Carregando...</td></tr></tbody></table>
+      </div>
+      <div class="tab-panel" id="panelClientes" data-group="pedidos">
+        <div id="listaClientes"><div class="empty-msg">Carregando...</div></div>
+      </div>
+      <div class="tab-panel" id="panelOpsRecentes" data-group="pedidos">
+        <table class="dash-table"><thead><tr>
+          <th>N&#186; OP</th><th>Produto</th><th>Descri&#231;&#227;o</th><th>Qtde</th><th>Custo Total</th><th>Respons&#225;vel</th><th>Status</th>
+        </tr></thead><tbody id="tbOps"><tr><td colspan="7" class="empty-msg">Carregando...</td></tr></tbody></table>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ╔══════════════════════════════════════════════════╗ -->
+  <!-- ║           PÁGINA: ESTOQUE                       ║ -->
+  <!-- ╚══════════════════════════════════════════════════╝ -->
+  <div class="main-page" id="pageEstoque">
+
+    <div class="dash-topbar">
+      <h1><span class="dot"></span> Painel de Estoque</h1>
+      <button class="btn-refresh" id="btnRefreshEstoque" title="Atualizar dados">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
+      </button>
+    </div>
+
+    <!-- KPIs Estoque -->
+    <div class="kpi-grid" id="estoqueKpis">
+      <div class="kpi-card kpi-blue">
+        <div class="kpi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div>
+        <div class="kpi-value" id="ekpiTotal">—</div>
+        <div class="kpi-label">Materiais</div>
+      </div>
+      <div class="kpi-card kpi-green">
+        <div class="kpi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+        <div class="kpi-value" style="font-size:20px" id="ekpiValor">—</div>
+        <div class="kpi-label">Valor em Estoque</div>
+      </div>
+      <div class="kpi-card kpi-red">
+        <div class="kpi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+        <div class="kpi-value" id="ekpiZerado">—</div>
+        <div class="kpi-label">Estoque Zerado</div>
+      </div>
+      <div class="kpi-card kpi-amber">
+        <div class="kpi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+        <div class="kpi-value" id="ekpiAbaixo">—</div>
+        <div class="kpi-label">Abaixo do M&#237;nimo</div>
+      </div>
+      <div class="kpi-card kpi-orange">
+        <div class="kpi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+        <div class="kpi-value" id="ekpiSaidas30d">—</div>
+        <div class="kpi-label">Sa&#237;das (30d)</div>
+        <div class="kpi-trend" id="ekpiSaidasValor"></div>
+      </div>
+      <div class="kpi-card kpi-slate">
+        <div class="kpi-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></div>
+        <div class="kpi-value" id="ekpiPerdas30d">—</div>
+        <div class="kpi-label">Perdas (30d)</div>
+        <div class="kpi-trend" id="ekpiPerdasQtde"></div>
+      </div>
+    </div>
+
+    <!-- Charts estoque -->
+    <div class="charts-grid">
+      <div class="chart-card">
+        <div class="chart-card-header">
+          <h3>Movimenta&#231;&#245;es — &#218;ltimos 6 Meses</h3>
+          <span class="chart-badge">Por tipo</span>
+        </div>
+        <canvas id="chartMovsMes" height="280"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-card-header">
+          <h3>Movimenta&#231;&#245;es (30 dias)</h3>
+          <span class="chart-badge">Resumo</span>
+        </div>
+        <canvas id="chartMovsTipo" height="280"></canvas>
+      </div>
+    </div>
+
+    <!-- Tables estoque -->
+    <div class="tab-section">
+      <div class="tab-header" data-group="estoque">
+        <button class="tab-btn active" data-tab="eAbaixo">Abaixo do M&#237;nimo <span class="tab-count" id="eCountAbaixo">0</span></button>
+        <button class="tab-btn" data-tab="eZerado">Estoque Zerado <span class="tab-count" id="eCountZerado">0</span></button>
+        <button class="tab-btn" data-tab="eMovs">Movimenta&#231;&#245;es <span class="tab-count" id="eCountMovs">0</span></button>
+        <button class="tab-btn" data-tab="eSaidas">Sa&#237;das Recentes <span class="tab-count" id="eCountSaidas">0</span></button>
+        <button class="tab-btn" data-tab="eTopSaidas">Top Sa&#237;das <span class="tab-count" id="eCountTop">0</span></button>
+        <button class="tab-btn" data-tab="ePerdas">Perdas <span class="tab-count" id="eCountPerdas">0</span></button>
+      </div>
+
+      <div class="tab-panel active" id="panelEAbaixo" data-group="estoque">
+        <div id="listaAbaixoMin"><div class="empty-msg">Carregando...</div></div>
+      </div>
+      <div class="tab-panel" id="panelEZerado" data-group="estoque">
+        <table class="dash-table"><thead><tr>
+          <th>C&#243;digo</th><th>Descri&#231;&#227;o</th><th>Unidade</th><th>Estoque M&#237;nimo</th>
+        </tr></thead><tbody id="tbZerado"><tr><td colspan="4" class="empty-msg">Carregando...</td></tr></tbody></table>
+      </div>
+      <div class="tab-panel" id="panelEMovs" data-group="estoque">
+        <table class="dash-table"><thead><tr>
+          <th>Data</th><th>Tipo</th><th>C&#243;digo</th><th>Material</th><th>Qtde</th><th>Refer&#234;ncia</th><th>Usu&#225;rio</th>
+        </tr></thead><tbody id="tbMovs"><tr><td colspan="7" class="empty-msg">Carregando...</td></tr></tbody></table>
+      </div>
+      <div class="tab-panel" id="panelESaidas" data-group="estoque">
+        <table class="dash-table"><thead><tr>
+          <th>N&#186;</th><th>Cliente</th><th>UF</th><th>PV</th><th>OC</th><th>Data</th><th>Itens</th><th>Valor</th>
+        </tr></thead><tbody id="tbSaidas"><tr><td colspan="8" class="empty-msg">Carregando...</td></tr></tbody></table>
+      </div>
+      <div class="tab-panel" id="panelETopSaidas" data-group="estoque">
+        <table class="dash-table"><thead><tr>
+          <th>C&#243;digo</th><th>Material</th><th>Unidade</th><th>Sa&#237;das (30d)</th><th>Qtde Total</th><th>Estoque Atual</th><th>M&#237;nimo</th>
+        </tr></thead><tbody id="tbTopSaidas"><tr><td colspan="7" class="empty-msg">Carregando...</td></tr></tbody></table>
+      </div>
+      <div class="tab-panel" id="panelEPerdas" data-group="estoque">
+        <table class="dash-table"><thead><tr>
+          <th>OP</th><th>C&#243;digo</th><th>Material</th><th>Qtde</th><th>Unidade</th><th>Motivo</th><th>Data</th>
+        </tr></thead><tbody id="tbPerdas"><tr><td colspan="7" class="empty-msg">Carregando...</td></tr></tbody></table>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="dash-footer">Atualizado em <span id="lastUpdate">—</span></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script type="module" src="../Scripts/dashboard-script.js" defer></script>
+</body>
+</html>

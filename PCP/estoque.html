@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Estoque — PCP</title>
+  <link rel="stylesheet" href="../Styles/shared-style.css">
+  <style>
+    .page { max-width: 1200px; margin: 0 auto; }
+
+    /* top bar */
+    .top-bar {
+      display: flex; gap: 10px; align-items: center;
+      margin-bottom: 18px; flex-wrap: wrap;
+    }
+    .top-bar input {
+      flex: 1; min-width: 200px;
+      padding: 9px 13px; border-radius: 10px;
+      border: 1.5px solid var(--border-2);
+      background: var(--surface-2); color: var(--text); font-size: 13px;
+    }
+    .top-bar input:focus { outline: none; border-color: var(--primary); }
+    .top-bar select {
+      padding: 9px 13px; border-radius: 10px;
+      border: 1.5px solid var(--border-2);
+      background: var(--surface-2); color: var(--text);
+      font-size: 13px; min-width: 130px;
+    }
+
+    /* table card */
+    .table-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px; overflow: hidden;
+    }
+    .table-scroll { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    thead { background: rgba(30,64,175,.55); }
+    th {
+      padding: 10px 14px; text-align: left;
+      font-size: 10px; font-weight: 700;
+      color: rgba(255,255,255,.65);
+      text-transform: uppercase; letter-spacing: .5px; white-space: nowrap;
+    }
+    td {
+      padding: 10px 14px; font-size: 13px; color: #cbd5e1;
+      border-bottom: 1px solid rgba(255,255,255,.035);
+    }
+    tbody tr { cursor: pointer; transition: background .1s; }
+    tbody tr:hover { background: rgba(255,255,255,.03); }
+    tbody tr:last-child td { border-bottom: none; }
+    .badge-un {
+      background: rgba(59,130,246,.12); color: #93c5fd;
+      padding: 2px 8px; border-radius: 20px;
+      font-size: 11px; font-weight: 700;
+    }
+    .badge-tipo {
+      padding: 2px 8px; border-radius: 20px;
+      font-size: 11px; font-weight: 600;
+    }
+    .estoque-positivo { color: #4ade80; font-weight: 700; }
+    .estoque-zero     { color: #fbbf24; font-weight: 700; }
+    .estoque-negativo { color: #f87171; font-weight: 700; }
+
+    /* paginação */
+    .paginacao {
+      display: flex; justify-content: center; align-items: center;
+      gap: 12px; padding: 14px;
+      border-top: 1px solid var(--border);
+    }
+    #pageInfo { font-size: 12px; color: var(--muted); }
+
+    /* ══ MODAL ══ */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.65);
+      backdrop-filter: blur(6px);
+      display: flex; justify-content: center; align-items: flex-start;
+      padding: 32px 16px; z-index: 9999; overflow-y: auto;
+      opacity: 0; transition: opacity .25s;
+    }
+    .modal-overlay.show  { opacity: 1; }
+    .modal-overlay.hidden { display: none !important; }
+
+    .modal-box {
+      background: var(--surface);
+      border: 1px solid var(--border-2);
+      border-radius: 20px; width: 100%; max-width: 960px;
+      max-height: 90vh; overflow-y: auto;
+      box-shadow: 0 25px 60px rgba(0,0,0,.5);
+      transform: translateY(20px) scale(.98);
+      transition: transform .3s cubic-bezier(.34,1.56,.64,1);
+    }
+    .modal-overlay.show .modal-box { transform: translateY(0) scale(1); }
+
+    .modal-header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 18px 22px; border-bottom: 1px solid var(--border);
+      background: rgba(255,255,255,.02); border-radius: 20px 20px 0 0;
+    }
+    .modal-header h3 { font-size: 15px; font-weight: 700; margin: 0; }
+    .btn-close {
+      width: 30px; height: 30px; border-radius: 8px;
+      background: transparent; border: none; cursor: pointer;
+      color: var(--muted); font-size: 18px;
+      display: flex; align-items: center; justify-content: center;
+      transition: background .15s;
+    }
+    .btn-close:hover { background: rgba(255,255,255,.08); color: var(--text); }
+
+    /* tabs */
+    .modal-tabs {
+      display: flex; gap: 0;
+      border-bottom: 1px solid var(--border);
+      padding: 0 22px;
+      background: rgba(255,255,255,.01);
+    }
+    .modal-tab {
+      padding: 11px 16px; font-size: 13px; font-weight: 600;
+      color: var(--muted); cursor: pointer; border: none;
+      background: transparent; border-bottom: 2px solid transparent;
+      margin-bottom: -1px; transition: all .15s;
+    }
+    .modal-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+    .modal-tab:hover:not(.active) { color: var(--text); }
+
+    .tab-pane { display: none; }
+    .tab-pane.active { display: block; }
+
+    /* fields */
+    .modal-body { padding: 22px; }
+    .info-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+    }
+    .info-grid .span2 { grid-column: span 2; }
+    .info-item { display: flex; flex-direction: column; gap: 4px; }
+    .info-item label {
+      font-size: 10px; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .5px;
+    }
+    .info-item span {
+      font-size: 14px; color: var(--text); font-weight: 500;
+    }
+
+    /* ficha técnica - documento profissional */
+    .ft-doc {
+      background: #fff; color: #1f2933; border-radius: 10px;
+      padding: 24px; max-height: 70vh; overflow-y: auto;
+    }
+    .ft-doc-topo {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      border-bottom: 2px solid #e5e7eb; padding-bottom: 14px; margin-bottom: 16px;
+    }
+    .ft-doc-empresa h3 { margin: 0; font-size: 17px; color: #1e40af; font-weight: 800; }
+    .ft-doc-empresa p { margin: 2px 0; font-size: 10px; color: #6b7280; }
+    .ft-doc-titulo { text-align: right; }
+    .ft-doc-titulo h4 { margin: 0; font-size: 14px; color: #1e40af; font-weight: 700; letter-spacing: .5px; }
+    .ft-doc-titulo p { margin: 2px 0; font-size: 10px; color: #6b7280; }
+
+    .ft-doc-blocos { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+    .ft-doc-bloco {
+      background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px 14px;
+    }
+    .ft-doc-bloco h5 { margin: 0 0 8px; font-size: 11px; color: #1e40af; text-transform: uppercase; letter-spacing: .5px; }
+    .ft-doc-bloco p { margin: 3px 0; font-size: 12px; color: #374151; line-height: 1.5; }
+    .ft-doc-bloco p b { color: #1f2933; }
+    .ft-doc-bloco-full { grid-column: span 2; }
+
+    .ft-doc-desc {
+      background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px;
+      padding: 12px 14px; margin-bottom: 16px;
+    }
+    .ft-doc-desc h5 { margin: 0 0 6px; font-size: 11px; color: #0369a1; text-transform: uppercase; letter-spacing: .5px; }
+    .ft-doc-desc p { margin: 0; font-size: 12px; color: #374151; line-height: 1.6; white-space: pre-wrap; }
+
+    .ft-doc table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    .ft-doc table th {
+      background: #2563eb; color: #fff; padding: 7px 10px;
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .3px; text-align: center; border: 1px solid #1d4ed8;
+    }
+    .ft-doc table td {
+      padding: 6px 10px; font-size: 11px; color: #374151;
+      border: 1px solid #e5e7eb; text-align: center;
+    }
+    .ft-doc table tbody tr:nth-child(even) { background: #f8fafc; }
+    .ft-doc table tfoot td {
+      background: #f1f5f9; font-weight: 700; color: #1f2933;
+      border-top: 2px solid #cbd5e1;
+    }
+
+    .ft-doc-footer {
+      margin-top: 16px; padding-top: 8px;
+      border-top: 2px solid #e5e7eb;
+      display: flex; justify-content: space-between;
+      font-size: 9px; color: #94a3b8;
+    }
+
+    .ft-doc-btn-pdf {
+      padding: 8px 16px; border-radius: 8px; border: none;
+      background: #16a34a; color: #fff; font-size: 12px; font-weight: 600;
+      cursor: pointer; transition: all .15s; margin-top: 12px;
+    }
+    .ft-doc-btn-pdf:hover { background: #15803d; transform: translateY(-1px); }
+
+    .ft-empty {
+      text-align: center; padding: 24px; color: var(--muted);
+      font-size: 13px; background: rgba(255,255,255,.02);
+      border: 1px dashed var(--border); border-radius: 10px;
+    }
+
+    /* extrato */
+    .extrato-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    .extrato-table thead { background: rgba(30,64,175,.35); }
+    .extrato-table th {
+      padding: 8px 10px; font-size: 10px; font-weight: 700;
+      color: rgba(255,255,255,.6); text-transform: uppercase;
+      letter-spacing: .5px; text-align: left;
+    }
+    .extrato-table td {
+      padding: 8px 10px; font-size: 12px; color: #cbd5e1;
+      border-bottom: 1px solid rgba(255,255,255,.035);
+    }
+    .badge-entrada { background: rgba(34,197,94,.15); color: #4ade80; padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: 700; }
+    .badge-saida   { background: rgba(239,68,68,.15); color: #f87171; padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: 700; }
+    .badge-producao { background: rgba(59,130,246,.15); color: #93c5fd; padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: 700; }
+    .badge-ajuste  { background: rgba(251,191,36,.15); color: #fbbf24; padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: 700; }
+
+    .extrato-paginacao {
+      display: flex; justify-content: center; align-items: center;
+      gap: 10px; padding: 10px 0; margin-top: 8px;
+    }
+    .extrato-paginacao button {
+      padding: 5px 12px; border-radius: 7px; font-size: 12px;
+    }
+    #extratoPageInfo { font-size: 11px; color: var(--muted); }
+  </style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-content">
+    <div class="header-left">
+      <div class="logo">PCP</div>
+      <h2 class="header-text">Estoque</h2>
+    </div>
+    <div class="header-right">
+      <span id="userInfo"></span>
+      <button class="btn-voltar" onclick="window.location.href='Index.html'">&#8592; Voltar</button>
+      <button class="btn-logout" id="btnLogout">Sair</button>
+    </div>
+  </div>
+</header>
+
+<div class="page">
+  <div class="top-bar">
+    <input type="text" id="buscaMaterial" placeholder="Buscar por c&#243;digo ou descri&#231;&#227;o...">
+    <select id="filtroTipo">
+      <option value="">Todos os tipos</option>
+      <option value="revenda">Revenda</option>
+      <option value="produzido">Produzido</option>
+      <option value="insumo">Insumo</option>
+      <option value="material">Material</option>
+      <option value="em_processo">Em Processo</option>
+      <option value="apenas_temporario">Tempor&#225;rio</option>
+    </select>
+    <select id="filtroGrupo">
+      <option value="">Todos os grupos</option>
+    </select>
+  </div>
+
+  <div class="table-card">
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>C&#243;digo</th>
+            <th>Descri&#231;&#227;o</th>
+            <th>Un.</th>
+            <th>Tipo</th>
+            <th>Grupo</th>
+            <th>Estoque</th>
+            <th>Custo Unit.</th>
+          </tr>
+        </thead>
+        <tbody id="tabelaEstoque">
+          <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px">Carregando...</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="paginacao">
+      <button class="btn btn-secondary" id="btnAnterior">&#8249; Anterior</button>
+      <span id="pageInfo">&#8212;</span>
+      <button class="btn btn-secondary" id="btnProximo">Pr&#243;ximo &#8250;</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL DETALHE ══ -->
+<div id="modalOverlay" class="modal-overlay hidden">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3 id="modalTitle">Detalhe do Material</h3>
+      <button class="btn-close" id="btnFechar">&#10005;</button>
+    </div>
+
+    <div class="modal-tabs">
+      <button class="modal-tab active" data-tab="dados">Dados</button>
+      <button class="modal-tab" data-tab="ft">Ficha T&#233;cnica</button>
+      <button class="modal-tab" data-tab="extrato">Extrato</button>
+    </div>
+
+    <!-- Tab Dados -->
+    <div class="tab-pane active modal-body" id="paneDados">
+      <div class="info-grid">
+        <div class="info-item">
+          <label>C&#243;digo</label>
+          <span id="detCodigo">&#8212;</span>
+        </div>
+        <div class="info-item">
+          <label>Unidade de Medida</label>
+          <span id="detUnidade">&#8212;</span>
+        </div>
+        <div class="info-item span2">
+          <label>Descri&#231;&#227;o</label>
+          <span id="detDescricao">&#8212;</span>
+        </div>
+        <div class="info-item">
+          <label>Tipo</label>
+          <span id="detTipo">&#8212;</span>
+        </div>
+        <div class="info-item">
+          <label>Grupo</label>
+          <span id="detGrupo">&#8212;</span>
+        </div>
+        <div class="info-item">
+          <label>Subgrupo</label>
+          <span id="detSubgrupo">&#8212;</span>
+        </div>
+        <div class="info-item">
+          <label>Marca</label>
+          <span id="detMarca">&#8212;</span>
+        </div>
+        <div class="info-item">
+          <label>Estoque Atual</label>
+          <span id="detEstoque" style="font-size:18px;font-weight:700">&#8212;</span>
+        </div>
+        <div class="info-item">
+          <label>Custo Unit&#225;rio</label>
+          <span id="detCusto">&#8212;</span>
+        </div>
+        <div class="info-item">
+          <label>Qtde por Embalagem</label>
+          <span id="detEmbalagem">&#8212;</span>
+        </div>
+        <div class="info-item">
+          <label>Situa&#231;&#227;o</label>
+          <span id="detSituacao">&#8212;</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab Ficha Técnica (Documento) -->
+    <div class="tab-pane" id="paneFt" style="padding:16px;background:#e2e8f0;border-radius:0 0 20px 20px;">
+      <div class="ft-empty" id="ftEmpty">Nenhum insumo na ficha t&#233;cnica para este material.</div>
+      <div id="ftDocContainer" style="display:none">
+        <div class="ft-doc" id="ftDoc">
+          <!-- Topo -->
+          <div class="ft-doc-topo">
+            <div class="ft-doc-empresa">
+              <h3>Lucabe Energy</h3>
+              <p>CNPJ: 01.272.361/0001-50</p>
+              <p>Av. Comandante Sampaio, N&#186; 781 - KM 18 | Osasco - SP</p>
+              <p>Tel: (11) 4506-4700 | contato@lucabeltda.com.br</p>
+            </div>
+            <div class="ft-doc-titulo">
+              <h4>FICHA T&#201;CNICA</h4>
+              <p>Documento de Composi&#231;&#227;o do Material</p>
+              <p id="ftDocData"></p>
+            </div>
+          </div>
+
+          <!-- Dados do material -->
+          <div class="ft-doc-blocos">
+            <div class="ft-doc-bloco">
+              <h5>Identifica&#231;&#227;o do Material</h5>
+              <p><b>C&#243;digo:</b> <span id="ftDocCodigo">—</span></p>
+              <p><b>Descri&#231;&#227;o:</b> <span id="ftDocDescricao">—</span></p>
+              <p><b>Unidade:</b> <span id="ftDocUnidade">—</span></p>
+              <p><b>Tipo:</b> <span id="ftDocTipo">—</span></p>
+            </div>
+            <div class="ft-doc-bloco">
+              <h5>Classifica&#231;&#227;o e Custo</h5>
+              <p><b>Grupo:</b> <span id="ftDocGrupo">—</span></p>
+              <p><b>Subgrupo:</b> <span id="ftDocSubgrupo">—</span></p>
+              <p><b>Marca:</b> <span id="ftDocMarca">—</span></p>
+              <p><b>Custo Unit&#225;rio:</b> <span id="ftDocCusto">—</span></p>
+            </div>
+          </div>
+
+          <!-- Descrição detalhada -->
+          <div class="ft-doc-desc" id="ftDocDescDetalhadaBox" style="display:none">
+            <h5>Descri&#231;&#227;o Detalhada do Produto</h5>
+            <p id="ftDocDescDetalhada"></p>
+          </div>
+
+          <!-- Tabela de insumos -->
+          <div class="ft-doc-bloco ft-doc-bloco-full" style="grid-column:unset">
+            <h5>Composi&#231;&#227;o — Insumos para 1 Unidade</h5>
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:30px">#</th>
+                  <th style="width:80px">C&#243;digo</th>
+                  <th style="text-align:left">Descri&#231;&#227;o do Insumo</th>
+                  <th style="width:80px">Quantidade</th>
+                  <th style="width:60px">Unidade</th>
+                  <th style="width:90px">Custo Unit.</th>
+                  <th style="width:90px">Subtotal</th>
+                </tr>
+              </thead>
+              <tbody id="ftDocInsumos"></tbody>
+              <tfoot>
+                <tr>
+                  <td colspan="3" style="text-align:right;font-size:11px">Total estimado por unidade produzida:</td>
+                  <td id="ftDocTotalQtde" style="font-weight:700">—</td>
+                  <td>—</td>
+                  <td>—</td>
+                  <td id="ftDocTotalCusto" style="font-weight:700;color:#1e40af">—</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+
+          <!-- Rodapé -->
+          <div class="ft-doc-footer">
+            <span>Lucabe Energy — Ficha T&#233;cnica gerada pelo sistema PCP</span>
+            <span id="ftDocFooterData"></span>
+          </div>
+        </div>
+        <button class="ft-doc-btn-pdf" onclick="window.ftGerarPDF && window.ftGerarPDF()">&#128196; Gerar PDF</button>
+      </div>
+    </div>
+
+    <!-- Tab Extrato -->
+    <div class="tab-pane modal-body" id="paneExtrato">
+      <p style="font-size:12px;color:var(--muted);margin-bottom:10px">
+        Hist&#243;rico de movimenta&#231;&#245;es deste material.
+      </p>
+      <div id="extratoVazio" class="ft-empty">Nenhuma movimenta&#231;&#227;o registrada.</div>
+      <table class="extrato-table" id="extratoTabela" style="display:none">
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Tipo</th>
+            <th>Qtde</th>
+            <th>Est. Anterior</th>
+            <th>Est. Novo</th>
+            <th>Refer&#234;ncia</th>
+            <th>Usu&#225;rio</th>
+          </tr>
+        </thead>
+        <tbody id="extratoBody"></tbody>
+      </table>
+      <div class="extrato-paginacao" id="extratoPaginacao" style="display:none">
+        <button class="btn btn-secondary" id="btnExtratoAnt">&#8249; Anterior</button>
+        <span id="extratoPageInfo">&#8212;</span>
+        <button class="btn btn-secondary" id="btnExtratoProx">Pr&#243;ximo &#8250;</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="../Scripts/estoque-script.js" defer></script>
+</body>
+</html>

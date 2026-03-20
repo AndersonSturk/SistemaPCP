@@ -20,6 +20,8 @@ let materialEditandoId = null;
 // ── Elementos ─────────────────────────────────────────
 const tabela       = document.getElementById("tabelaMateriais");
 const busca        = document.getElementById("buscaProduto");
+const filtroTipo      = document.getElementById("filtroTipo");
+const filtroSituacao  = document.getElementById("filtroSituacao");
 const modal        = document.getElementById("modalOverlay");
 const btnAdicionar = document.getElementById("btnAdicionar");
 const btnFechar    = document.getElementById("btnFechar");
@@ -60,15 +62,25 @@ function fecharModal() {
 
 btnFechar.addEventListener("click", fecharModal);
 btnCancelar.addEventListener("click", fecharModal);
-modal.addEventListener("click", e => { if (e.target === modal) fecharModal(); });
 
 function resetForm() {
   document.getElementById("materialId").value = "";
   document.getElementById("codigo_produto").value = "";
   document.getElementById("descricao").value = "";
   document.getElementById("unidade_medida").value = "un";
+  document.getElementById("tipo").value = "";
+  document.getElementById("grupo").value = "";
+  document.getElementById("subgrupo").value = "";
+  document.getElementById("situacao").value = "ativo";
+  document.getElementById("marca").value = "";
+  document.getElementById("qtde_embalagem").value = "";
   document.getElementById("estoque").value = "0";
   document.getElementById("custo_fornecedor").value = "0";
+  document.getElementById("estoque_minimo").value = "0";
+  document.getElementById("unidade_compra").value = "";
+  document.getElementById("fator_conversao").value = "1";
+  document.getElementById("descricao_detalhada").value = "";
+  atualizarPreviewConversao();
   materialEditandoId = null;
   ftItens = [];
   renderFtList();
@@ -78,30 +90,33 @@ function resetForm() {
 }
 
 // ── Tabela de materiais ───────────────────────────────
-async function renderTabela(filtro = "") {
-  tabela.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:28px">Carregando...</td></tr>`;
+async function renderTabela(filtro = "", tipo = "") {
+  tabela.innerHTML = `<tr><td colspan="11" style="text-align:center;color:var(--muted);padding:28px">Carregando...</td></tr>`;
   try {
-    const res = await apiRequest(`/materiais?page=${page}&limit=${limit}&search=${encodeURIComponent(filtro)}`);
+    const tipoParam      = tipo || filtroTipo?.value || "";
+    const situacaoParam  = filtroSituacao?.value || "";
+    const res = await apiRequest(`/materiais?page=${page}&limit=${limit}&search=${encodeURIComponent(filtro)}&tipo=${encodeURIComponent(tipoParam)}&situacao=${encodeURIComponent(situacaoParam)}`);
     totalPages = res.pagination.totalPages;
     const lista = res.data || [];
 
     if (!lista.length) {
-      tabela.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:28px">Nenhum material encontrado.</td></tr>`;
+      tabela.innerHTML = `<tr><td colspan="11" style="text-align:center;color:var(--muted);padding:28px">Nenhum material encontrado.</td></tr>`;
     } else {
       const podeEditar = ["admin","pcp","logistica"].includes(user.perfil);
       tabela.innerHTML = lista.map(m => `
         <tr>
           <td><strong style="color:var(--text)">${m.codigo_produto}</strong></td>
-          <td>${m.descricao}</td>
+          <td style="max-width:260px;word-break:break-word;white-space:normal">${m.descricao}</td>
           <td><span class="badge-un">${m.unidade_medida || "un"}</span></td>
+          <td>${badgeTipo(m.tipo)}</td>
+          <td><span style="font-size:12px;color:var(--muted)">${m.grupo || "—"}</span></td>
+          <td><span style="font-size:11px;color:var(--muted)">${m.subgrupo || "—"}</span></td>
+          <td><span style="font-size:12px;color:var(--muted)">${m.marca || "—"}</span></td>
+          <td>${badgeSituacao(m.situacao)}</td>
           <td>${Number(m.estoque || 0).toLocaleString("pt-BR", {maximumFractionDigits:2})}</td>
           <td>R$ ${Number(m.custo_fornecedor || 0).toFixed(2)}</td>
-          <td>
-            <span class="badge-bom" onclick="abrirFichaTecnica(${m.id})" title="Ver/editar ficha técnica">
-              🔧 Ficha
-            </span>
-          </td>
-          <td>
+
+          <td style="white-space:nowrap">
             <div class="td-actions">
               ${podeEditar
                 ? `<button class="btn btn-editar" onclick="editarMaterial(${m.id})">Editar</button>
@@ -118,7 +133,7 @@ async function renderTabela(filtro = "") {
   } catch (err) {
     console.error(err);
     showToast("Erro ao carregar materiais.", "error");
-    tabela.innerHTML = `<tr><td colspan="7" style="text-align:center;color:#ef4444;padding:28px">Erro ao carregar dados.</td></tr>`;
+    tabela.innerHTML = `<tr><td colspan="11" style="text-align:center;color:#ef4444;padding:28px">Erro ao carregar dados.</td></tr>`;
   }
 }
 
@@ -126,6 +141,8 @@ busca.addEventListener("input", () => {
   clearTimeout(debTimer);
   debTimer = setTimeout(() => { page = 1; renderTabela(busca.value); }, 350);
 });
+filtroTipo?.addEventListener("change", () => { page = 1; renderTabela(busca.value); });
+filtroSituacao?.addEventListener("change", () => { page = 1; renderTabela(busca.value); });
 btnAnterior.addEventListener("click", () => { if (page > 1) { page--; renderTabela(busca.value); } });
 btnProximo.addEventListener("click",  () => { if (page < totalPages) { page++; renderTabela(busca.value); } });
 
@@ -145,8 +162,19 @@ window.editarMaterial = async (id) => {
     document.getElementById("codigo_produto").value     = m.codigo_produto;
     document.getElementById("descricao").value          = m.descricao;
     document.getElementById("unidade_medida").value     = m.unidade_medida || "un";
+    document.getElementById("tipo").value               = m.tipo || "";
+    document.getElementById("grupo").value              = m.grupo || "";
+    document.getElementById("subgrupo").value           = m.subgrupo || "";
+    document.getElementById("situacao").value           = m.situacao || "ativo";
+    document.getElementById("marca").value              = m.marca || "";
+    document.getElementById("qtde_embalagem").value     = m.qtde_embalagem || "";
     document.getElementById("estoque").value            = m.estoque;
     document.getElementById("custo_fornecedor").value   = m.custo_fornecedor;
+    document.getElementById("estoque_minimo").value     = m.estoque_minimo || 0;
+    document.getElementById("unidade_compra").value    = m.unidade_compra || "";
+    document.getElementById("fator_conversao").value   = m.fator_conversao || 1;
+    document.getElementById("descricao_detalhada").value = m.descricao_detalhada || "";
+    atualizarPreviewConversao();
 
     // Carrega ficha técnica existente
     await carregarFt(id);
@@ -166,8 +194,19 @@ window.abrirFichaTecnica = async (id) => {
     document.getElementById("codigo_produto").value     = m.codigo_produto;
     document.getElementById("descricao").value          = m.descricao;
     document.getElementById("unidade_medida").value     = m.unidade_medida || "un";
+    document.getElementById("tipo").value               = m.tipo || "";
+    document.getElementById("grupo").value              = m.grupo || "";
+    document.getElementById("subgrupo").value           = m.subgrupo || "";
+    document.getElementById("situacao").value           = m.situacao || "ativo";
+    document.getElementById("marca").value              = m.marca || "";
+    document.getElementById("qtde_embalagem").value     = m.qtde_embalagem || "";
     document.getElementById("estoque").value            = m.estoque;
     document.getElementById("custo_fornecedor").value   = m.custo_fornecedor;
+    document.getElementById("estoque_minimo").value     = m.estoque_minimo || 0;
+    document.getElementById("unidade_compra").value    = m.unidade_compra || "";
+    document.getElementById("fator_conversao").value   = m.fator_conversao || 1;
+    document.getElementById("descricao_detalhada").value = m.descricao_detalhada || "";
+    atualizarPreviewConversao();
     await carregarFt(id);
     abrirModal("Ficha Técnica — " + m.codigo_produto);
     // Vai direto para a aba FT
@@ -196,13 +235,25 @@ btnSalvar.addEventListener("click", async () => {
     return;
   }
 
+  const situacaoVal = document.getElementById("situacao").value;
   const payload = {
-    codigo_produto:   codigo,
-    descricao:        descr,
-    unidade_medida:   document.getElementById("unidade_medida").value,
+    codigo_produto:      codigo,
+    descricao:           descr,
+    descricao_detalhada: document.getElementById("descricao_detalhada").value.trim() || null,
+    unidade_medida:      document.getElementById("unidade_medida").value,
+    unidade_compra:      document.getElementById("unidade_compra").value || null,
+    fator_conversao:     Number(document.getElementById("fator_conversao").value) || 1,
+    tipo:             document.getElementById("tipo").value || null,
+    grupo:            document.getElementById("grupo").value.trim() || null,
+    subgrupo:         document.getElementById("subgrupo").value.trim() || null,
+    situacao:         situacaoVal === "inativo" ? "inativo" : "ativo",
+    marca:            document.getElementById("marca").value.trim() || null,
+    qtde_embalagem:   document.getElementById("qtde_embalagem").value ? Number(document.getElementById("qtde_embalagem").value) : null,
     estoque:          Number(document.getElementById("estoque").value),
     custo_fornecedor: Number(document.getElementById("custo_fornecedor").value),
+    estoque_minimo:   Number(document.getElementById("estoque_minimo").value) || 0,
   };
+  console.log("[produtos] payload situacao:", payload.situacao, "| full:", JSON.stringify(payload));
 
   btnSalvar.disabled = true;
   btnSalvar.textContent = "Salvando...";
@@ -271,12 +322,15 @@ async function carregarFt(materialId) {
 
 function renderFtList() {
   const container = document.getElementById("ftList");
+  const empty     = document.getElementById("ftEmpty");
 
   if (!ftItens.length) {
-    container.innerHTML = `<div class="ft-empty" id="ftEmpty">Nenhum insumo na ficha técnica. Busque ou adicione manualmente.</div>`;
+    empty.style.display = "";
+    container.innerHTML = "";
     return;
   }
 
+  empty.style.display = "none";
   container.innerHTML = ftItens.map((it, idx) => `
     <div class="ft-item" data-idx="${idx}">
       <div class="ft-item-name">
@@ -386,6 +440,77 @@ btnFtAddManual.addEventListener("click", () => {
   document.getElementById("ftNovoQtde").value = "1";
   ftAddForm.classList.add("hidden");
 });
+
+
+
+// ── Badge situação ────────────────────────────────────
+function badgeSituacao(sit) {
+  if (sit === "inativo")
+    return `<span style="background:rgba(100,116,139,.15);color:#94a3b8;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700">Inativo</span>`;
+  return `<span style="background:rgba(34,197,94,.15);color:#4ade80;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700">Ativo</span>`;
+}
+
+// ── Badge tipo ────────────────────────────────────────
+function badgeTipo(tipo) {
+  const map = {
+    revenda:          ["rgba(59,130,246,.15)",  "#93c5fd", "Revenda"],
+    produzido:        ["rgba(34,197,94,.15)",   "#4ade80", "Produzido"],
+    insumo:           ["rgba(245,158,11,.15)",  "#fcd34d", "Insumo"],
+    material:         ["rgba(168,85,247,.15)",  "#c4b5fd", "Material"],
+    em_processo:      ["rgba(249,115,22,.15)",  "#fdba74", "Em Processo"],
+    apenas_temporario:["rgba(100,116,139,.15)", "#94a3b8", "Temporário"],
+  };
+  if (!tipo || !map[tipo]) return `<span style="color:var(--muted);font-size:12px">—</span>`;
+  const [bg, color, label] = map[tipo];
+  return `<span style="background:${bg};color:${color};padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700">${label}</span>`;
+}
+
+// ── Autocomplete de grupo ─────────────────────────────
+const GRUPOS_CONHECIDOS = ["ABRACADEIRA","ACESSORIO","ADAPTADOR","ADITIVO","CABO","CALHA","CAPACITOR",
+  "CHAVE","CINTA","COLETOR","CONECTOR","CONTATO","CONTROLADOR","CORREIA","DUTO","ELETRODUTO",
+  "FILTRO","FIXADOR","GERADOR","ILUMINACAO","INVERSOR","LUVA","MATERIAL ELETRICO","MOTOR",
+  "PARAFUSO","PERFILADO","PLUG","RELE","RESISTOR","SENSOR","TERMINAL","TRANSFORMADOR","TUBO",
+  "VENTILADOR"];
+
+const grupoInput = document.getElementById("grupo");
+const grupoSugg  = document.getElementById("grupoSuggestions");
+let grupoTimer   = null;
+
+grupoInput?.addEventListener("input", () => {
+  clearTimeout(grupoTimer);
+  grupoTimer = setTimeout(() => {
+    const q = grupoInput.value.trim().toUpperCase();
+    if (!q) { grupoSugg.style.display = "none"; return; }
+    const matches = GRUPOS_CONHECIDOS.filter(g => g.includes(q)).slice(0, 8);
+    if (!matches.length) { grupoSugg.style.display = "none"; return; }
+    grupoSugg.innerHTML = matches.map(g =>
+      `<div style="padding:8px 12px;cursor:pointer;font-size:13px;color:var(--text);border-bottom:1px solid var(--border)"
+            onmousedown="event.preventDefault();grupoInput.value='${g}';grupoSugg.style.display='none'">${g}</div>`
+    ).join("");
+    grupoSugg.style.display = "";
+  }, 200);
+});
+grupoInput?.addEventListener("blur", () => setTimeout(() => { grupoSugg.style.display = "none"; }, 200));
+window.grupoInput = grupoInput;
+
+// ── Conversão de unidade: preview ────────────────────
+function atualizarPreviewConversao() {
+  const el = document.getElementById("conversaoPreview");
+  if (!el) return;
+  const unCompra = document.getElementById("unidade_compra").value;
+  const fator    = Number(document.getElementById("fator_conversao").value) || 1;
+  const unEstoque = document.getElementById("unidade_medida").value || "un";
+
+  if (!unCompra || fator <= 1) {
+    el.textContent = "";
+    return;
+  }
+  el.textContent = `1 ${unCompra} = ${fator} ${unEstoque}`;
+}
+
+document.getElementById("unidade_compra")?.addEventListener("change", atualizarPreviewConversao);
+document.getElementById("fator_conversao")?.addEventListener("input", atualizarPreviewConversao);
+document.getElementById("unidade_medida")?.addEventListener("change", atualizarPreviewConversao);
 
 // ── Init ─────────────────────────────────────────────
 renderTabela();

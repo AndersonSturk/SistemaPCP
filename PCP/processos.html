@@ -37,7 +37,6 @@
       <table>
         <thead>
           <tr>
-            <th>ID</th>
             <th>Nº OP</th>
             <th>Material</th>
             <th>Quantidade</th>
@@ -126,39 +125,6 @@
 
       </div>
 
-      <!-- ================= PEDIDOS ================= -->
-      <div class="modal-section">
-        <h3>Pedidos Vinculados</h3>
-
-        <div id="pedidosContador" class="contador-box">
-          OP: <span id="ctrQtdeOP"></span> |
-          Selecionado: <span id="ctrQtdeSel">0</span> |
-          Saldo: <span id="ctrSaldo">0</span>
-          <span id="ctrAviso" style="display:none;color:#dc2626;">Excede quantidade</span>
-        </div>
-
-        <div class="table-wrapper">
-          <table>
-            <thead>
-              <tr>
-                <th id="thCheck">
-                  <input type="checkbox" id="checkTodosPedidos">
-                </th>
-                <th>Pedido</th>
-                <th>OC</th>
-                <th>Cliente</th>
-                <th>Estado</th>
-                <th>Código Cliente</th>
-                <th>Qtde</th>
-                <th id="thQtdeAtend">Qtde Atender</th>
-                <th>Data</th>
-              </tr>
-            </thead>
-            <tbody id="tabelaPedidosModalBody"></tbody>
-          </table>
-        </div>
-      </div>
-
       <!-- ================= INSUMOS ================= -->
       <div class="modal-section">
         <h3>Matéria Prima / Insumos</h3>
@@ -174,11 +140,11 @@
               <tr>
                 <th>Código</th>
                 <th>Descrição</th>
-                <th>Qtde (FT)</th>
-                <th>Qtde Total</th>
-                <th>Un</th>
+                <th>Quantidade</th>
                 <th>Custo Unit.</th>
+                <th>Un</th>
                 <th>Subtotal</th>
+                <th></th>
               </tr>
             </thead>
             <tbody id="insumosTbody"></tbody>
@@ -198,8 +164,8 @@
           <select id="prestadorSelect" style="flex:2;min-width:160px;">
             <option value="">— Selecionar prestador —</option>
           </select>
-          <input type="text" id="prestadorMaterial" placeholder="Material/descrição" style="flex:2;min-width:140px;">
-          <input type="number" id="prestadorQtde" placeholder="Qtde" style="flex:1;min-width:80px;">
+          <input type="number" id="prestadorValorServico" placeholder="Valor do serviço (R$)" step="0.01" style="flex:1;min-width:130px;">
+          <input type="date" id="prestadorDataEnvio" title="Data de envio" style="flex:1;min-width:130px;">
           <input type="text" id="prestadorObs" placeholder="Observações (opcional)" style="flex:2;min-width:140px;">
           <button type="button" id="btnAddPrestador" class="btn-primary">Adicionar</button>
           <button type="button" id="btnNovoPrestador" class="btn-secondary" style="background:#64748b;color:#fff;">+ Novo Prestador</button>
@@ -212,15 +178,44 @@
             <thead>
               <tr>
                 <th>Prestador</th>
-                <th>Serviço</th>
-                <th>Material Enviado</th>
-                <th>Qtde</th>
+                <th>CNPJ</th>
+                <th>Valor Serviço</th>
+                <th>Data Envio</th>
                 <th></th>
               </tr>
             </thead>
             <tbody id="prestadoresTbody"></tbody>
           </table>
         </div>
+      </div>
+
+      <!-- ================= PERDAS ================= -->
+      <div class="modal-section" id="secaoPerdas">
+        <h3>Perdas de Material</h3>
+        <p style="font-size:12px;color:#94a3b8;margin-bottom:12px;">
+          Informe as quantidades perdidas por insumo (quebra, refugo, descarte). Deixe 0 para sem perda.
+        </p>
+
+        <div id="perdasSemItens" style="color:#94a3b8;font-size:13px;padding:12px 0;">Carregando insumos...</div>
+
+        <div id="perdasTabelaWrap" class="table-wrapper" style="display:none;">
+          <table>
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Descrição</th>
+                <th>Un</th>
+                <th>Qtde Perda</th>
+                <th>Motivo</th>
+              </tr>
+            </thead>
+            <tbody id="perdasTbody"></tbody>
+          </table>
+        </div>
+
+        <button type="button" id="btnSalvarPerdas" class="btn-primary" style="margin-top:12px;display:none;">
+          💾 Salvar Perdas
+        </button>
       </div>
 
       <!-- ================= FOOTER ================= -->
@@ -265,7 +260,7 @@
 </div>
 
 <!-- ================= SCRIPT ================= -->
-<script type="module" src="../scripts/processos-script.js"></script>
+<script type="module" src="../scripts/processos-script.js" defer></script>
 
 <!-- ================= MODAL NOVO PRESTADOR ================= -->
 <div id="modalNovoPrestador" class="confirm-overlay hidden">
