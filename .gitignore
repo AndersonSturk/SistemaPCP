@@ -51,3 +51,12 @@ coverage/
 
 # IDE specific
 *.code-workspace
+
+# Claude Code (local settings)
+.claude/settings.local.json
+
+# Test files with credentials
+API/test_server.js
+
+# Scratch/temporary notes
+any.txt
