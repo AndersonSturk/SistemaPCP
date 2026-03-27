@@ -260,6 +260,35 @@
     .dash-footer { text-align: center; padding: 16px; font-size: 11px; color: var(--muted); }
     .dash-footer span { font-weight: 600; color: #64748b; }
     .empty-msg { text-align: center; padding: 32px; color: var(--muted); font-size: 12px; }
+
+    /* ── Tablet (max-width: 768px) ── */
+    @media (max-width: 768px) {
+      .dash-topbar { flex-direction: column; align-items: flex-start; }
+      .main-tabs { overflow-x: auto; width: 100%; -webkit-overflow-scrolling: touch; }
+      .main-tab { padding: 8px 16px; font-size: 12px; white-space: nowrap; }
+      .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+      .kpi-card .kpi-value { font-size: 20px; }
+      .tab-header { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      .tab-btn { white-space: nowrap; padding: 10px 14px; }
+      .ranking-bar-wrap { max-width: 120px; }
+    }
+
+    /* ── Small Mobile (max-width: 480px) ── */
+    @media (max-width: 480px) {
+      body { padding: 10px 8px; }
+      .dash-topbar h1 { font-size: 16px; }
+      .main-tabs { padding: 3px; }
+      .main-tab { padding: 7px 12px; font-size: 11px; }
+      .kpi-grid { grid-template-columns: 1fr; }
+      .kpi-card { padding: 12px 14px; }
+      .kpi-card .kpi-value { font-size: 22px; }
+      .progress-info { min-width: auto; }
+      .progress-labels { flex-wrap: wrap; min-width: auto; gap: 10px; }
+      .ranking-item { padding: 8px 12px; gap: 8px; }
+      .ranking-bar-wrap { display: none; }
+      .alerta-item { padding: 8px 12px; flex-wrap: wrap; gap: 4px; }
+      .dash-table th, .dash-table td { padding: 8px 10px; font-size: 11px; }
+    }
   </style>
 </head>
 <body>

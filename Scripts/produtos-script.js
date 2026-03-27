@@ -79,8 +79,10 @@ function resetForm() {
   document.getElementById("estoque_minimo").value = "0";
   document.getElementById("unidade_compra").value = "";
   document.getElementById("fator_conversao").value = "1";
+  document.getElementById("percentual_perda").value = "0";
   document.getElementById("descricao_detalhada").value = "";
   atualizarPreviewConversao();
+  atualizarPreviewPerda();
   materialEditandoId = null;
   ftItens = [];
   renderFtList();
@@ -173,8 +175,10 @@ window.editarMaterial = async (id) => {
     document.getElementById("estoque_minimo").value     = m.estoque_minimo || 0;
     document.getElementById("unidade_compra").value    = m.unidade_compra || "";
     document.getElementById("fator_conversao").value   = m.fator_conversao || 1;
+    document.getElementById("percentual_perda").value  = m.percentual_perda || 0;
     document.getElementById("descricao_detalhada").value = m.descricao_detalhada || "";
     atualizarPreviewConversao();
+    atualizarPreviewPerda();
 
     // Carrega ficha técnica existente
     await carregarFt(id);
@@ -205,8 +209,10 @@ window.abrirFichaTecnica = async (id) => {
     document.getElementById("estoque_minimo").value     = m.estoque_minimo || 0;
     document.getElementById("unidade_compra").value    = m.unidade_compra || "";
     document.getElementById("fator_conversao").value   = m.fator_conversao || 1;
+    document.getElementById("percentual_perda").value  = m.percentual_perda || 0;
     document.getElementById("descricao_detalhada").value = m.descricao_detalhada || "";
     atualizarPreviewConversao();
+    atualizarPreviewPerda();
     await carregarFt(id);
     abrirModal("Ficha Técnica — " + m.codigo_produto);
     // Vai direto para a aba FT
@@ -243,6 +249,7 @@ btnSalvar.addEventListener("click", async () => {
     unidade_medida:      document.getElementById("unidade_medida").value,
     unidade_compra:      document.getElementById("unidade_compra").value || null,
     fator_conversao:     Number(document.getElementById("fator_conversao").value) || 1,
+    percentual_perda:    Number(document.getElementById("percentual_perda").value) || 0,
     tipo:             document.getElementById("tipo").value || null,
     grupo:            document.getElementById("grupo").value.trim() || null,
     subgrupo:         document.getElementById("subgrupo").value.trim() || null,
@@ -312,6 +319,7 @@ async function carregarFt(materialId) {
       insumo_descricao:      r.insumo_descricao,
       quantidade_por_unidade:Number(r.quantidade_por_unidade),
       unidade_medida:        r.unidade_medida,
+      percentual_perda:      Number(r.percentual_perda) || 0,
     }));
     renderFtList();
   } catch (_) {
@@ -339,7 +347,7 @@ function renderFtList() {
       </div>
       <div class="ft-item-qty">
         <input type="number" value="${it.quantidade_por_unidade}" min="0.0001" step="any"
-          onchange="ftAlterarQtde(${idx}, this.value)">
+          onchange="ftAlterarQtde(${idx}, this.value)" title="Qtde por unidade">
       </div>
       <div class="ft-item-un">
         <select onchange="ftAlterarUn(${idx}, this.value)">
@@ -348,13 +356,19 @@ function renderFtList() {
           ).join("")}
         </select>
       </div>
+      <div style="width:70px">
+        <input type="number" value="${it.percentual_perda}" min="0" max="100" step="0.01"
+          onchange="ftAlterarPerda(${idx}, this.value)" title="% Perda"
+          placeholder="% perda" style="width:100%;font-size:12px;padding:6px;text-align:center;${it.percentual_perda > 0 ? 'border-color:#f59e0b;color:#f59e0b;' : ''}">
+      </div>
       <button class="ft-item-del" onclick="ftRemover(${idx})">✕</button>
     </div>`).join("");
 }
 
-window.ftAlterarQtde = (idx, val) => { ftItens[idx].quantidade_por_unidade = Number(val) || 1; };
-window.ftAlterarUn   = (idx, val) => { ftItens[idx].unidade_medida = val; };
-window.ftRemover     = (idx) => { ftItens.splice(idx, 1); renderFtList(); };
+window.ftAlterarQtde  = (idx, val) => { ftItens[idx].quantidade_por_unidade = Number(val) || 1; };
+window.ftAlterarUn    = (idx, val) => { ftItens[idx].unidade_medida = val; };
+window.ftAlterarPerda = (idx, val) => { ftItens[idx].percentual_perda = Number(val) || 0; };
+window.ftRemover      = (idx) => { ftItens.splice(idx, 1); renderFtList(); };
 
 // Busca de insumos na ficha técnica
 const ftBusca       = document.getElementById("ftBusca");
@@ -403,6 +417,7 @@ function ftAdicionarDeMaterial(m) {
     insumo_descricao:      m.descricao,
     quantidade_por_unidade:1,
     unidade_medida:        m.unidade_medida || "un",
+    percentual_perda:      0,
   });
   renderFtList();
 }
@@ -434,6 +449,7 @@ btnFtAddManual.addEventListener("click", () => {
     insumo_descricao:      desc,
     quantidade_por_unidade:qtde,
     unidade_medida:        un,
+    percentual_perda:      0,
   });
   renderFtList();
   document.getElementById("ftNovoDesc").value = "";
@@ -511,6 +527,19 @@ function atualizarPreviewConversao() {
 document.getElementById("unidade_compra")?.addEventListener("change", atualizarPreviewConversao);
 document.getElementById("fator_conversao")?.addEventListener("input", atualizarPreviewConversao);
 document.getElementById("unidade_medida")?.addEventListener("change", atualizarPreviewConversao);
+
+// ── Perda estimada: preview ─────────────────────────
+function atualizarPreviewPerda() {
+  const el = document.getElementById("perdaPreview");
+  if (!el) return;
+  const perda = Number(document.getElementById("percentual_perda").value) || 0;
+  if (perda <= 0) {
+    el.textContent = "";
+    return;
+  }
+  el.textContent = `Para cada 100 un. consumidas, ${perda.toFixed(2)}% será acrescentado como perda estimada na OP.`;
+}
+document.getElementById("percentual_perda")?.addEventListener("input", atualizarPreviewPerda);
 
 // ── Init ─────────────────────────────────────────────
 renderTabela();

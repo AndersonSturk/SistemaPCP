@@ -3,36 +3,31 @@ import { apiRequest, getUser, showToast } from "./auth.js";
 const user = getUser();
 if (!user) window.location.href = "login.html";
 
-// ── Estado ────────────────────────────────────────────────────────────────────
+// ── Estado ────────────────────────────────────────────
 let materialSelecionado = null;
-let pedidoVinculado     = null;
+let pedidosDisponiveis  = [];  // pedidos carregados para o material
+let pedidosSelecionados = {};  // { pedidoId: { pedido, parcial, qtdeParcial } }
 let itens               = [];
 let materialTimer       = null;
-let pedidoTimer         = null;
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────
 const fmt      = v => (v != null && v !== "") ? v : "—";
 const fmtData  = v => v ? new Date(v).toLocaleDateString("pt-BR") : "—";
 const fmtMoeda = v => Number(v || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 });
 
-// ── Elementos ─────────────────────────────────────────────────────────────────
+// ── Elementos ─────────────────────────────────────────
 const materialSearch   = document.getElementById("materialSearch");
 const materialDropdown = document.getElementById("materialDropdown");
-const pedidoSearch     = document.getElementById("pedidoSearch");
-const pedidoDropdown   = document.getElementById("pedidoDropdown");
 const matInfo          = document.getElementById("matInfo");
 
-// ── Fechar dropdowns ao clicar fora ──────────────────────────────────────────
 document.addEventListener("click", e => {
   if (!materialSearch.contains(e.target) && !materialDropdown.contains(e.target))
     materialDropdown.style.display = "none";
-  if (!pedidoSearch.contains(e.target) && !pedidoDropdown.contains(e.target))
-    pedidoDropdown.style.display = "none";
 });
 
-// ══════════════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════
 //  BUSCA DE MATERIAL
-// ══════════════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════
 materialSearch.addEventListener("input", () => {
   clearTimeout(materialTimer);
   const q = materialSearch.value.trim();
@@ -42,11 +37,11 @@ materialSearch.addEventListener("input", () => {
 
 async function buscarMateriais(q) {
   try {
-    const res   = await apiRequest(`/materiais?search=${encodeURIComponent(q)}`);
+    const res = await apiRequest(`/materiais?search=${encodeURIComponent(q)}`);
     const lista = res.data || [];
     materialDropdown.innerHTML = "";
 
-    if (lista.length === 0) {
+    if (!lista.length) {
       materialDropdown.innerHTML = `<div class="dropdown-item" style="color:#94a3b8">Nenhum material encontrado</div>`;
       materialDropdown.style.display = "block";
       return;
@@ -55,183 +50,247 @@ async function buscarMateriais(q) {
     lista.forEach(m => {
       const div = document.createElement("div");
       div.className = "dropdown-item";
-      const estoqueLabel = Number(m.estoque) > 0
-        ? `<span style="color:#16a34a;font-weight:700">Estoque: ${m.estoque}</span>`
-        : `<span style="color:#dc2626;font-weight:700">Sem estoque</span>`;
       div.innerHTML = `
         <div class="cliente">${m.codigo_produto} — ${m.descricao}</div>
-        <div class="detalhe">R$ ${fmtMoeda(m.custo_fornecedor)} | ${estoqueLabel}</div>
+        <div class="detalhe">R$ ${fmtMoeda(m.custo_fornecedor)}</div>
       `;
       div.addEventListener("click", () => selecionarMaterial(m));
       materialDropdown.appendChild(div);
     });
-
     materialDropdown.style.display = "block";
-  } catch (err) {
-    console.error("Erro ao buscar materiais:", err);
-  }
+  } catch (err) { console.error("Erro ao buscar materiais:", err); }
 }
 
-function selecionarMaterial(m) {
+async function selecionarMaterial(m) {
   materialSelecionado = m;
   materialSearch.value = `${m.codigo_produto} — ${m.descricao}`;
   materialDropdown.style.display = "none";
 
   const custoEmb  = Number(m.custo_fornecedor || 0);
-  const qtdeEmb   = Number(m.qtde_embalagem   || 0);
-  const estoque   = Number(m.estoque           || 0);
+  const qtdeEmb   = Number(m.qtde_embalagem || 0);
+  const estoque   = Number(m.estoque || 0);
   const custoUnit = qtdeEmb > 0 ? custoEmb / qtdeEmb : custoEmb;
   materialSelecionado._custoUnit = custoUnit;
 
   const estoqueEl = document.getElementById("matEstoque");
-  estoqueEl.textContent = `${estoque} un`;
-  estoqueEl.className   = estoque > 10 ? "estoque-ok" : estoque > 0 ? "estoque-warn" : "estoque-zero";
+  estoqueEl.textContent = `${estoque} ${m.unidade_medida || "un"}`;
+  estoqueEl.className = estoque > 10 ? "estoque-ok" : estoque > 0 ? "estoque-warn" : "estoque-zero";
 
   document.getElementById("matDesc").textContent  = m.descricao;
   document.getElementById("matCod").textContent   = m.codigo_produto;
   document.getElementById("matCusto").textContent = custoUnit.toFixed(4);
   matInfo.classList.add("show");
+
+  // Carrega pedidos disponíveis para este material
+  await carregarPedidosMaterial(m.id);
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-//  BUSCA DE PEDIDO (vínculo opcional por item)
-// ══════════════════════════════════════════════════════════════════════════════
-pedidoSearch.addEventListener("input", () => {
-  clearTimeout(pedidoTimer);
-  const q = pedidoSearch.value.trim();
-  if (q.length < 2) { pedidoDropdown.style.display = "none"; return; }
-  pedidoTimer = setTimeout(() => buscarPedidos(q), 300);
-});
+// ══════════════════════════════════════════════════════
+//  PEDIDOS POR MATERIAL
+// ══════════════════════════════════════════════════════
+async function carregarPedidosMaterial(materialId) {
+  const section = document.getElementById("pedidosSection");
+  const lista   = document.getElementById("pedidosLista");
+  const semPed  = document.getElementById("semPedidos");
+  pedidosSelecionados = {};
+  pedidosDisponiveis = [];
 
-async function buscarPedidos(q) {
   try {
-    const res   = await apiRequest(`/controle_pedidos?search=${encodeURIComponent(q)}&limit=10`);
-    const lista = res.data || [];
-    pedidoDropdown.innerHTML = "";
+    const res = await apiRequest(`/op/buscar-pedidos?material_id=${materialId}`);
+    pedidosDisponiveis = res.data || [];
+  } catch { pedidosDisponiveis = []; }
 
-    if (lista.length === 0) {
-      pedidoDropdown.innerHTML = `<div class="dropdown-item" style="color:#94a3b8">Nenhum pedido encontrado</div>`;
-      pedidoDropdown.style.display = "block";
-      return;
-    }
+  section.style.display = "block";
+  lista.innerHTML = "";
 
-    lista.forEach(p => {
-      const div = document.createElement("div");
-      div.className = "dropdown-item";
-      div.innerHTML = `
-        <div class="cliente">${p.cliente || "—"} — ${p.zerb || "—"}</div>
-        <div class="detalhe">PV: ${p.pedido_venda || "—"} | OC: ${p.ordem_compra || "—"} | Qtde: ${p.qtde_solicitada || 0}</div>
-      `;
-      div.addEventListener("click", () => vincularPedido(p));
-      pedidoDropdown.appendChild(div);
-    });
-
-    pedidoDropdown.style.display = "block";
-  } catch (err) {
-    console.error("Erro ao buscar pedidos:", err);
-  }
-}
-
-function vincularPedido(p) {
-  pedidoVinculado = p;
-  pedidoSearch.value = `${p.cliente || ""} — OC: ${p.ordem_compra || "—"}`;
-  pedidoDropdown.style.display = "none";
-
-  document.getElementById("pvPedido").textContent  = p.pedido_venda || p.id;
-  document.getElementById("pvCliente").textContent = p.cliente || "—";
-  document.getElementById("pvOC").textContent      = p.ordem_compra || "—";
-  document.getElementById("pvQtde").textContent    = p.qtde_solicitada || "—";
-  document.getElementById("pedidoVinculoCard").classList.add("show");
-  document.getElementById("btnLimparPedido").style.display = "flex";
-}
-
-document.getElementById("btnLimparPedido").addEventListener("click", () => {
-  limparPedidoVinculado();
-});
-
-function limparPedidoVinculado() {
-  pedidoVinculado = null;
-  pedidoSearch.value = "";
-  document.getElementById("pedidoVinculoCard").classList.remove("show");
-  document.getElementById("btnLimparPedido").style.display = "none";
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-//  ADICIONAR ITEM À ORDEM
-// ══════════════════════════════════════════════════════════════════════════════
-document.getElementById("btnAddItem").addEventListener("click", () => {
-  if (!materialSelecionado) { showToast("Selecione um material.", "warning"); return; }
-  const qtde    = Number(document.getElementById("itemQtde").value);
-  const unidade = document.getElementById("itemUnidade").value || "un";
-  if (!qtde || qtde <= 0) { showToast("Informe uma quantidade válida.", "warning"); return; }
-
-  const estoque = Number(materialSelecionado.estoque || 0);
-
-  // Soma já adicionada deste material
-  const jaAdicionado = itens
-    .filter(i => i.material_id === materialSelecionado.id)
-    .reduce((s, i) => s + i.quantidade, 0);
-
-  if (qtde + jaAdicionado > estoque) {
-    showToast(`Estoque insuficiente! Disponível: ${estoque}, já alocado: ${jaAdicionado}.`, "warning");
+  if (!pedidosDisponiveis.length) {
+    semPed.style.display = "block";
+    lista.style.display = "none";
     return;
   }
 
+  semPed.style.display = "none";
+  lista.style.display = "flex";
+
+  pedidosDisponiveis.forEach(p => {
+    const card = document.createElement("div");
+    card.className = "pedido-card";
+    card.dataset.pedidoId = p.id;
+    card.innerHTML = `
+      <div class="pc-check">✓</div>
+      <div class="pc-info">
+        <div class="pc-cliente">${p.cliente || "—"}</div>
+        <div class="pc-detalhe">
+          PV: ${p.pedido_venda || "—"} | OC: ${p.ordem_compra || "—"}
+          ${p.descricao_item ? ` | ${p.descricao_item}` : ""}
+        </div>
+      </div>
+      <div class="pc-qtde">${p.qtde_solicitada || 0} ${materialSelecionado?.unidade_medida || "un"}</div>
+      <div class="parcial-row">
+        <label class="parcial-check">
+          <input type="checkbox" class="chk-parcial"> Parcial
+        </label>
+        <input type="number" class="inp-parcial" min="0.01" step="0.01" placeholder="Qtde"
+          style="display:none">
+      </div>
+    `;
+
+    // Click no card = selecionar/deselecionar
+    card.addEventListener("click", (e) => {
+      // Ignora clicks nos inputs/checkbox
+      if (e.target.closest(".parcial-row")) return;
+      togglePedido(card, p);
+    });
+
+    // Checkbox parcial
+    const chk = card.querySelector(".chk-parcial");
+    const inp = card.querySelector(".inp-parcial");
+    chk.addEventListener("change", () => {
+      if (chk.checked) {
+        card.classList.add("parcial");
+        inp.style.display = "block";
+        inp.focus();
+      } else {
+        card.classList.remove("parcial");
+        inp.style.display = "none";
+        inp.value = "";
+      }
+      // Atualiza estado
+      if (pedidosSelecionados[p.id]) {
+        pedidosSelecionados[p.id].parcial = chk.checked;
+        pedidosSelecionados[p.id].qtdeParcial = chk.checked ? Number(inp.value) || 0 : 0;
+      }
+    });
+
+    inp.addEventListener("input", () => {
+      if (pedidosSelecionados[p.id]) {
+        pedidosSelecionados[p.id].qtdeParcial = Number(inp.value) || 0;
+      }
+    });
+
+    // Previne propagação do click no checkbox/input
+    card.querySelector(".parcial-row").addEventListener("click", e => e.stopPropagation());
+
+    lista.appendChild(card);
+  });
+}
+
+function togglePedido(card, p) {
+  if (card.classList.contains("selecionado")) {
+    card.classList.remove("selecionado", "parcial");
+    card.querySelector(".chk-parcial").checked = false;
+    card.querySelector(".inp-parcial").style.display = "none";
+    card.querySelector(".inp-parcial").value = "";
+    delete pedidosSelecionados[p.id];
+  } else {
+    card.classList.add("selecionado");
+    pedidosSelecionados[p.id] = {
+      pedido: p,
+      parcial: false,
+      qtdeParcial: 0,
+    };
+  }
+}
+
+// ══════════════════════════════════════════════════════
+//  ADICIONAR ITENS
+// ══════════════════════════════════════════════════════
+document.getElementById("btnAddItem").addEventListener("click", () => {
+  if (!materialSelecionado) { showToast("Selecione um material.", "warning"); return; }
+
+  const selecionados = Object.values(pedidosSelecionados);
+  const estoque = Number(materialSelecionado.estoque || 0);
   const custoUnit = materialSelecionado._custoUnit || Number(materialSelecionado.custo_fornecedor || 0);
 
-  itens.push({
-    material_id:    materialSelecionado.id,
-    codigo_produto: materialSelecionado.codigo_produto,
-    descricao:      materialSelecionado.descricao,
-    unidade_medida: unidade,
-    quantidade:     qtde,
-    custo_unitario: Number(custoUnit.toFixed(4)),
-    subtotal:       Number((qtde * custoUnit).toFixed(2)),
-    // Vínculo com pedido (pode ser null)
-    pedido_id:      pedidoVinculado?.id || null,
-    pedido_venda:   pedidoVinculado?.pedido_venda || null,
-    ordem_compra:   pedidoVinculado?.ordem_compra || null,
-    cliente:        pedidoVinculado?.cliente || null,
-    estado:         pedidoVinculado?.estado || null,
-    codigo_cliente: pedidoVinculado?.codigo_cliente || null,
-    zerb:           pedidoVinculado?.zerb || null,
-  });
+  // Se tem pedidos selecionados, adiciona um item por pedido
+  if (selecionados.length > 0) {
+    let totalQtde = 0;
+    const novosItens = [];
 
-  // Limpa campos
+    for (const sel of selecionados) {
+      const p = sel.pedido;
+      const qtde = sel.parcial && sel.qtdeParcial > 0
+        ? sel.qtdeParcial
+        : Number(p.qtde_solicitada || 0);
+
+      if (qtde <= 0) {
+        showToast(`Pedido ${p.cliente} — informe a quantidade parcial.`, "warning");
+        return;
+      }
+      totalQtde += qtde;
+      novosItens.push({
+        material_id:    materialSelecionado.id,
+        codigo_produto: materialSelecionado.codigo_produto,
+        descricao:      materialSelecionado.descricao,
+        unidade_medida: materialSelecionado.unidade_medida || "un",
+        quantidade:     qtde,
+        custo_unitario: Number(custoUnit.toFixed(4)),
+        subtotal:       Number((qtde * custoUnit).toFixed(2)),
+        pedido_id:      p.id,
+        pedido_venda:   p.pedido_venda,
+        ordem_compra:   p.ordem_compra,
+        cliente:        p.cliente,
+        estado:         p.estado,
+        codigo_cliente: p.codigo_cliente,
+        zerb:           p.zerb,
+        parcial:        sel.parcial,
+      });
+    }
+
+    // Verifica estoque
+    const jaAdicionado = itens
+      .filter(i => i.material_id === materialSelecionado.id)
+      .reduce((s, i) => s + i.quantidade, 0);
+
+    if (totalQtde + jaAdicionado > estoque) {
+      showToast(`Estoque insuficiente! Disponível: ${estoque}, necessário: ${totalQtde + jaAdicionado}.`, "warning");
+      return;
+    }
+
+    itens.push(...novosItens);
+  } else {
+    // Sem pedidos — não permite adicionar sem seleção
+    showToast("Selecione pelo menos um pedido para vincular à saída.", "warning");
+    return;
+  }
+
+  // Limpa
   materialSearch.value = "";
-  document.getElementById("itemQtde").value = "";
   materialSelecionado = null;
+  pedidosSelecionados = {};
+  pedidosDisponiveis = [];
   matInfo.classList.remove("show");
-  limparPedidoVinculado();
+  document.getElementById("pedidosSection").style.display = "none";
+  document.getElementById("pedidosLista").innerHTML = "";
 
   renderItens();
 });
 
-// ══════════════════════════════════════════════════════════════════════════════
-//  RENDERIZAR TABELA DE ITENS
-// ══════════════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════
+//  RENDERIZAR TABELA
+// ══════════════════════════════════════════════════════
 function renderItens() {
-  const tbody    = document.getElementById("itensTbody");
-  const wrap     = document.getElementById("tabelaWrap");
-  const semItens = document.getElementById("semItens");
+  const tbody = document.getElementById("itensTbody");
+  const wrap  = document.getElementById("tabelaWrap");
+  const sem   = document.getElementById("semItens");
 
-  if (itens.length === 0) {
-    wrap.style.display     = "none";
-    semItens.style.display = "block";
+  if (!itens.length) {
+    wrap.style.display = "none";
+    sem.style.display = "block";
     document.getElementById("totalGeral").textContent = "R$ 0,00";
     atualizarResumo();
     return;
   }
 
-  wrap.style.display     = "block";
-  semItens.style.display = "none";
+  wrap.style.display = "block";
+  sem.style.display = "none";
   tbody.innerHTML = "";
   let total = 0;
 
   itens.forEach((it, i) => {
     total += it.subtotal;
     const pedidoLabel = it.pedido_id
-      ? `<span class="item-pedido-tag">${it.cliente || "—"}<br><small>OC: ${it.ordem_compra || "—"}</small></span>`
+      ? `<span class="item-pedido-tag">${it.cliente || "—"}<br><small>OC: ${it.ordem_compra || "—"}${it.parcial ? " (parcial)" : ""}</small></span>`
       : `<span style="color:var(--muted);font-size:11px">Sem vínculo</span>`;
 
     const tr = document.createElement("tr");
@@ -265,32 +324,23 @@ function renderItens() {
 
 function atualizarResumo(total) {
   const t = total ?? itens.reduce((s, i) => s + i.subtotal, 0);
-
-  // Contagens
   const materiaisDistintos = new Set(itens.map(i => i.material_id)).size;
   const pedidosVinculados  = new Set(itens.filter(i => i.pedido_id).map(i => i.pedido_id));
 
-  document.getElementById("rsItens").textContent     = itens.length;
-  document.getElementById("rsMateriais").textContent  = materiaisDistintos;
-  document.getElementById("rsPedidos").textContent    = pedidosVinculados.size;
-  document.getElementById("rsCusto").textContent      = `R$ ${fmtMoeda(t)}`;
+  document.getElementById("rsItens").textContent    = itens.length;
+  document.getElementById("rsMateriais").textContent = materiaisDistintos;
+  document.getElementById("rsPedidos").textContent   = pedidosVinculados.size;
+  document.getElementById("rsCusto").textContent     = `R$ ${fmtMoeda(t)}`;
 
-  // Lista de pedidos vinculados no resumo
   const pedidosEl = document.getElementById("pedidosVinculados");
   if (pedidosVinculados.size > 0) {
     const pedidosMap = new Map();
     itens.filter(i => i.pedido_id).forEach(i => {
       if (!pedidosMap.has(i.pedido_id)) {
-        pedidosMap.set(i.pedido_id, {
-          cliente: i.cliente,
-          ordem_compra: i.ordem_compra,
-          pedido_venda: i.pedido_venda,
-          itensCount: 0,
-        });
+        pedidosMap.set(i.pedido_id, { cliente: i.cliente, ordem_compra: i.ordem_compra, itensCount: 0 });
       }
       pedidosMap.get(i.pedido_id).itensCount++;
     });
-
     pedidosEl.innerHTML = Array.from(pedidosMap.values()).map(p => `
       <div class="pv-item">
         <span class="pv-item-cliente">${p.cliente || "—"}</span>
@@ -303,21 +353,16 @@ function atualizarResumo(total) {
     pedidosEl.style.display = "none";
   }
 
-  atualizarBtnGerar();
-}
-
-function atualizarBtnGerar() {
   document.getElementById("btnGerar").disabled = itens.length === 0;
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════
 //  GERAR SAÍDA
-// ══════════════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════
 document.getElementById("btnGerar").addEventListener("click", gerarSaida);
 
 async function gerarSaida() {
-  if (itens.length === 0) return;
-
+  if (!itens.length) return;
   try {
     const btn = document.getElementById("btnGerar");
     btn.disabled = true;
@@ -326,19 +371,13 @@ async function gerarSaida() {
     const obs = document.getElementById("obsTexto").value;
     const res = await apiRequest("/saidas_estoque", {
       method: "POST",
-      body: JSON.stringify({
-        usuario: user.nome,
-        observacoes: obs,
-        itens,
-      }),
+      body: JSON.stringify({ usuario: user.nome, observacoes: obs, itens }),
     });
 
     showToast(`Saída registrada! Nº ${res.numero}`, "success");
-    console.log("Resposta saída:", JSON.stringify(res, null, 2));
     abrirComprovante(res.saida || res.data || res);
     carregarHistorico();
 
-    // Limpa formulário
     itens = [];
     renderItens();
     document.getElementById("obsTexto").value = "";
@@ -351,9 +390,9 @@ async function gerarSaida() {
   }
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════
 //  COMPROVANTE
-// ══════════════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════
 function abrirComprovante(saida) {
   const el = document.getElementById("comprovanteConteudo");
 
@@ -368,22 +407,16 @@ function abrirComprovante(saida) {
   const itensArr = saida.itens || [];
   const totalGeral = itensArr.reduce((s, i) => s + Number(i.subtotal || 0), 0);
 
-  // Agrupa itens por pedido para o comprovante
+  // Agrupa por pedido
   const porPedido = new Map();
   itensArr.forEach(it => {
     const key = it.pedido_id || "sem_vinculo";
     if (!porPedido.has(key)) {
-      porPedido.set(key, {
-        cliente: it.cliente || null,
-        ordem_compra: it.ordem_compra || null,
-        pedido_venda: it.pedido_venda || null,
-        itens: [],
-      });
+      porPedido.set(key, { cliente: it.cliente, ordem_compra: it.ordem_compra, pedido_venda: it.pedido_venda, itens: [] });
     }
     porPedido.get(key).itens.push(it);
   });
 
-  // Gera seções por pedido
   let secoesHTML = "";
   porPedido.forEach((grupo, key) => {
     const subtotal = grupo.itens.reduce((s, i) => s + Number(i.subtotal || 0), 0);
@@ -408,7 +441,7 @@ function abrirComprovante(saida) {
                 <td>${it.quantidade}</td>
                 <td>${it.unidade_medida || "un"}</td>
                 <td>R$ ${fmtMoeda(it.custo_unitario)}</td>
-                <td style="font-weight:700;color:var(--primary)">R$ ${fmtMoeda(it.subtotal)}</td>
+                <td style="font-weight:700">R$ ${fmtMoeda(it.subtotal)}</td>
               </tr>
             `).join("")}
           </tbody>
@@ -422,7 +455,7 @@ function abrirComprovante(saida) {
   });
 
   el.innerHTML = `
-    <div class="comprovante">
+    <div class="comprovante" id="comprovantePrint">
       <div class="comp-header">
         <div class="comp-empresa">
           <h3>Lucabe Energy</h3>
@@ -434,27 +467,23 @@ function abrirComprovante(saida) {
         <div class="comp-doc">
           <div class="titulo">COMPROVANTE DE SAÍDA</div>
           <p><b>Nº:</b> ${saida.numero || "—"}</p>
-          <p><b>Data:</b> ${fmtData(saida.data_saida)}</p>
-          <p><b>Usuário:</b> ${saida.usuario || "—"}</p>
+          <p><b>Data:</b> ${fmtData(saida.data_saida || saida.criado_em)}</p>
+          <p><b>Usuário:</b> ${saida.usuario || saida.criado_por_nome || "—"}</p>
         </div>
       </div>
-
       ${secoesHTML}
-
       <div class="comp-total-section">
         <span class="comp-total-label">Total Geral</span>
         <span class="comp-total-valor">R$ ${fmtMoeda(totalGeral)}</span>
       </div>
-
       ${saida.observacoes ? `
         <div class="comp-section">
           <h4>Observações</h4>
           <p class="comp-obs">${saida.observacoes}</p>
         </div>` : ""}
-
       <div class="comp-footer">
         <span>PCP - Lucabe Energy</span>
-        <span>Gerado em ${new Date().toLocaleString("pt-BR")} por ${saida.usuario || "Sistema"}</span>
+        <span>Gerado em ${new Date().toLocaleString("pt-BR")} por ${saida.usuario || saida.criado_por_nome || "Sistema"}</span>
       </div>
     </div>
   `;
@@ -464,26 +493,61 @@ function abrirComprovante(saida) {
   requestAnimationFrame(() => modal.classList.add("show"));
 }
 
+// Imprimir comprovante corretamente
+document.getElementById("btnImprimirComp")?.addEventListener("click", () => {
+  const conteudo = document.getElementById("comprovantePrint");
+  if (!conteudo) { window.print(); return; }
+
+  const janela = window.open("", "_blank", "width=800,height=600");
+  janela.document.write(`
+    <html><head><title>Comprovante de Saída</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body { font-family: 'Segoe UI', sans-serif; padding: 20px; color: #1e293b; }
+      .comprovante { max-width: 750px; margin: 0 auto; }
+      .comp-header { display: flex; justify-content: space-between; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 2px solid #1e40af; }
+      .comp-empresa h3 { font-size: 18px; color: #1e40af; }
+      .comp-empresa p { font-size: 11px; color: #64748b; line-height: 1.5; }
+      .comp-doc { text-align: right; }
+      .comp-doc .titulo { font-size: 16px; font-weight: 800; color: #1e40af; margin-bottom: 6px; }
+      .comp-doc p { font-size: 12px; color: #475569; }
+      .comp-section { margin-bottom: 16px; }
+      .comp-section h4 { font-size: 12px; font-weight: 700; color: #1e40af; text-transform: uppercase; margin-bottom: 8px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; }
+      table { width: 100%; border-collapse: collapse; }
+      th { background: #1e40af; color: white; padding: 6px 8px; font-size: 10px; text-align: left; text-transform: uppercase; }
+      td { padding: 5px 8px; font-size: 11px; border-bottom: 1px solid #e2e8f0; }
+      tfoot td { font-weight: 700; border-top: 2px solid #cbd5e1; }
+      .comp-total-section { display: flex; justify-content: flex-end; gap: 12px; padding: 12px 0; margin-top: 8px; border-top: 2px solid #1e40af; }
+      .comp-total-label { font-size: 14px; font-weight: 700; color: #475569; }
+      .comp-total-valor { font-size: 16px; font-weight: 800; color: #1e40af; }
+      .comp-obs { font-size: 11px; color: #64748b; padding: 8px; background: #f8fafc; border-radius: 6px; }
+      .comp-footer { display: flex; justify-content: space-between; margin-top: 20px; padding-top: 12px; border-top: 1px solid #e2e8f0; font-size: 10px; color: #94a3b8; }
+    </style></head><body>
+    ${conteudo.outerHTML}
+    <script>window.onload = function() { window.print(); window.close(); }<\/script>
+    </body></html>
+  `);
+  janela.document.close();
+});
+
 window.fecharComprovante = function() {
   const modal = document.getElementById("modalComprovante");
   modal.classList.remove("show");
   setTimeout(() => modal.classList.add("hidden"), 260);
 };
 
-// ══════════════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════
 //  HISTÓRICO
-// ══════════════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════
 async function carregarHistorico() {
   const el = document.getElementById("historicoLista");
   try {
-    const res   = await apiRequest("/saidas_estoque?limit=10");
+    const res = await apiRequest("/saidas_estoque?limit=10");
     const lista = res.data || [];
-
-    if (lista.length === 0) {
+    if (!lista.length) {
       el.innerHTML = `<div style="text-align:center;color:#94a3b8;font-size:13px;padding:16px">Nenhuma saída registrada.</div>`;
       return;
     }
-
     el.innerHTML = lista.map(s => `
       <div class="historico-item" onclick="verSaida(${s.id})">
         <div class="hist-header">
@@ -502,13 +566,11 @@ async function carregarHistorico() {
 window.verSaida = async function(id) {
   try {
     const res = await apiRequest(`/saidas_estoque/${id}`);
-    console.log("Resposta verSaida:", JSON.stringify(res, null, 2));
     abrirComprovante(res.data || res.saida || res);
   } catch (err) {
-    console.error("Erro verSaida:", err);
     showToast("Erro ao carregar saída.", "error");
   }
 };
 
-// ── Init ──────────────────────────────────────────────────────────────────────
+// ── Init ──────────────────────────────────────────────
 carregarHistorico();

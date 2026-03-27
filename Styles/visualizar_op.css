@@ -214,6 +214,106 @@ thead th {
 /* ═══════ HELPERS ═══════ */
 .print-only { display: none; }
 
+/* ═══════ RESPONSIVE ═══════ */
+@media (max-width: 768px) {
+  body {
+    padding: 16px;
+  }
+
+  .header-content {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .document {
+    padding: 16px;
+    max-width: 100%;
+  }
+
+  .topo {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .empresa {
+    max-width: 100%;
+  }
+
+  .nfe {
+    text-align: left;
+  }
+
+  .blocos {
+    grid-template-columns: 1fr;
+  }
+
+  .footer-content {
+    flex-direction: column;
+    gap: 4px;
+    text-align: center;
+  }
+}
+
+@media (max-width: 480px) {
+  body {
+    padding: 10px;
+  }
+
+  .header {
+    padding: 12px 14px;
+    border-radius: 12px;
+    top: 8px;
+  }
+
+  .header-text {
+    font-size: 15px;
+  }
+
+  .header-right {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  .btn-voltar, .btn-pdf {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
+  .document {
+    padding: 12px;
+    border-radius: 10px;
+  }
+
+  .empresa h2 {
+    font-size: 17px;
+  }
+
+  .empresa p {
+    font-size: 12px;
+  }
+
+  .nfe .titulo {
+    font-size: 13px;
+  }
+
+  .bloco {
+    padding: 10px;
+  }
+
+  .bloco h4 {
+    font-size: 12px;
+  }
+
+  th, td {
+    padding: 5px 6px;
+    font-size: 10px;
+  }
+
+  thead th {
+    font-size: 9px;
+  }
+}
 
 /* ═══════════════════════════════════════════════════════
    @MEDIA PRINT — Otimizado para A4 (PDF)

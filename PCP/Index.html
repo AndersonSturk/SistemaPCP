@@ -231,11 +231,35 @@
     .pedidos  .card:hover .card-arr    { color: var(--amber); }
     .sistema  .card:hover .card-arr    { color: var(--purple); }
 
-    @media (max-width: 640px) {
-      header { padding: 14px 18px; }
-      .hero  { padding: 32px 18px 24px; }
+    /* ── Tablet (max-width: 768px) ── */
+    @media (max-width: 768px) {
+      header { padding: 14px 18px; flex-wrap: wrap; gap: 10px; }
+      .header-brand { flex: 1; min-width: 0; }
+      .header-user { width: 100%; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+      .hero { padding: 32px 18px 24px; }
+      .hero h1 { font-size: 24px; }
       .categorias { padding: 0 14px; }
-      .cards { grid-template-columns: 1fr 1fr; gap: 8px; padding: 12px 14px 16px; }
+      .cards { grid-template-columns: 1fr 1fr; gap: 10px; padding: 14px 16px 18px; }
+      .cat-desc { display: none; }
+    }
+
+    /* ── Small Mobile (max-width: 480px) ── */
+    @media (max-width: 480px) {
+      header { padding: 10px 12px; }
+      .brand-title { font-size: 13px; }
+      .brand-sub { font-size: 10px; }
+      .hero { padding: 24px 14px 18px; }
+      .hero h1 { font-size: 20px; }
+      .hero p { font-size: 12px; }
+      .hero-chip { font-size: 10px; padding: 3px 10px; }
+      .categorias { padding: 0 8px; }
+      .cards { grid-template-columns: 1fr; gap: 8px; padding: 10px 12px 14px; }
+      .card { padding: 14px; gap: 10px; }
+      .card-ico { width: 34px; height: 34px; font-size: 16px; }
+      .card-titulo { font-size: 12px; }
+      .card-desc { font-size: 10px; }
+      .user-name { font-size: 11px; }
+      .btn-logout { padding: 6px 12px; font-size: 11px; }
     }
   </style>
 </head>
@@ -285,38 +309,52 @@
   // ══════════════════════════════════════════════════════════════
   // MÓDULOS DO SISTEMA — visibilidade controlada por perfil
   // ══════════════════════════════════════════════════════════════
-  // Perfis: admin, pcp, logistica, vendas, producao
+  // Perfis: admin, pcp, logistica, vendas, producao, ped
   // Cada card tem "perfis" → lista de quem pode ver
 
+  // Header dinâmico por perfil
+  const PERFIL_HEADER = { producao: { logo: "PROD", sub: "Produção" }, ped: { logo: "P&D", sub: "P&D" } };
+  const cfgHeader = PERFIL_HEADER[perfil];
+  if (cfgHeader) {
+    const logoBadge = document.querySelector(".logo-badge");
+    if (logoBadge) logoBadge.textContent = cfgHeader.logo;
+    const brandSub = document.querySelector(".brand-sub");
+    if (brandSub) brandSub.textContent = cfgHeader.sub;
+  }
+
   const MODULOS = [
-    // Dashboard desabilitado — reservado para atualizações futuras
-    // {
-    //   id: "dashboard", tipo: "destaque",
-    //   titulo: "Dashboard", desc: "Indicadores, alertas de estoque e gráficos de produção",
-    //   href: "dashboard.html", ico: "📊",
-    //   perfis: ["admin", "pcp", "logistica", "vendas"],
-    // },
     {
       id: "producao", tipo: "categoria", cor: "producao",
       label: "Produção", descCat: "Gerar OP · Gerenciar OPs",
-      perfis: ["admin", "pcp", "producao", "logistica"],
+      perfis: ["admin", "pcp", "producao", "ped", "logistica"],
       cards: [
         { titulo: "Gerar OP", desc: "Criar nova Ordem de Produção", href: "gerar-op.html", ico: "📝",
-          perfis: ["admin", "pcp", "producao", "logistica"] },
+          perfis: ["admin", "pcp", "producao", "ped", "logistica"] },
         { titulo: "Gerenciar OPs", desc: "Acompanhar e controlar ordens em andamento", href: "processos.html", ico: "🏭",
-          perfis: ["admin", "pcp", "producao", "logistica"] },
+          perfis: ["admin", "pcp", "producao", "ped", "logistica"] },
       ],
     },
     {
       id: "estoque", tipo: "categoria", cor: "estoque",
       label: "Estoque", descCat: "Consulta · Saída de Estoque · Entrada de Notas",
-      perfis: ["admin", "pcp", "logistica", "producao"],
+      perfis: ["admin", "pcp", "logistica", "producao", "ped"],
       cards: [
-        { titulo: "Estoque", desc: "Controle detalhado do estoque", href: "estoque.html", ico: "🏷️",
-          perfis: ["admin", "pcp", "logistica", "producao"] },
+        { titulo: "Estoque", desc: "Consultar estoque de materiais", href: "estoque.html", ico: "🏷️",
+          perfis: ["admin", "pcp", "logistica", "producao", "ped"] },
         { titulo: "Saída de Estoque", desc: "Atender pedidos diretamente pelo estoque", href: "saida_estoque.html", ico: "📤",
           perfis: ["admin", "pcp", "logistica"] },
         { titulo: "Entrada de Notas", desc: "Importar XML ou PDF de NF-e e dar entrada no estoque", href: "entrada-notas.html", ico: "📥",
+          perfis: ["admin", "pcp", "logistica"] },
+      ],
+    },
+    {
+      id: "notas", tipo: "categoria", cor: "pedidos",
+      label: "Notas Fiscais", descCat: "Espelho de NF · Listagem",
+      perfis: ["admin", "pcp", "logistica"],
+      cards: [
+        { titulo: "Gerar Espelho de NF", desc: "Criar espelho de nota fiscal de saída", href: "espelho-nf.html", ico: "📄",
+          perfis: ["admin", "pcp", "logistica"] },
+        { titulo: "Espelhos Emitidos", desc: "Consultar espelhos de NF emitidos", href: "espelhos-nf.html", ico: "📋",
           perfis: ["admin", "pcp", "logistica"] },
       ],
     },
@@ -326,12 +364,9 @@
       perfis: ["admin", "pcp", "logistica"],
       cards: [
         { titulo: "Materiais", desc: "Cadastro e controle de materiais e insumos", href: "produtos.html", ico: "📦",
-          perfis: ["admin", "pcp", "logistica", "producao"] },
+          perfis: ["admin", "pcp", "logistica"] },
         { titulo: "Prestadores", desc: "Cadastro de prestadores de serviço", href: "prestadores.html", ico: "🤝",
           perfis: ["admin", "pcp", "logistica"] },
-        // Espelhos de NF desabilitado — reservado para atualizações futuras
-        // { titulo: "Espelhos de NF", desc: "Gerar e gerenciar espelhos de nota fiscal", href: "espelhos-nf.html", ico: "📋",
-        //   perfis: ["admin", "pcp", "logistica"] },
       ],
     },
     {

@@ -6,21 +6,89 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const { exec } = require("child_process");
 const fs = require("fs");
+const rateLimit = require("express-rate-limit");
+const crypto = require("crypto");
+
+// ── Carrega variáveis de ambiente (.env) ────────────
+require("dotenv").config();
+
 const app = express();
-app.use(cors());
+
+// ── CORS configurado ────────────────────────────────
+app.use(cors({
+  origin: true,
+  credentials: true,
+}));
+
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "../paginas")));
-const JWT_SECRET = "MUDE_ESSE_SEGREDO_EM_PRODUCAO";
+
+// ── CSRF Token — proteção contra requisições forjadas ──
+// Gera token CSRF por sessão, enviado no header X-CSRF-Token
+const csrfTokens = new Map(); // token → timestamp
+function gerarCSRFToken() {
+  const token = crypto.randomBytes(32).toString("hex");
+  csrfTokens.set(token, Date.now());
+  // Limpa tokens antigos (> 8h)
+  for (const [t, ts] of csrfTokens) {
+    if (Date.now() - ts > 8 * 60 * 60 * 1000) csrfTokens.delete(t);
+  }
+  return token;
+}
+function csrfMiddleware(req, res, next) {
+  // Métodos seguros não precisam de CSRF
+  if (["GET", "HEAD", "OPTIONS"].includes(req.method)) return next();
+  // Login e rotas públicas são isentas
+  if (req.path === "/login" || req.path === "/csrf-token") return next();
+  const token = req.headers["x-csrf-token"];
+  if (!token || !csrfTokens.has(token)) {
+    return res.status(403).json({ success: false, message: "Token CSRF inválido ou ausente." });
+  }
+  next();
+}
+// Endpoint para obter token CSRF
+app.get("/csrf-token", (req, res) => {
+  const token = gerarCSRFToken();
+  res.json({ csrfToken: token });
+});
+// Ativa proteção CSRF globalmente
+app.use(csrfMiddleware);
+
+// ── Segredos via .env (nunca mais hardcoded) ────────
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET || JWT_SECRET === "MUDE_ESSE_SEGREDO_EM_PRODUCAO") {
+  console.error("⚠️  ATENÇÃO: JWT_SECRET não configurado no .env! Gere uma chave segura.");
+}
+
+// ── Banco de dados via .env ─────────────────────────
 const db = mysql.createPool({
-  host: "127.0.0.1", 
-  user: "root",
-  password: "4618", 
-  database: "pcp",
-  port: 3000, 
+  host: process.env.DB_HOST || "127.0.0.1",
+  user: process.env.DB_USER || "root",
+  password: process.env.DB_PASSWORD || "",
+  database: process.env.DB_NAME || "pcp",
+  port: Number(process.env.DB_PORT) || 3306,
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0
 });
+
+// ── Rate Limiting — protege contra brute force ──────
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 10, // máx 10 tentativas por IP
+  message: { success: false, message: "Muitas tentativas de login. Tente novamente em 15 minutos." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const apiLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minuto
+  max: 200, // máx 200 requisições por minuto por IP
+  message: { success: false, message: "Muitas requisições. Aguarde um momento." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use("/api", apiLimiter);
 db.getConnection((err, connection) => {
   if (err) {
     console.error("❌ ERRO AO CONECTAR NO MYSQL:", err.message);
@@ -44,13 +112,35 @@ db.getConnection((err, connection) => {
         table: "materiais", column: "descricao_detalhada",
         sql: "ALTER TABLE materiais ADD COLUMN descricao_detalhada TEXT NULL AFTER descricao"
       },
+      {
+        table: "materiais", column: "percentual_perda",
+        sql: "ALTER TABLE materiais ADD COLUMN percentual_perda DECIMAL(5,2) NOT NULL DEFAULT 0 AFTER fator_conversao"
+      },
+      {
+        table: "ficha_tecnica", column: "percentual_perda",
+        sql: "ALTER TABLE ficha_tecnica ADD COLUMN percentual_perda DECIMAL(5,2) NOT NULL DEFAULT 0 AFTER unidade_medida"
+      },
     ];
     // Migrações de tipo (ALTER COLUMN para corrigir tipos em tabelas existentes)
     const typeFixes = [
       `ALTER TABLE entradas_nf_itens MODIFY COLUMN estoque_anterior DECIMAL(14,4) NULL`,
       `ALTER TABLE entradas_nf_itens MODIFY COLUMN estoque_novo DECIMAL(14,4) NULL`,
-      `ALTER TABLE usuarios MODIFY COLUMN perfil ENUM('admin','pcp','producao','logistica','vendas') NOT NULL DEFAULT 'pcp'`,
+      `ALTER TABLE usuarios MODIFY COLUMN perfil ENUM('admin','pcp','producao','logistica','vendas','ped') NOT NULL DEFAULT 'pcp'`,
     ];
+
+    // Índice UNIQUE para evitar OPs duplicadas por concorrência
+    connection.query(
+      `SELECT COUNT(*) AS cnt FROM INFORMATION_SCHEMA.STATISTICS
+       WHERE TABLE_SCHEMA = 'pcp' AND TABLE_NAME = 'ordens_producao' AND INDEX_NAME = 'uq_op_seq_ano'`,
+      (e, rows) => {
+        if (!e && rows[0].cnt === 0) {
+          connection.query(
+            `ALTER TABLE ordens_producao ADD UNIQUE INDEX uq_op_seq_ano (seq_ano, ano)`,
+            (e2) => { if (!e2) console.log("✅ UNIQUE INDEX uq_op_seq_ano criado em ordens_producao"); }
+          );
+        }
+      }
+    );
 
     let pending = migrations.length + typeFixes.length;
     const done = () => { if (--pending <= 0) connection.release(); };
@@ -208,7 +298,7 @@ function roleMiddleware(perfis = []) {
 /* =======================
    LOGIN
 ======================= */
-app.post("/login", (req, res) => {
+app.post("/login", loginLimiter, (req, res) => {
   const { email, senha } = req.body;
   if (!email || !senha)
     return res.status(400).json({ success: false, message: "Email e senha são obrigatórios" });
@@ -228,9 +318,11 @@ app.post("/login", (req, res) => {
         JWT_SECRET,
         { expiresIn: "8h" }
       );
+      const csrfToken = gerarCSRFToken();
       res.json({
         success: true,
         token,
+        csrfToken,
         user: { id: user.id, nome: user.nome, perfil: user.perfil },
       });
       registrarLog({
@@ -256,7 +348,7 @@ garantirColunaEstoqueMinimo();
 app.get(
   "/materiais",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao"]),
+  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao", "ped"]),
   (req, res) => {
     const search = req.query.search || "";
     const page   = parseInt(req.query.page)  || 1;
@@ -291,20 +383,94 @@ app.get(
 app.get(
   "/materiais/busca-codigo/:codigo",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao"]),
+  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao", "ped"]),
   async (req, res) => {
     try {
-      const [rows] = await db.promise().query(
+      const codigoOriginal = req.params.codigo;
+
+      // 1) Busca exata
+      let [rows] = await db.promise().query(
         `SELECT id, codigo_produto, descricao, custo_fornecedor, unidade_medida,
                 unidade_compra, fator_conversao
          FROM materiais WHERE codigo_produto = ? LIMIT 1`,
-        [req.params.codigo]
+        [codigoOriginal]
       );
+
+      // 2) Se não achou, tenta sem prefixo de letras e zeros (ex: M00000733 → 733)
+      if (!rows.length) {
+        const codigoLimpo = codigoOriginal.replace(/^[A-Za-z]+0*/, "").replace(/^0+/, "");
+        if (codigoLimpo && codigoLimpo !== codigoOriginal) {
+          [rows] = await db.promise().query(
+            `SELECT id, codigo_produto, descricao, custo_fornecedor, unidade_medida,
+                    unidade_compra, fator_conversao
+             FROM materiais WHERE codigo_produto = ? LIMIT 1`,
+            [codigoLimpo]
+          );
+        }
+      }
+
+      // 3) Se não achou, tenta LIKE parcial (código contém o número)
+      if (!rows.length) {
+        const apenasNumeros = codigoOriginal.replace(/\D/g, "").replace(/^0+/, "");
+        if (apenasNumeros.length >= 2) {
+          [rows] = await db.promise().query(
+            `SELECT id, codigo_produto, descricao, custo_fornecedor, unidade_medida,
+                    unidade_compra, fator_conversao
+             FROM materiais WHERE codigo_produto = ? LIMIT 1`,
+            [apenasNumeros]
+          );
+        }
+      }
+
       if (!rows.length) return res.status(404).json({ success: false, message: "Material não encontrado." });
       res.json({ success: true, data: rows[0] });
     } catch (err) { res.status(500).json({ success: false, message: err.message }); }
   }
 );
+/* =======================
+   MATERIAIS — BUSCA SIMILARES (para vincular NF)
+======================= */
+app.get(
+  "/materiais/busca-similares",
+  authMiddleware,
+  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao", "ped"]),
+  async (req, res) => {
+    try {
+      const termo = (req.query.termo || "").trim();
+      if (!termo) return res.json({ success: true, data: [] });
+
+      // Quebra descrição em palavras-chave (>= 3 chars), remove stopwords
+      const stopwords = new Set(["de","do","da","dos","das","em","com","para","por","sem","que","uma","uns","umas","the","and","for"]);
+      const palavras = termo
+        .toUpperCase()
+        .replace(/[^A-Z0-9À-Ú\s]/g, "")
+        .split(/\s+/)
+        .filter(p => p.length >= 3 && !stopwords.has(p.toLowerCase()));
+
+      if (!palavras.length) return res.json({ success: true, data: [] });
+
+      // Monta query: cada palavra gera um OR na descrição
+      // Pontua por quantidade de palavras que casam (relevância)
+      const likeConditions = palavras.map(() => `(UPPER(descricao) LIKE ?)`).join(" + ");
+      const params = palavras.map(p => `%${p}%`);
+
+      const sql = `
+        SELECT id, codigo_produto, descricao, unidade_medida, unidade_compra,
+               fator_conversao, estoque, tipo, situacao,
+               (${likeConditions}) AS relevancia
+        FROM materiais
+        WHERE situacao = 'ativo'
+          AND (${palavras.map(() => `UPPER(descricao) LIKE ?`).join(" OR ")})
+        ORDER BY relevancia DESC, descricao ASC
+        LIMIT 10
+      `;
+
+      const [rows] = await db.promise().query(sql, [...params, ...params]);
+      res.json({ success: true, data: rows });
+    } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+  }
+);
+
 // GET /materiais/grupos — lista de grupos distintos para filtros
 app.get(
   "/materiais/grupos",
@@ -325,7 +491,7 @@ app.get(
 app.get(
   "/materiais/:id",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao"]),
+  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao", "ped"]),
   (req, res) => {
     db.query("SELECT * FROM materiais WHERE id = ?", [req.params.id], (err, rows) => {
       if (err) return serverError(res, err);
@@ -341,18 +507,18 @@ app.get(
 app.post(
   "/materiais",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica", "producao"]),
+  roleMiddleware(["admin", "pcp", "logistica", "producao", "ped"]),
   (req, res) => {
     const { codigo_produto, descricao, descricao_detalhada, estoque, custo_fornecedor, qtde_embalagem, unidade_medida, unidade_compra, fator_conversao, tipo, grupo, subgrupo, situacao, marca, estoque_minimo } = req.body;
     if (!codigo_produto || !descricao)
       return res.status(400).json({ success: false, message: "Código e descrição são obrigatórios" });
     const situacaoFinal = situacao === "inativo" ? "inativo" : "ativo";
     db.query(
-      `INSERT INTO materiais (codigo_produto, descricao, descricao_detalhada, estoque, custo_fornecedor, qtde_embalagem, unidade_medida, unidade_compra, fator_conversao, tipo, grupo, subgrupo, situacao, marca, estoque_minimo)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO materiais (codigo_produto, descricao, descricao_detalhada, estoque, custo_fornecedor, qtde_embalagem, unidade_medida, unidade_compra, fator_conversao, percentual_perda, tipo, grupo, subgrupo, situacao, marca, estoque_minimo)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [codigo_produto, descricao, descricao_detalhada || null, Number(estoque) || 0, Number(custo_fornecedor) || 0,
        qtde_embalagem ? Number(qtde_embalagem) : null, unidade_medida || 'un',
-       unidade_compra || null, Number(fator_conversao) || 1,
+       unidade_compra || null, Number(fator_conversao) || 1, Number(req.body.percentual_perda) || 0,
        tipo || null, grupo || null, subgrupo || null, situacaoFinal, marca || null, Number(estoque_minimo) || 0],
       (err, result) => {
         if (err) {
@@ -377,7 +543,7 @@ app.post(
 app.put(
   "/materiais/:id",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica", "producao"]),
+  roleMiddleware(["admin", "pcp", "logistica", "producao", "ped"]),
   async (req, res) => {
     const { codigo_produto, descricao, descricao_detalhada, estoque, custo_fornecedor, qtde_embalagem, unidade_medida, unidade_compra, fator_conversao, tipo, grupo, subgrupo, situacao, marca, estoque_minimo } = req.body;
     const situacaoFinal = situacao === "inativo" ? "inativo" : "ativo";
@@ -392,11 +558,11 @@ app.put(
       const [result] = await db.promise().query(
         `UPDATE materiais SET codigo_produto = ?, descricao = ?, descricao_detalhada = ?, estoque = ?,
          custo_fornecedor = ?, qtde_embalagem = ?, unidade_medida = ?, unidade_compra = ?,
-         fator_conversao = ?, tipo = ?, grupo = ?,
+         fator_conversao = ?, percentual_perda = ?, tipo = ?, grupo = ?,
          subgrupo = ?, situacao = ?, marca = ?, estoque_minimo = ? WHERE id = ?`,
         [codigo_produto, descricao, descricao_detalhada || null, estoqueNovo, Number(custo_fornecedor),
          qtde_embalagem ? Number(qtde_embalagem) : null, unidade_medida || 'un',
-         unidade_compra || null, Number(fator_conversao) || 1,
+         unidade_compra || null, Number(fator_conversao) || 1, Number(req.body.percentual_perda) || 0,
          tipo || null, grupo || null,
          subgrupo || null, situacaoFinal, marca || null, Number(estoque_minimo) || 0, req.params.id]
       );
@@ -471,7 +637,7 @@ function getNextNumeroOP(callback) {
 app.get(
   "/ordens_producao",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao"]),
+  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao", "ped"]),
   (req, res) => {
     const search = req.query.search || "";
     const where  = search ? "WHERE is_deleted = 0 AND numero_op LIKE ?" : "WHERE is_deleted = 0";
@@ -499,7 +665,7 @@ app.get(
 app.get(
   "/ordens_producao/:id/insumos",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao"]),
+  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao", "ped"]),
   async (req, res) => {
     try {
       await db.promise().query(`
@@ -578,7 +744,7 @@ app.get(
 app.post(
   "/ordens_producao/:id/insumos",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica", "producao"]),
+  roleMiddleware(["admin", "pcp", "logistica", "producao", "ped"]),
   async (req, res) => {
     try {
       const op_id   = req.params.id;
@@ -600,28 +766,37 @@ app.post(
           KEY idx_op_insumos_op (op_id)
         )
       `);
-      await db.promise().query(`DELETE FROM op_insumos WHERE op_id = ?`, [op_id]);
-      for (const ins of insumos) {
-        const qtde    = Number(ins.quantidade     || 0);
-        const custo   = Number(ins.custo_unitario || 0);
-        await db.promise().query(
-          `INSERT INTO op_insumos (op_id, material_id, codigo_produto, descricao, unidade_medida, quantidade, custo_unitario, subtotal)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [op_id, ins.material_id || null, ins.codigo_produto || null, ins.descricao || null,
-           ins.unidade_medida || "un", qtde, custo, qtde * custo]
-        );
+      // Transação para garantir atomicidade: DELETE + INSERT + recálculo
+      const conn = await db.promise().getConnection();
+      try {
+        await conn.beginTransaction();
+        await conn.query(`DELETE FROM op_insumos WHERE op_id = ?`, [op_id]);
+        for (const ins of insumos) {
+          const qtde    = Number(ins.quantidade     || 0);
+          const custo   = Number(ins.custo_unitario || 0);
+          await conn.query(
+            `INSERT INTO op_insumos (op_id, material_id, codigo_produto, descricao, unidade_medida, quantidade, custo_unitario, subtotal)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [op_id, ins.material_id || null, ins.codigo_produto || null, ins.descricao || null,
+             ins.unidade_medida || "un", qtde, custo, qtde * custo]
+          );
+        }
+        await conn.commit();
+        conn.release();
+      } catch (txErr) {
+        await conn.rollback();
+        conn.release();
+        throw txErr;
       }
       // Recalcula custo total da OP (insumos + prestadores)
-      console.log(`[POST insumos] Chamando recalcularCustoOP para OP ${op_id}...`);
       const custoTotal = await recalcularCustoOP(op_id);
-      console.log(`[POST insumos] Resultado:`, custoTotal);
 
       res.json({ success: true, message: `${insumos.length} insumo(s) salvos.`, custo_total: custoTotal });
       registrarLog({
         usuario_id: req.user.id, usuario_nome: req.user.nome,
         modulo: "OP", acao: "Salvar Insumos",
-        descricao: `${insumos.length} insumo(s) salvos na OP ID ${op_id}`,
-        referencia_id: Number(op_id),
+        descricao: `${insumos.length} insumo(s) salvos na OP ${op_id}`,
+        referencia_id: Number(op_id), referencia_label: await getNumeroOP(op_id),
       });
     } catch (err) {
       console.error("Erro ao salvar insumos:", err);
@@ -701,7 +876,7 @@ const OP_PERDAS_DDL = `
 app.get(
   "/ordens_producao/:id/perdas",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao"]),
+  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao", "ped"]),
   async (req, res) => {
     try {
       await db.promise().query(OP_PERDAS_DDL);
@@ -721,7 +896,7 @@ app.get(
 app.post(
   "/ordens_producao/:id/perdas",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica", "producao"]),
+  roleMiddleware(["admin", "pcp", "logistica", "producao", "ped"]),
   async (req, res) => {
     try {
       await db.promise().query(OP_PERDAS_DDL);
@@ -745,7 +920,7 @@ app.post(
 app.delete(
   "/ordens_producao/:id/perdas/:perdaId",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica", "producao"]),
+  roleMiddleware(["admin", "pcp", "logistica", "producao", "ped"]),
   async (req, res) => {
     try {
       await db.promise().query(
@@ -763,7 +938,7 @@ app.delete(
 app.put(
   "/ordens_producao/:id/perdas",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica", "producao"]),
+  roleMiddleware(["admin", "pcp", "logistica", "producao", "ped"]),
   async (req, res) => {
     try {
       await db.promise().query(OP_PERDAS_DDL);
@@ -796,7 +971,7 @@ app.put(
 app.get(
   "/ordens_producao/:id",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao"]),
+  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao", "ped"]),
   (req, res) => {
     db.query(
       `SELECT op.*,
@@ -818,7 +993,7 @@ app.get(
 /* =======================
    OPs — POST (criar)
 ======================= */
-app.post("/ordens_producao", authMiddleware, roleMiddleware(["admin", "pcp", "producao"]), async (req, res) => {
+app.post("/ordens_producao", authMiddleware, roleMiddleware(["admin", "pcp", "producao", "ped"]), async (req, res) => {
   try {
     const {
       processo_id,
@@ -833,37 +1008,49 @@ app.post("/ordens_producao", authMiddleware, roleMiddleware(["admin", "pcp", "pr
     if (!material_id)
       return res.status(400).json({ success: false, message: "material_id é obrigatório" });
     const qtdeTotal = Number(quantidade) || 0;
-    // Custo inicial = 0; será recalculado após salvar insumos + prestadores
     const custoUnit = 0;
     const custoTotal = 0;
-    getNextNumeroOP_Real(async (err, { seq, ano, numero_op }) => {
-      if (err) return serverError(res, err);
-      const sql = `
-        INSERT INTO ordens_producao (
-          numero_op, seq_ano, ano, processo_id,
-          material_id, codigo_produto, descricao_material,
-          qtde_total, quantidade, unidade_medida,
-          custo_unitario, custo_total, status,
-          responsavel, observacoes, criado_por, is_deleted
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ABERTA', ?, ?, ?, 0)
-      `;
-      const valores = [
-        numero_op, seq, ano, processo_id || null,
-        material_id, codigo_produto || null, descricao_material || null,
-        qtdeTotal, qtdeTotal, unidade_medida || 'UN',
-        custoUnit, custoTotal,
-        responsavel || null, observacoes || null, req.user.id
-      ];
-      const [result] = await db.promise().query(sql, valores);
-      res.json({ success: true, id: result.insertId, numero_op });
-      registrarLog({
-        usuario_id: req.user.id, usuario_nome: req.user.nome,
-        modulo: "OP", acao: "Criar OP",
-        descricao: `OP ${numero_op} criada — Material: ${codigo_produto || ""}, Qtde: ${quantidade || 0}`,
-        referencia_id: result.insertId, referencia_label: numero_op,
-      });
-    });
+
+    // Retry loop para concorrência: se dois usuários tentam ao mesmo tempo,
+    // o segundo detecta duplicata e tenta novamente com o próximo número
+    const MAX_RETRIES = 5;
+    for (let tentativa = 1; tentativa <= MAX_RETRIES; tentativa++) {
+      try {
+        const { seq, ano, numero_op } = await getNextNumeroOP_Real_Async();
+        const sql = `
+          INSERT INTO ordens_producao (
+            numero_op, seq_ano, ano, processo_id,
+            material_id, codigo_produto, descricao_material,
+            qtde_total, quantidade, unidade_medida,
+            custo_unitario, custo_total, status,
+            responsavel, observacoes, criado_por, is_deleted
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ABERTA', ?, ?, ?, 0)
+        `;
+        const valores = [
+          numero_op, seq, ano, processo_id || null,
+          material_id, codigo_produto || null, descricao_material || null,
+          qtdeTotal, qtdeTotal, unidade_medida || 'UN',
+          custoUnit, custoTotal,
+          responsavel || null, observacoes || null, req.user.id
+        ];
+        const [result] = await db.promise().query(sql, valores);
+        res.json({ success: true, id: result.insertId, numero_op });
+        registrarLog({
+          usuario_id: req.user.id, usuario_nome: req.user.nome,
+          modulo: "OP", acao: "Criar OP",
+          descricao: `OP ${numero_op} criada — Material: ${codigo_produto || ""}, Qtde: ${quantidade || 0}`,
+          referencia_id: result.insertId, referencia_label: numero_op,
+        });
+        return; // sucesso, sai do loop
+      } catch (insertErr) {
+        if (insertErr.code === "ER_DUP_ENTRY" && tentativa < MAX_RETRIES) {
+          await new Promise(r => setTimeout(r, 50 * tentativa));
+          continue; // tenta próximo número
+        }
+        throw insertErr;
+      }
+    }
   } catch (error) {
     console.error("Erro ao gerar OP:", error);
     res.status(500).json({ success: false, message: error.message });
@@ -877,7 +1064,7 @@ app.post("/ordens_producao", authMiddleware, roleMiddleware(["admin", "pcp", "pr
 app.put(
   "/ordens_producao/:id",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica", "producao"]),
+  roleMiddleware(["admin", "pcp", "logistica", "producao", "ped"]),
   async (req, res) => {
     // Bloqueia edição de OP concluída
     try {
@@ -908,6 +1095,7 @@ app.put(
     if (observacoes !== undefined) { setClauses.push("observacoes = ?"); values.push(observacoes || null); }
     if (setClauses.length === 0)
       return res.status(400).json({ success: false, message: "Nenhum campo para atualizar" });
+    const numOP = await getNumeroOP(req.params.id);
     const executarUpdate = (extraClauses = [], extraValues = []) => {
       const allClauses = [...setClauses, ...extraClauses];
       const allValues  = [...values, ...extraValues, req.params.id];
@@ -922,8 +1110,8 @@ app.put(
           registrarLog({
             usuario_id: req.user.id, usuario_nome: req.user.nome,
             modulo: "OP", acao: "Editar OP",
-            descricao: `OP ID ${req.params.id} atualizada — Campos: ${setClauses.map(c => c.split(" =")[0]).join(", ")}`,
-            referencia_id: Number(req.params.id),
+            descricao: `OP ${numOP} atualizada — Campos: ${setClauses.map(c => c.split(" =")[0]).join(", ")}`,
+            referencia_id: Number(req.params.id), referencia_label: numOP,
           });
         }
       );
@@ -958,21 +1146,57 @@ app.put(
 ══════════════════════════════════════════════════════════════ */
 /* ──────────────────────────────────────────────────────────────
    HELPER — Gera próximo número de OP no formato 001/YYYY
-   Garante sequência por ano mesmo com concorrência usando
-   a coluna UNIQUE (seq_ano, ano) como trava.
+   Usa SELECT FOR UPDATE dentro de transação para evitar
+   duplicatas quando múltiplos usuários criam OPs ao mesmo tempo.
+   Se a constraint UNIQUE falhar, faz retry automaticamente.
 ────────────────────────────────────────────────────────────── */
-function getNextNumeroOP_Real(callback) {
+// Helper: busca numero_op pelo ID (para logs)
+async function getNumeroOP(opId) {
+  try {
+    const [rows] = await db.promise().query("SELECT numero_op FROM ordens_producao WHERE id = ?", [opId]);
+    return rows.length ? rows[0].numero_op : `ID ${opId}`;
+  } catch { return `ID ${opId}`; }
+}
+
+async function getNextNumeroOP_Real_Async() {
   const ano = new Date().getFullYear();
-  db.query(
-    "SELECT MAX(seq_ano) AS max_seq FROM ordens_producao WHERE ano = ?",
-    [ano],
-    (err, rows) => {
-      if (err) return callback(err);
-      const seq      = (rows[0].max_seq || 0) + 1;
-      const numero_op = String(seq).padStart(3, "0") + "/" + ano;  // "001/2026"
-      callback(null, { seq, ano, numero_op });
+  const MAX_RETRIES = 5;
+
+  for (let tentativa = 1; tentativa <= MAX_RETRIES; tentativa++) {
+    const conn = await db.promise().getConnection();
+    try {
+      await conn.beginTransaction();
+
+      // Lock de leitura: garante que ninguém mais lê o MAX enquanto estamos inserindo
+      const [rows] = await conn.query(
+        `SELECT MAX(seq_ano) AS max_seq FROM ordens_producao WHERE ano = ? FOR UPDATE`,
+        [ano]
+      );
+      const seq = (rows[0].max_seq || 0) + 1;
+      const numero_op = String(seq).padStart(3, "0") + "/" + ano;
+
+      await conn.commit();
+      conn.release();
+      return { seq, ano, numero_op };
+    } catch (err) {
+      await conn.rollback();
+      conn.release();
+
+      // Se for erro de deadlock ou lock timeout, tenta novamente
+      if ((err.code === "ER_LOCK_DEADLOCK" || err.code === "ER_LOCK_WAIT_TIMEOUT") && tentativa < MAX_RETRIES) {
+        await new Promise(r => setTimeout(r, 50 * tentativa)); // backoff progressivo
+        continue;
+      }
+      throw err;
     }
-  );
+  }
+}
+
+// Wrapper com callback para manter compatibilidade
+function getNextNumeroOP_Real(callback) {
+  getNextNumeroOP_Real_Async()
+    .then(result => callback(null, result))
+    .catch(err => callback(err));
 }
 /* ──────────────────────────────────────────────────────────────
    GET /op/buscar-pedidos?material_id=X
@@ -980,7 +1204,7 @@ function getNextNumeroOP_Real(callback) {
 app.get(
   "/op/buscar-pedidos",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica", "producao"]),
+  roleMiddleware(["admin", "pcp", "logistica", "producao", "ped"]),
   (req, res) => {
     const { material_id } = req.query;
     if (!material_id)
@@ -1037,66 +1261,64 @@ app.get(
 app.post(
   "/op",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica", "producao"]),
-  (req, res) => {
+  roleMiddleware(["admin", "pcp", "logistica", "producao", "ped"]),
+  async (req, res) => {
     const { material_id, quantidade, unidade_medida, observacoes, responsavel } = req.body;
     if (!material_id)
       return res.status(400).json({ success: false, message: "material_id é obrigatório" });
     if (!quantidade || Number(quantidade) <= 0)
       return res.status(400).json({ success: false, message: "Informe a quantidade" });
-    db.query(
-      "SELECT codigo_produto, descricao, custo_fornecedor, qtde_embalagem FROM materiais WHERE id = ?",
-      [material_id],
-      (err, matRows) => {
-        if (err) return serverError(res, err);
-        if (!matRows.length)
-          return res.status(404).json({ success: false, message: "Material não encontrado" });
-        const mat = matRows[0];
-        const qtde_total = Number(quantidade);
-        // Custo inicial = 0; será recalculado após salvar insumos + prestadores
-        const custo_unitario = 0;
-        const custo_total = 0;
-        getNextNumeroOP_Real((err, { seq, ano, numero_op }) => {
-          if (err) return serverError(res, err);
-          db.query(
+    try {
+      const [matRows] = await db.promise().query(
+        "SELECT codigo_produto, descricao, custo_fornecedor, qtde_embalagem FROM materiais WHERE id = ?",
+        [material_id]
+      );
+      if (!matRows.length)
+        return res.status(404).json({ success: false, message: "Material não encontrado" });
+      const mat = matRows[0];
+      const qtde_total = Number(quantidade);
+      const custo_unitario = 0;
+      const custo_total = 0;
+
+      // Retry loop para concorrência
+      const MAX_RETRIES = 5;
+      for (let tentativa = 1; tentativa <= MAX_RETRIES; tentativa++) {
+        try {
+          const { seq, ano, numero_op } = await getNextNumeroOP_Real_Async();
+          const [result] = await db.promise().query(
             `INSERT INTO ordens_producao
                (numero_op, seq_ano, ano, material_id, codigo_produto,
                 descricao_material, qtde_total, unidade_medida,
                 custo_unitario, custo_total, status,
                 observacoes, responsavel, criado_por)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ABERTA', ?, ?, ?)`,
-            [
-              numero_op, seq, ano, material_id,
-              mat.codigo_produto, mat.descricao,
-              qtde_total, unidade_medida || null,
-              custo_unitario, custo_total,
-              observacoes || null,
-              responsavel || null,
-              req.user.id,
-            ],
-            (err, result) => {
-              if (err) return serverError(res, err);
-              const op_id = result.insertId;
-              res.status(201).json({
-                success: true,
-                id: op_id,
-                numero_op,
-                message: `OP ${numero_op} criada com sucesso`,
-              });
-              registrarLog({
-                usuario_id:      req.user.id,
-                usuario_nome:    req.user.nome,
-                modulo:          "OP",
-                acao:            "Criar OP",
-                descricao:       `OP ${numero_op} criada — Material: ${mat.codigo_produto} (${mat.descricao}), Qtde: ${qtde_total} ${unidade_medida || ""}`,
-                referencia_id:   op_id,
-                referencia_label: numero_op,
-              });
-            }
+            [numero_op, seq, ano, material_id,
+             mat.codigo_produto, mat.descricao,
+             qtde_total, unidade_medida || null,
+             custo_unitario, custo_total,
+             observacoes || null, responsavel || null, req.user.id]
           );
-        });
+          const op_id = result.insertId;
+          res.status(201).json({
+            success: true, id: op_id, numero_op,
+            message: `OP ${numero_op} criada com sucesso`,
+          });
+          registrarLog({
+            usuario_id: req.user.id, usuario_nome: req.user.nome,
+            modulo: "OP", acao: "Criar OP",
+            descricao: `OP ${numero_op} criada — Material: ${mat.codigo_produto} (${mat.descricao}), Qtde: ${qtde_total} ${unidade_medida || ""}`,
+            referencia_id: op_id, referencia_label: numero_op,
+          });
+          return; // sucesso
+        } catch (insertErr) {
+          if (insertErr.code === "ER_DUP_ENTRY" && tentativa < MAX_RETRIES) {
+            await new Promise(r => setTimeout(r, 50 * tentativa));
+            continue;
+          }
+          throw insertErr;
+        }
       }
-    );
+    } catch (err) { return serverError(res, err); }
   }
 );
 /* ──────────────────────────────────────────────────────────────
@@ -1105,7 +1327,7 @@ app.post(
 app.get(
   "/op",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao"]),
+  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao", "ped"]),
   (req, res) => {
     const search = req.query.search || "";
     const status = req.query.status || "";
@@ -1137,7 +1359,7 @@ app.get(
 app.get(
   "/op/:id",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao"]),
+  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao", "ped"]),
   (req, res) => {
     db.query(
       "SELECT * FROM ordens_producao WHERE id = ? AND is_deleted = 0",
@@ -1157,7 +1379,7 @@ app.get(
 app.put(
   "/opsalvar/:id",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica", "producao"]),
+  roleMiddleware(["admin", "pcp", "logistica", "producao", "ped"]),
   async (req, res) => {
     // Bloqueia edição de OP concluída
     try {
@@ -1179,6 +1401,7 @@ app.put(
       values.push(value);
     }
     values.push(req.params.id);
+    const numOP = await getNumeroOP(req.params.id);
     db.query(
       `UPDATE ordens_producao SET ${setClauses.join(", ")} WHERE id = ? AND is_deleted = 0`,
       values,
@@ -1190,8 +1413,8 @@ app.put(
         registrarLog({
           usuario_id: req.user.id, usuario_nome: req.user.nome,
           modulo: "OP", acao: "Salvar OP",
-          descricao: `OP ID ${req.params.id} salva — Campos: ${Object.keys(fields).join(", ")}`,
-          referencia_id: Number(req.params.id),
+          descricao: `OP ${numOP} salva — Campos: ${Object.keys(fields).join(", ")}`,
+          referencia_id: Number(req.params.id), referencia_label: numOP,
         });
       }
     );
@@ -1212,12 +1435,13 @@ app.delete(
       );
       if (result.affectedRows === 0)
         return res.status(404).json({ success: false, message: "OP não encontrada" });
+      const numOP = await getNumeroOP(op_id);
       res.json({ success: true, message: "OP removida." });
       registrarLog({
         usuario_id: req.user.id, usuario_nome: req.user.nome,
         modulo: "OP", acao: "Excluir OP",
-        descricao: `OP ID ${op_id} excluída.`,
-        referencia_id: Number(op_id),
+        descricao: `OP ${numOP} excluída.`,
+        referencia_id: Number(op_id), referencia_label: numOP,
       });
     } catch (err) {
       console.error("Erro ao excluir OP:", err);
@@ -1235,6 +1459,7 @@ app.delete(
   async (req, res) => {
     try {
       const op_id = req.params.id;
+      const numOP = await getNumeroOP(op_id);
       const [result] = await db.promise().query(
         "UPDATE ordens_producao SET is_deleted = 1 WHERE id = ?", [op_id]
       );
@@ -1244,8 +1469,8 @@ app.delete(
       registrarLog({
         usuario_id: req.user.id, usuario_nome: req.user.nome,
         modulo: "OP", acao: "Excluir OP",
-        descricao: `OP ID ${op_id} excluída.`,
-        referencia_id: Number(op_id),
+        descricao: `OP ${numOP} excluída.`,
+        referencia_id: Number(op_id), referencia_label: numOP,
       });
     } catch (err) {
       console.error("Erro ao excluir OP:", err);
@@ -1259,7 +1484,7 @@ app.delete(
 app.get(
   "/pedidos",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao"]),
+  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao", "ped"]),
   (req, res) => {
     const { cliente, status } = req.query;
     let where = "WHERE 1=1";
@@ -1288,7 +1513,7 @@ app.get(
 app.get(
   "/pedidos/:id",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao"]),
+  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao", "ped"]),
   (req, res) => {
     db.query(
       `SELECT cp.*, cc.codigo_zerb
@@ -1311,7 +1536,7 @@ app.get(
 app.post(
   "/pedidos",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao"]),
+  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao", "ped"]),
   (req, res) => {
     const { ordem_compra, codigo_cliente, zerb, controle, cliente, estado, pedido_venda,
             qtde_solicitada, qtde_produzida, status_producao,
@@ -1377,7 +1602,7 @@ app.post(
 app.put(
   "/pedidos/:id",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao"]),
+  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao", "ped"]),
   (req, res) => {
     const { ordem_compra, codigo_cliente, zerb, controle, cliente, estado, pedido_venda,
             qtde_solicitada, qtde_produzida, status_producao,
@@ -1447,7 +1672,7 @@ app.put(
 app.delete(
   "/pedidos/:id",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica", "producao"]),
+  roleMiddleware(["admin", "pcp", "logistica", "producao", "ped"]),
   (req, res) => {
     db.query(
       "DELETE FROM controle_pedidos WHERE id = ?",
@@ -1535,7 +1760,7 @@ app.get("/cliente-material/:codigo_cliente", authMiddleware, (req, res) => {
 app.post(
   "/ordens_producao/:id/iniciar",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica", "producao"]),
+  roleMiddleware(["admin", "pcp", "logistica", "producao", "ped"]),
   async (req, res) => {
     try {
       const op_id = req.params.id;
@@ -1569,7 +1794,7 @@ app.post(
 app.post(
   "/ordens_producao/:id/concluir",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica", "producao"]),
+  roleMiddleware(["admin", "pcp", "logistica", "producao", "ped"]),
   async (req, res) => {
     try {
       const op_id = req.params.id;
@@ -1657,8 +1882,8 @@ app.post(
       registrarLog({
         usuario_id: req.user.id, usuario_nome: req.user.nome,
         modulo: "OP", acao: "Concluir OP",
-        descricao: `OP ID ${op_id} concluída em ${data_final}. +${qtdeAdicionada} ao estoque, ${insumos.length} insumo(s) baixados${avisoEstoque}`,
-        referencia_id: Number(op_id),
+        descricao: `OP ${op.numero_op} concluída em ${data_final}. +${qtdeAdicionada} ao estoque, ${insumos.length} insumo(s) baixados${avisoEstoque}`,
+        referencia_id: Number(op_id), referencia_label: op.numero_op,
       });
     } catch (err) {
       console.error("Erro ao concluir OP:", err);
@@ -1672,7 +1897,7 @@ app.post(
 app.get(
   "/controle_pedidos",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao"]),
+  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao", "ped"]),
   async (req, res) => {
     try {
       const { search, limit = 20 } = req.query;
@@ -1702,7 +1927,7 @@ app.get(
 app.get(
   "/saidas_estoque",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao"]),
+  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao", "ped"]),
   async (req, res) => {
     try {
       await criarTabelasSaida();
@@ -1727,7 +1952,7 @@ app.get(
 app.get(
   "/saidas_estoque/:id",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao"]),
+  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao", "ped"]),
   async (req, res) => {
     try {
       await criarTabelasSaida();
@@ -1747,7 +1972,7 @@ app.get(
 app.post(
   "/saidas_estoque",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica", "producao"]),
+  roleMiddleware(["admin", "pcp", "logistica", "producao", "ped"]),
   async (req, res) => {
     try {
       await criarTabelasSaida();
@@ -1941,7 +2166,7 @@ async function criarTabelaMovimentacoes() {
 app.get(
   "/movimentacoes",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao"]),
+  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao", "ped"]),
   async (req, res) => {
     try {
       await criarTabelaMovimentacoes();
@@ -1967,7 +2192,7 @@ app.get(
 app.get(
   "/estoque/detalhe/:id",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao"]),
+  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao", "ped"]),
   async (req, res) => {
     try {
       const [[mat]] = await db.promise().query(
@@ -1994,7 +2219,7 @@ app.get(
 app.get(
   "/estoque/extrato/:id",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao"]),
+  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao", "ped"]),
   async (req, res) => {
     try {
       await criarTabelaMovimentacoes();
@@ -2016,7 +2241,7 @@ app.get(
 app.get(
   "/estoque/lista",
   authMiddleware,
-  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao"]),
+  roleMiddleware(["admin", "pcp", "logistica", "vendas", "producao", "ped"]),
   async (req, res) => {
     try {
       const { search, tipo, grupo, page = 1, limit = 50 } = req.query;
@@ -2385,7 +2610,16 @@ app.post(
       const { nome, email, senha, perfil, ativo } = req.body;
       if (!nome || !email || !senha)
         return res.status(400).json({ success: false, message: "Nome, email e senha são obrigatórios" });
-      const senha_hash = await bcrypt.hash(senha, 10);
+      // Validação de complexidade de senha
+      if (senha.length < 8)
+        return res.status(400).json({ success: false, message: "A senha deve ter no mínimo 8 caracteres." });
+      if (!/[A-Z]/.test(senha))
+        return res.status(400).json({ success: false, message: "A senha deve conter pelo menos 1 letra maiúscula." });
+      if (!/[0-9]/.test(senha))
+        return res.status(400).json({ success: false, message: "A senha deve conter pelo menos 1 número." });
+      if (!/[^A-Za-z0-9]/.test(senha))
+        return res.status(400).json({ success: false, message: "A senha deve conter pelo menos 1 caractere especial (!@#$%...)." });
+      const senha_hash = await bcrypt.hash(senha, 12);
       const [result] = await db.promise().query(
         "INSERT INTO usuarios (nome, email, senha_hash, perfil, ativo) VALUES (?, ?, ?, ?, ?)",
         [nome, email, senha_hash, perfil || "pcp", ativo !== undefined ? ativo : 1]
@@ -2418,7 +2652,15 @@ app.put(
       if (perfil !== undefined) { sets.push("perfil = ?"); vals.push(perfil); }
       if (ativo !== undefined) { sets.push("ativo = ?"); vals.push(ativo); }
       if (senha) {
-        const hash = await bcrypt.hash(senha, 10);
+        if (senha.length < 8)
+          return res.status(400).json({ success: false, message: "A senha deve ter no mínimo 8 caracteres." });
+        if (!/[A-Z]/.test(senha))
+          return res.status(400).json({ success: false, message: "A senha deve conter pelo menos 1 letra maiúscula." });
+        if (!/[0-9]/.test(senha))
+          return res.status(400).json({ success: false, message: "A senha deve conter pelo menos 1 número." });
+        if (!/[^A-Za-z0-9]/.test(senha))
+          return res.status(400).json({ success: false, message: "A senha deve conter pelo menos 1 caractere especial (!@#$%...)." });
+        const hash = await bcrypt.hash(senha, 12);
         sets.push("senha_hash = ?"); vals.push(hash);
       }
       if (sets.length === 0)
@@ -2900,7 +3142,9 @@ app.post("/entrada-notas", authMiddleware, roleMiddleware(["admin","pcp","logist
     await garantirTabelasEntrada();
     const { chave_nfe, numero_nf, serie, natureza_op, data_emissao,
             emit_cnpj, emit_nome, emit_fantasia, emit_uf, emit_cidade,
-            dest_cnpj, dest_nome, valor_produtos, valor_total, itens } = req.body;
+            dest_cnpj, dest_nome, valor_produtos, valor_total, itens, vinculacoes } = req.body;
+
+    // vinculacoes = { "cProd": material_id, ... } — mapa de vinculações manuais feitas pelo usuário
 
     if (!itens || !itens.length)
       return res.status(400).json({ success: false, message: "Nenhum item na nota." });
@@ -2922,13 +3166,51 @@ app.post("/entrada-notas", authMiddleware, roleMiddleware(["admin","pcp","logist
       const vUnit = parseFloat(vUnCom) || 0;
       const vTot  = parseFloat(vProd) || 0;
 
-      // Busca material pelo codigo_produto (inclui dados de conversão)
-      const [matches] = await db.promise().query(
-        `SELECT id, codigo_produto, descricao, estoque, unidade_medida,
-                unidade_compra, fator_conversao
-         FROM materiais WHERE codigo_produto = ? LIMIT 1`,
-        [cProd]
-      );
+      // Busca material: primeiro por vinculação manual, depois pelo codigo_produto
+      let matches;
+      const vinculadoId = vinculacoes && vinculacoes[cProd] ? Number(vinculacoes[cProd]) : null;
+      if (vinculadoId) {
+        [matches] = await db.promise().query(
+          `SELECT id, codigo_produto, descricao, estoque, unidade_medida,
+                  unidade_compra, fator_conversao
+           FROM materiais WHERE id = ? LIMIT 1`,
+          [vinculadoId]
+        );
+      } else {
+        // 1) Tenta busca exata por codigo_produto (só o código original, sem variações)
+        [matches] = await db.promise().query(
+          `SELECT id, codigo_produto, descricao, estoque, unidade_medida,
+                  unidade_compra, fator_conversao
+           FROM materiais WHERE codigo_produto = ? AND situacao = 'ativo' LIMIT 1`,
+          [cProd]
+        );
+
+        // 2) Fallback: busca por descrição similar
+        if (!matches.length && xProd) {
+          const stopwords = new Set(["de","do","da","dos","das","em","com","para","por","sem","que","uma","uns","umas"]);
+          const palavras = (xProd || "")
+            .toUpperCase()
+            .replace(/[^A-Z0-9À-Ú\s]/g, "")
+            .split(/\s+/)
+            .filter(p => p.length >= 3 && !stopwords.has(p.toLowerCase()));
+
+          if (palavras.length) {
+            const likeConditions = palavras.map(() => `(UPPER(descricao) LIKE ?)`).join(" + ");
+            const params = palavras.map(p => `%${p}%`);
+            const sql = `
+              SELECT id, codigo_produto, descricao, estoque, unidade_medida,
+                     unidade_compra, fator_conversao,
+                     (${likeConditions}) AS relevancia
+              FROM materiais
+              WHERE situacao = 'ativo'
+                AND (${palavras.map(() => `UPPER(descricao) LIKE ?`).join(" OR ")})
+              ORDER BY relevancia DESC
+              LIMIT 1
+            `;
+            [matches] = await db.promise().query(sql, [...params, ...params]);
+          }
+        }
+      }
 
       let material_id = null;
       let status = "NAO_ENCONTRADO";
@@ -3048,6 +3330,146 @@ app.post("/entrada-notas", authMiddleware, roleMiddleware(["admin","pcp","logist
       id: entradaId,
       message: "Entrada processada!",
       processados,
+    });
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
+
+/* =======================
+   ENTRADA NOTAS — REPROCESSAR (itens NAO_ENCONTRADO)
+======================= */
+app.put("/entrada-notas/:id/reprocessar", authMiddleware, roleMiddleware(["admin","pcp","logistica"]), async (req, res) => {
+  try {
+    await garantirTabelasEntrada();
+    const entradaId = req.params.id;
+
+    // Busca a entrada
+    const [[entrada]] = await db.promise().query(`SELECT * FROM entradas_nf WHERE id = ?`, [entradaId]);
+    if (!entrada) return res.status(404).json({ success: false, message: "Entrada não encontrada." });
+
+    // Busca somente os itens que estão NAO_ENCONTRADO
+    const [itensNaoEncontrados] = await db.promise().query(
+      `SELECT * FROM entradas_nf_itens WHERE entrada_id = ? AND status = 'NAO_ENCONTRADO' ORDER BY n_item ASC`,
+      [entradaId]
+    );
+
+    if (!itensNaoEncontrados.length)
+      return res.json({ success: true, message: "Nenhum item pendente para reprocessar.", atualizados: 0 });
+
+    let atualizados = 0;
+    const resultados = [];
+
+    for (const item of itensNaoEncontrados) {
+      // 1) Tenta busca exata por codigo_produto
+      let [matches] = await db.promise().query(
+        `SELECT id, codigo_produto, descricao, estoque, unidade_medida,
+                unidade_compra, fator_conversao
+         FROM materiais WHERE codigo_produto = ? AND situacao = 'ativo' LIMIT 1`,
+        [item.codigo_produto]
+      );
+
+      // 2) Fallback: busca por descrição similar
+      if (!matches.length && item.descricao) {
+        const stopwords = new Set(["de","do","da","dos","das","em","com","para","por","sem","que","uma","uns","umas"]);
+        const palavras = (item.descricao || "")
+          .toUpperCase()
+          .replace(/[^A-Z0-9À-Ú\s]/g, "")
+          .split(/\s+/)
+          .filter(p => p.length >= 3 && !stopwords.has(p.toLowerCase()));
+
+        if (palavras.length) {
+          const likeConditions = palavras.map(() => `(UPPER(descricao) LIKE ?)`).join(" + ");
+          const params = palavras.map(p => `%${p}%`);
+          const sql = `
+            SELECT id, codigo_produto, descricao, estoque, unidade_medida,
+                   unidade_compra, fator_conversao,
+                   (${likeConditions}) AS relevancia
+            FROM materiais
+            WHERE situacao = 'ativo'
+              AND (${palavras.map(() => `UPPER(descricao) LIKE ?`).join(" OR ")})
+            ORDER BY relevancia DESC
+            LIMIT 1
+          `;
+          [matches] = await db.promise().query(sql, [...params, ...params]);
+        }
+      }
+
+      if (matches.length) {
+        const mat = matches[0];
+        const qtde = Number(item.quantidade) || 0;
+        const estoque_anterior = Number(mat.estoque || 0);
+
+        // Calcula conversão
+        const fator = Number(mat.fator_conversao) || 1;
+        const unCompra = (mat.unidade_compra || "").toLowerCase().trim();
+        const unNF = (item.unidade || "").toLowerCase().trim();
+        const unEstoque = (mat.unidade_medida || "").toLowerCase().trim();
+        let qtde_convertida = qtde;
+        let fator_aplicado = 1;
+
+        if (fator > 1 && unCompra && unNF && unNF !== unEstoque) {
+          fator_aplicado = fator;
+          qtde_convertida = qtde * fator;
+        } else if (fator > 1 && unCompra && unNF === unCompra) {
+          fator_aplicado = fator;
+          qtde_convertida = qtde * fator;
+        }
+
+        const estoque_novo = estoque_anterior + qtde_convertida;
+
+        // Atualiza estoque
+        await db.promise().query(`UPDATE materiais SET estoque = estoque + ? WHERE id = ?`, [qtde_convertida, mat.id]);
+
+        // Atualiza item da entrada
+        await db.promise().query(
+          `UPDATE entradas_nf_itens SET material_id = ?, status = 'ATUALIZADO', estoque_anterior = ?, estoque_novo = ? WHERE id = ?`,
+          [mat.id, estoque_anterior, estoque_novo, item.id]
+        );
+
+        // Registra movimentação
+        await criarTabelaMovimentacoes();
+        const obsConversao = fator_aplicado > 1
+          ? `NF: ${qtde} ${item.unidade || '?'} × ${fator_aplicado} = ${qtde_convertida} ${unEstoque}`
+          : null;
+        await db.promise().query(
+          `INSERT INTO movimentacoes_estoque
+             (material_id, codigo_produto, descricao, tipo, quantidade,
+              estoque_anterior, estoque_novo, referencia_tipo, referencia_label,
+              observacoes, usuario_id, usuario_nome)
+           VALUES (?, ?, ?, 'ENTRADA', ?, ?, ?, 'ENTRADA_NF', ?, ?, ?, ?)`,
+          [mat.id, item.codigo_produto, item.descricao, qtde_convertida,
+           estoque_anterior, estoque_novo,
+           `NF ${entrada.numero_nf || '?'} (reprocessado)`,
+           obsConversao,
+           req.user.id, req.user.nome]
+        );
+
+        atualizados++;
+        resultados.push({ codigo: item.codigo_produto, descricao: item.descricao, status: "ATUALIZADO" });
+      } else {
+        resultados.push({ codigo: item.codigo_produto, descricao: item.descricao, status: "NAO_ENCONTRADO" });
+      }
+    }
+
+    // Atualiza contador na entrada
+    if (atualizados > 0) {
+      await db.promise().query(
+        `UPDATE entradas_nf SET qtde_atualizado = qtde_atualizado + ? WHERE id = ?`,
+        [atualizados, entradaId]
+      );
+    }
+
+    await registrarLog({
+      usuario_id: req.user.id, usuario_nome: req.user.nome,
+      modulo: "ESTOQUE", acao: "Reprocessar Entrada NF",
+      descricao: `Reprocessamento da NF ${entrada.numero_nf || '?'}. ${atualizados}/${itensNaoEncontrados.length} itens atualizados.`,
+      referencia_id: entradaId, referencia_label: entrada.numero_nf || entrada.chave_nfe,
+    });
+
+    res.json({
+      success: true,
+      message: `${atualizados} de ${itensNaoEncontrados.length} itens reprocessados com sucesso.`,
+      atualizados,
+      resultados,
     });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
@@ -3222,9 +3644,165 @@ app.delete("/espelhos_nf/:id", authMiddleware, roleMiddleware(["admin","pcp","lo
   app.use('/ficha-tecnica', authMiddleware, fichaTecnicaRoutes);
   const prestadoresRoutes = require('./prestadores-routes');
   app.use('/prestadores',   authMiddleware, prestadoresRoutes);
-const PORTA_SERVER = 8080; 
-app.listen(PORTA_SERVER, "0.0.0.0", () => {
-  console.log(`🚀 Servidor Backend rodando!`);
-  console.log(`🏠 Local: http://localhost:${PORTA_SERVER}`);
-  console.log(`📡 Rede:  http://192.168.1.190:${PORTA_SERVER}`);
-});
+/* ══════════════════════════════════════════════════════════════
+   BACKUP AUTOMÁTICO — roda diariamente às 02:00 e ao iniciar
+   Mantém os últimos 7 backups, remove os mais antigos
+══════════════════════════════════════════════════════════════ */
+const BACKUP_DIR = path.join(__dirname, "backups");
+const BACKUP_KEEP = 7; // quantos backups manter
+
+async function executarBackupAutomatico() {
+  try {
+    // Cria pasta de backups se não existir
+    if (!fs.existsSync(BACKUP_DIR)) fs.mkdirSync(BACKUP_DIR, { recursive: true });
+
+    const hoje = new Date().toISOString().slice(0, 10).replace(/-/g, "_");
+    const hora = new Date().toTimeString().slice(0, 8).replace(/:/g, "");
+    const filename = `backup_pcp_${hoje}_${hora}.sql`;
+    const filepath = path.join(BACKUP_DIR, filename);
+
+    // Verifica se já existe backup de hoje
+    const arquivos = fs.readdirSync(BACKUP_DIR).filter(f => f.endsWith(".sql"));
+    const backupHoje = arquivos.find(f => f.includes(hoje));
+    if (backupHoje) {
+      console.log(`📋 Backup de hoje já existe: ${backupHoje}`);
+      return;
+    }
+
+    console.log(`💾 Iniciando backup automático: ${filename}...`);
+
+    // Pega todas as tabelas
+    const [tables] = await db.promise().query("SHOW TABLES");
+    const key = Object.keys(tables[0])[0];
+    const tableNames = tables.map(t => t[key]);
+
+    const parts = [];
+    parts.push(`-- Backup automático PCP — ${new Date().toLocaleString("pt-BR")}`);
+    parts.push(`-- Tabelas: ${tableNames.length}`);
+    parts.push(`SET FOREIGN_KEY_CHECKS = 0;\n`);
+
+    for (const table of tableNames) {
+      // DDL
+      const [ddlRows] = await db.promise().query(`SHOW CREATE TABLE \`${table}\``);
+      const ddl = ddlRows[0]["Create Table"];
+      parts.push(`DROP TABLE IF EXISTS \`${table}\`;`);
+      parts.push(ddl + ";\n");
+
+      // Dados
+      const [rows] = await db.promise().query(`SELECT * FROM \`${table}\``);
+      if (rows.length > 0) {
+        const cols = Object.keys(rows[0]);
+        const colList = cols.map(c => `\`${c}\``).join(", ");
+        // Insere em blocos de 100 linhas
+        for (let b = 0; b < rows.length; b += 100) {
+          const batch = rows.slice(b, b + 100);
+          const valsList = batch.map(row =>
+            `(${cols.map(c => escapeSQL(row[c])).join(", ")})`
+          ).join(",\n  ");
+          parts.push(`INSERT INTO \`${table}\` (${colList}) VALUES\n  ${valsList};\n`);
+        }
+      }
+    }
+
+    parts.push(`SET FOREIGN_KEY_CHECKS = 1;`);
+    parts.push(`-- Fim do backup automático`);
+
+    fs.writeFileSync(filepath, parts.join("\n"), "utf8");
+
+    const sizeKB = (fs.statSync(filepath).size / 1024).toFixed(1);
+    console.log(`✅ Backup automático salvo: ${filename} (${sizeKB} KB, ${tableNames.length} tabelas)`);
+
+    // Também cria cópia no MySQL (se possível)
+    try {
+      const backupDb = filename.replace(".sql", "");
+      await db.promise().query(`CREATE DATABASE IF NOT EXISTS \`${backupDb}\``);
+      for (const table of tableNames) {
+        await db.promise().query(`CREATE TABLE \`${backupDb}\`.\`${table}\` LIKE \`pcp\`.\`${table}\``);
+        await db.promise().query(`INSERT INTO \`${backupDb}\`.\`${table}\` SELECT * FROM \`pcp\`.\`${table}\``);
+      }
+      console.log(`✅ Cópia no MySQL: ${backupDb}`);
+    } catch (e) {
+      console.warn(`⚠️  Cópia MySQL falhou (sem privilégios?): ${e.message}`);
+    }
+
+    // Limpeza: remove backups antigos (mantém os últimos BACKUP_KEEP)
+    const todosBackups = fs.readdirSync(BACKUP_DIR)
+      .filter(f => f.startsWith("backup_pcp_") && f.endsWith(".sql"))
+      .sort()
+      .reverse();
+
+    if (todosBackups.length > BACKUP_KEEP) {
+      const remover = todosBackups.slice(BACKUP_KEEP);
+      for (const old of remover) {
+        fs.unlinkSync(path.join(BACKUP_DIR, old));
+        console.log(`🗑️  Backup antigo removido: ${old}`);
+        // Remove também do MySQL
+        try {
+          await db.promise().query(`DROP DATABASE IF EXISTS \`${old.replace(".sql", "")}\``);
+        } catch { /* ignora */ }
+      }
+    }
+
+    // Registra no log
+    await registrarLog({
+      usuario_id: null, usuario_nome: "Sistema (automático)",
+      modulo: "SISTEMA", acao: "Backup Automático",
+      descricao: `Backup automático: ${filename} (${sizeKB} KB, ${tableNames.length} tabelas)`,
+    });
+
+  } catch (err) {
+    console.error("❌ Erro no backup automático:", err.message);
+  }
+}
+
+// Agenda backup diário às 02:00
+function agendarBackupDiario() {
+  const agora = new Date();
+  const proxima = new Date(agora);
+  proxima.setHours(2, 0, 0, 0);
+  if (proxima <= agora) proxima.setDate(proxima.getDate() + 1);
+
+  const msAteProximo = proxima - agora;
+  const horasAte = (msAteProximo / 3600000).toFixed(1);
+  console.log(`⏰ Próximo backup automático em ${horasAte}h (${proxima.toLocaleString("pt-BR")})`);
+
+  setTimeout(() => {
+    executarBackupAutomatico();
+    // Depois do primeiro, repete a cada 24h
+    setInterval(executarBackupAutomatico, 24 * 60 * 60 * 1000);
+  }, msAteProximo);
+}
+
+// Executa backup ao iniciar (se não existe backup de hoje) e agenda o diário
+setTimeout(() => {
+  executarBackupAutomatico();
+  agendarBackupDiario();
+}, 5000); // espera 5s para o DB estar pronto
+
+const PORTA_SERVER = Number(process.env.SERVER_PORT) || 8080;
+
+// ── HTTPS automático se certificados existirem ──────
+const sslKey  = process.env.SSL_KEY;
+const sslCert = process.env.SSL_CERT;
+
+if (sslKey && sslCert && fs.existsSync(sslKey) && fs.existsSync(sslCert)) {
+  const https = require("https");
+  const httpsOptions = {
+    key:  fs.readFileSync(sslKey),
+    cert: fs.readFileSync(sslCert),
+  };
+  https.createServer(httpsOptions, app).listen(PORTA_SERVER, "0.0.0.0", () => {
+    console.log(`🔒 Servidor HTTPS rodando!`);
+    console.log(`🏠 Local: https://localhost:${PORTA_SERVER}`);
+    console.log(`📡 Rede:  https://192.168.1.190:${PORTA_SERVER}`);
+  });
+} else {
+  app.listen(PORTA_SERVER, "0.0.0.0", () => {
+    console.log(`🚀 Servidor HTTP rodando!`);
+    console.log(`🏠 Local: http://localhost:${PORTA_SERVER}`);
+    console.log(`📡 Rede:  http://192.168.1.190:${PORTA_SERVER}`);
+    if (!sslKey || !sslCert) {
+      console.log(`⚠️  HTTPS desativado — configure SSL_KEY e SSL_CERT no .env para ativar`);
+    }
+  });
+}

@@ -1,4 +1,21 @@
-import { apiRequest, showToast } from "./auth.js";
+import { apiRequest, showToast, getUser } from "./auth.js";
+
+// ── Dados dinâmicos do setor por perfil ─────────────────
+const _user = getUser();
+const PERFIL_SETOR = {
+  admin:    { setor: "Administração", centro: "ADM - Lucabe" },
+  pcp:      { setor: "PCP",           centro: "PCP - Lucabe" },
+  producao: { setor: "Produção",      centro: "Produção - Lucabe" },
+  ped:      { setor: "P&D",           centro: "P&D - Lucabe" },
+  logistica:{ setor: "Logística",     centro: "Logística - Lucabe" },
+};
+if (_user) {
+  const cfg = PERFIL_SETOR[_user.perfil] || PERFIL_SETOR.pcp;
+  const setorEl = document.getElementById("setorGerarOP");
+  const centroEl = document.getElementById("centroGerarOP");
+  if (setorEl) setorEl.textContent = cfg.setor;
+  if (centroEl) centroEl.textContent = cfg.centro;
+}
 
 const materialSearch  = document.getElementById("materialSearch");
 const suggestions     = document.getElementById("materialSuggestions");
@@ -117,7 +134,9 @@ async function selectMaterial(m) {
   if (matCustoEl) {
     let custoInsumos = 0;
     fichaTecnica.forEach(it => {
-      custoInsumos += Number(it.custo_unit || 0) * Number(it.quantidade_por_unidade || 0);
+      const perda = Number(it.percentual_perda || 0);
+      const fatorPerda = 1 + (perda / 100);
+      custoInsumos += Number(it.custo_unit || 0) * Number(it.quantidade_por_unidade || 0) * fatorPerda;
     });
     matCustoEl.innerText = custoInsumos > 0 ? custoInsumos.toFixed(2) : "—";
   }
@@ -205,9 +224,13 @@ function renderInsumosPreview() {
   const tbody = document.createElement("tbody");
 
   fichaTecnica.forEach(it => {
-    const total = (it.quantidade_por_unidade * qtde).toFixed(4).replace(/\.?0+$/, "");
+    const perda = Number(it.percentual_perda || 0);
+    const fatorPerda = 1 + (perda / 100);
+    const totalBase = it.quantidade_por_unidade * qtde;
+    const totalComPerda = totalBase * fatorPerda;
+    const total = totalComPerda.toFixed(4).replace(/\.?0+$/, "");
     const estoque = Number(it.estoque_disponivel ?? it.insumo_estoque_atual ?? 0);
-    const totalNum = Number(it.quantidade_por_unidade * qtde);
+    const totalNum = totalComPerda;
     const suficiente = estoque >= totalNum;
 
     const tr = document.createElement("tr");
@@ -230,7 +253,10 @@ function renderInsumosPreview() {
     tdQtde.style.fontSize = "12px";
     tdQtde.style.color = "#93c5fd";
     tdQtde.style.textAlign = "center";
-    tdQtde.textContent = `${total} ${it.unidade_medida || ""}`;
+    tdQtde.innerHTML = `${total} ${it.unidade_medida || ""}`;
+    if (perda > 0) {
+      tdQtde.innerHTML += `<br><span style="font-size:9px;color:#f59e0b;">(+${perda}% perda)</span>`;
+    }
 
     const tdDisponivel = document.createElement("td");
     tdDisponivel.style.padding = "7px 10px";

@@ -12,8 +12,13 @@ export function getToken() {
   return localStorage.getItem("token");
 }
 
+export function getCSRFToken() {
+  return localStorage.getItem("csrfToken");
+}
+
 export async function apiRequest(path, options = {}) {
   const token = getToken();
+  const csrfToken = getCSRFToken();
 
   if (!token) {
     window.location.href = "login.html";
@@ -27,6 +32,7 @@ export async function apiRequest(path, options = {}) {
       headers: {
         "Content-Type": "application/json",
         Authorization: "Bearer " + token,
+        "X-CSRF-Token": csrfToken || "",
         ...(options.headers || {}),
       },
     });
@@ -35,6 +41,13 @@ export async function apiRequest(path, options = {}) {
   }
 
   if (res.status === 401 || res.status === 403) {
+    // Se for CSRF inválido, tenta renovar o token automaticamente
+    const body = await res.json().catch(() => ({}));
+    if (body.message && body.message.includes("CSRF")) {
+      await renovarCSRFToken();
+      // Retenta a requisição com o novo token
+      return apiRequest(path, options);
+    }
     showToast("Sessão expirada. Faça login novamente.", "error");
     localStorage.clear();
     setTimeout(() => (window.location.href = "login.html"), 1500);
@@ -49,10 +62,53 @@ export async function apiRequest(path, options = {}) {
   return res.json();
 }
 
+// Renova o token CSRF automaticamente
+async function renovarCSRFToken() {
+  try {
+    const res = await fetch(`${API_URL}/csrf-token`);
+    const data = await res.json();
+    if (data.csrfToken) localStorage.setItem("csrfToken", data.csrfToken);
+  } catch { /* silencia */ }
+}
+
 export function logout() {
   localStorage.removeItem("token");
   localStorage.removeItem("user");
+  localStorage.removeItem("csrfToken");
   window.location.href = "login.html";
+}
+
+// ── Header dinâmico por perfil ──────────────────────────
+// Troca o texto "PCP" no logo e o subtítulo conforme o perfil do usuário
+const PERFIL_HEADER = {
+  producao: { logo: "PROD", titulo: "Produção" },
+  ped:      { logo: "P&D",  titulo: "P&D" },
+};
+
+export function aplicarHeaderPerfil() {
+  const user = getUser();
+  if (!user) return;
+  const config = PERFIL_HEADER[user.perfil];
+  if (!config) return; // admin, pcp, logistica, vendas mantêm "PCP"
+
+  // Atualiza logo (class="logo" ou class="logo-badge")
+  const logos = document.querySelectorAll(".logo, .logo-badge");
+  logos.forEach(el => { el.textContent = config.logo; });
+
+  // Atualiza título do header se existir
+  const headerTexts = document.querySelectorAll(".header-text, .header-title");
+  headerTexts.forEach(el => {
+    el.textContent = el.textContent.replace(/PCP/g, config.titulo);
+  });
+}
+
+// Auto-aplica ao carregar em qualquer página que importe auth.js
+if (typeof document !== "undefined") {
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", aplicarHeaderPerfil);
+  } else {
+    aplicarHeaderPerfil();
+  }
 }
 
 // ─── Toast global (injetado dinamicamente) ───────────────────────────────────

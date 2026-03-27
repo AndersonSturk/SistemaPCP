@@ -91,19 +91,38 @@ function atualizarStepper(status) {
 //   Aberta      → Iniciar habilitado  | Finalizar desabilitado
 //   EmProducao  → Iniciar desabilitado | Finalizar habilitado
 //   Concluida   → Ambos desabilitados
+// IDs dos campos que são SEMPRE somente leitura (dados da OP)
+const CAMPOS_READONLY = ["numero_op", "material_id", "unidade_medida", "status", "data_criacao", "custo_unitario", "custo_total"];
+// IDs dos campos editáveis
+const CAMPOS_EDITAVEIS = ["observacoes", "quantidade"];
+
 function atualizarBotoesProducao(status) {
   if (!btnIniciar || !btnFinalizar) return;
 
-  // Reabilita formulário (caso tenha sido bloqueado por OP concluída anterior)
+  // Garante que campos readonly ficam SEMPRE disabled
+  CAMPOS_READONLY.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.disabled = true; el.readOnly = true; }
+  });
+
   const form = document.getElementById("formGerenciarOP");
-  if (form && status !== "CONCLUIDA" && status !== "CANCELADA") {
-    form.querySelectorAll("input, select, textarea").forEach(el => el.disabled = false);
-    const btnSalvar = form.querySelector("button[type=submit]");
+
+  if (status !== "CONCLUIDA" && status !== "CANCELADA") {
+    // Habilita APENAS os campos editáveis
+    CAMPOS_EDITAVEIS.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) { el.disabled = false; el.readOnly = false; }
+    });
+    // Habilita controles de insumos/prestadores/perdas
+    form?.querySelectorAll("#secaoPrestadores input, #secaoPrestadores select, #secaoPerdas input, #secaoPerdas textarea").forEach(el => el.disabled = false);
+    const btnSalvar = form?.querySelector("button[type=submit]");
     if (btnSalvar) btnSalvar.style.display = "";
     const btnAddPrest = document.getElementById("btnAddPrestador");
     const btnNovoPrest = document.getElementById("btnNovoPrestador");
+    const btnSalvarPerdas = document.getElementById("btnSalvarPerdas");
     if (btnAddPrest) btnAddPrest.style.display = "";
     if (btnNovoPrest) btnNovoPrest.style.display = "";
+    if (btnSalvarPerdas) btnSalvarPerdas.style.display = "";
   }
 
   if (status === "ABERTA") {
@@ -119,18 +138,18 @@ function atualizarBotoesProducao(status) {
   else if (status === "CONCLUIDA" || status === "CANCELADA") {
     btnIniciar.style.display = "none";
     btnFinalizar.style.display = "none";
-    // Bloqueia edição da OP concluída/cancelada
-    const form = document.getElementById("formGerenciarOP");
+    // Bloqueia TODOS os campos (incluindo editáveis)
     if (form) {
-      form.querySelectorAll("input, select, textarea").forEach(el => el.disabled = true);
+      form.querySelectorAll("input, select, textarea").forEach(el => { el.disabled = true; el.readOnly = true; });
       const btnSalvar = form.querySelector("button[type=submit]");
       if (btnSalvar) btnSalvar.style.display = "none";
     }
-    // Esconde formulário de prestadores e perdas
     const btnAddPrest = document.getElementById("btnAddPrestador");
     const btnNovoPrest = document.getElementById("btnNovoPrestador");
+    const btnSalvarPerdas = document.getElementById("btnSalvarPerdas");
     if (btnAddPrest) btnAddPrest.style.display = "none";
     if (btnNovoPrest) btnNovoPrest.style.display = "none";
+    if (btnSalvarPerdas) btnSalvarPerdas.style.display = "none";
   }
 
   if (tipFinalizar) {
@@ -158,6 +177,7 @@ async function carregarOPs(search = "") {
         ? `${op.codigo_produto} — ${op.descricao_material || op.descricao || ""}`
         : op.material_id;
 
+      const podeExcluir = ["admin", "pcp"].includes(user.perfil);
       tr.innerHTML = `
         <td style="font-weight:600">${op.numero_op}</td>
         <td>${materialLabel}</td>
@@ -166,12 +186,12 @@ async function carregarOPs(search = "") {
         <td>
           <button class="btn btn-editar">Gerenciar</button>
           <button class="btn btn-default">Visualizar</button>
-          <button class="btn-excluir-op">🗑️</button>
+          ${podeExcluir ? `<button class="btn-excluir-op">🗑️</button>` : ""}
         </td>
       `;
       tr.querySelector(".btn-editar").addEventListener("click", () => abrirModalOP(op.id));
       tr.querySelector(".btn-default").addEventListener("click", () => visualizarOP(op.id));
-      tr.querySelector(".btn-excluir-op").addEventListener("click", () => abrirConfirmExcluir(op));
+      if (podeExcluir) tr.querySelector(".btn-excluir-op").addEventListener("click", () => abrirConfirmExcluir(op));
       tabelaOPs.appendChild(tr);
     });
   } catch (err) {
@@ -208,16 +228,19 @@ async function abrirModalOP(id) {
       if (el) el.value = val ?? "";
     };
 
-    setVal("material_id",     op.codigo_produto    || op.material_id || "");
-    setVal("quantidade",      op.quantidade        || op.qtde_total  || "");
-    setVal("unidade_medida",  op.unidade_medida    || "");
-    setVal("observacoes",     op.observacoes       || "");
+    // Campos somente leitura
     setVal("numero_op",       op.numero_op         || "");
+    setVal("material_id",     op.codigo_produto ? `${op.codigo_produto} — ${op.descricao_material || ""}` : (op.material_id || ""));
+    setVal("quantidade",      op.quantidade || op.qtde_total || 0);
+    setVal("unidade_medida",  op.unidade_medida    || "");
     setVal("status",          op.status            || "");
-    setVal("custo_unitario",  Number(op.custo_unitario || 0).toFixed(2));
-    setVal("custo_total",     Number(op.custo_total    || 0).toFixed(2));
+    setVal("custo_unitario",  `R$ ${Number(op.custo_unitario || 0).toFixed(2)}`);
+    setVal("custo_total",     `R$ ${Number(op.custo_total    || 0).toFixed(2)}`);
     setVal("data_criacao",    op.data_criacao
       ? new Date(op.data_criacao).toLocaleString("pt-BR") : "");
+
+    // Campos editáveis
+    setVal("observacoes",     op.observacoes       || "");
 
     // Subtítulo do cabeçalho
     const labelNumeroOP = document.getElementById("label_numero_op");
@@ -263,10 +286,8 @@ formGerenciarOP.addEventListener("submit", async (e) => {
     await apiRequest(`/ordens_producao/${opAtualId}`, {
       method: "PUT",
       body: JSON.stringify({
-        material_id:     document.getElementById("material_id").value,
-        quantidade:      document.getElementById("quantidade").value,
-        unidade_medida:  document.getElementById("unidade_medida").value,
-        observacoes:     document.getElementById("observacoes").value,
+        observacoes:     document.getElementById("observacoes")?.value?.trim() || null,
+        quantidade:      Number(document.getElementById("quantidade")?.value) || undefined,
       }),
     });
     hideLoading();

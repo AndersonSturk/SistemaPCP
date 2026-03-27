@@ -248,6 +248,98 @@
   .modal-cols {
     grid-template-columns: 1fr;
   }
+
+  .modal-gerenciar {
+    max-width: 100%;
+    border-radius: 12px;
+  }
+
+  .modal-overlay {
+    padding: 12px;
+  }
+
+  .modal-header {
+    padding: 16px 18px;
+  }
+
+  .modal-body {
+    padding: 16px 18px;
+  }
+
+  .modal-footer {
+    padding: 14px 18px;
+    flex-direction: column;
+  }
+
+  .modal-footer .btn-action {
+    width: 100%;
+    text-align: center;
+  }
+
+  .status-stepper {
+    padding: 12px 14px;
+    gap: 4px;
+  }
+
+  .step-circle {
+    width: 28px;
+    height: 28px;
+    font-size: 12px;
+  }
+
+  .step-label {
+    font-size: 9px;
+  }
+}
+
+@media (max-width: 480px) {
+  .modal-overlay {
+    padding: 6px;
+  }
+
+  .modal-gerenciar {
+    border-radius: 10px;
+    max-height: 98vh;
+  }
+
+  .modal-header {
+    padding: 12px 14px;
+  }
+
+  .modal-header-left h3 {
+    font-size: 15px;
+  }
+
+  .modal-body {
+    padding: 12px 14px;
+    gap: 14px;
+  }
+
+  .modal-section {
+    padding: 12px;
+    border-radius: 10px;
+  }
+
+  .status-stepper {
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+  }
+
+  .step {
+    flex: 0 0 auto;
+    min-width: 60px;
+  }
+
+  .confirm-box {
+    min-width: unset;
+    width: 90%;
+    padding: 20px;
+  }
+
+  #insumosTabelaWrap {
+    overflow-x: auto;
+  }
 }
 
 /* ===== MINI MODAIS ===== */

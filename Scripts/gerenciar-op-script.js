@@ -1,15 +1,33 @@
-
 import { apiRequest, getUser, showToast } from "./auth.js";
-
 
 const user = getUser();
 if (!user) window.location.href = "login.html";
 
-if (!["admin", "pcp", "logistica"].includes(user.perfil)) {
+if (!["admin", "pcp", "logistica", "producao", "ped"].includes(user.perfil)) {
   showToast("Você não tem permissão para acessar esta página.", "error");
   setTimeout(() => (window.location.href = "index.html"), 1500);
 }
 
+// ── Configuração do setor por perfil ────────────────────
+const PERFIL_CONFIG = {
+  admin:    { setor: "Administração",  tipo: "Produção Interna",               centro: "ADM - Lucabe",        projeto: "Gestão de Produção" },
+  pcp:      { setor: "PCP",            tipo: "Produção Interna",               centro: "PCP - Lucabe",        projeto: "Planejamento e Controle da Produção" },
+  producao: { setor: "Produção",       tipo: "Produção Interna",               centro: "Produção - Lucabe",   projeto: "Montagem e Produção" },
+  ped:      { setor: "P&D",            tipo: "Pesquisa e Desenvolvimento",     centro: "P&D - Lucabe",        projeto: "Desenvolvimento de Produtos" },
+  logistica:{ setor: "Logística",      tipo: "Produção Interna",               centro: "Logística - Lucabe",  projeto: "Controle de Estoque e Expedição" },
+};
+
+function aplicarDadosSetor() {
+  const cfg = PERFIL_CONFIG[user.perfil] || PERFIL_CONFIG.pcp;
+  const setText = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  setText("setorLabel", cfg.setor);
+  setText("tipoLabel", cfg.tipo);
+  setText("centroCustoLabel", cfg.centro);
+  setText("centroCustoTxt", cfg.centro);
+  setText("projetoTxt", cfg.projeto);
+}
+
+// ── Helpers ──────────────────────────────────────────────
 function setText(id, text) {
   const el = document.getElementById(id);
   if (!el) return;
@@ -50,20 +68,17 @@ function renderLogs(logs) {
   logs.forEach(l => {
     const item = document.createElement("div");
     item.className = "log-item";
-
     const date = document.createElement("b");
     date.textContent = formatDateTime(l.data, "—");
     item.appendChild(date);
-
     const pre = document.createElement("pre");
     pre.textContent = typeof l.depois === "string" ? l.depois : JSON.stringify(l.depois, null, 2);
     item.appendChild(pre);
-
     container.appendChild(item);
   });
 }
 
-// ─── Parâmetros da URL ─────────────────────────────────────────
+// ── Parâmetros da URL ────────────────────────────────────
 const urlParams = new URLSearchParams(window.location.search);
 const opId = urlParams.get("id");
 
@@ -72,7 +87,7 @@ if (!opId) {
   setTimeout(() => (window.location.href = "processos.html"), 1500);
 }
 
-// ─── Carregar dados da OP ──────────────────────────────────────
+// ── Carregar dados da OP ─────────────────────────────────
 async function carregarOP() {
   try {
     const res = await apiRequest(`/op/${opId}`);
@@ -83,7 +98,10 @@ async function carregarOP() {
       return;
     }
 
-    // Informações principais
+    // Aplica dados do setor
+    aplicarDadosSetor();
+
+    // Dados da OP (somente leitura)
     setText("opId", op.numero_op || op.id);
     setText("dataCriacao", formatDateTime(op.data_criacao));
     setText("statusTxt", op.status || "—");
@@ -92,54 +110,46 @@ async function carregarOP() {
     setText("codigoItem", op.codigo_produto || "—");
     setText("descricao", op.descricao_material || "—");
 
-    // Quantidade principal (usa qtde_total ou quantidade)
     const quantidade = op.qtde_total || op.quantidade || 0;
+    setText("quantidade", quantidade.toLocaleString("pt-BR"));
+    setText("unidadeTxt", op.unidade_medida || "un");
+    setText("custoUnitario", Number(op.custo_unitario || 0).toFixed(2));
+    setText("custoTotal", Number(op.custo_total || 0).toFixed(2));
 
-    document.getElementById("quantidade").innerText =
-      `${quantidade} ${op.unidade_medida || ""}`;
-
-    document.getElementById("custoUnitario").innerText =
-      Number(op.custo_unitario || 0).toFixed(2);
-
-    document.getElementById("custoTotal").innerText =
-      Number(op.custo_total || 0).toFixed(2);
-
-    // ─── Campos editáveis ──────────────────────────────────────
+    // Campos editáveis
     document.getElementById("status").value = op.status || "ABERTA";
     document.getElementById("responsavel").value = op.responsavel || "";
-    document.getElementById("unidadeMedida").value =
-      op.unidade_medida || "";
+    const obsEl = document.getElementById("observacoes");
+    if (obsEl) obsEl.value = op.observacoes || "";
 
     if (op.data_finalizacao) {
-      document.getElementById("dataFinalizacao").value =
-        op.data_finalizacao.split("T")[0];
+      document.getElementById("dataFinalizacao").value = op.data_finalizacao.split("T")[0];
     }
 
-    // ─── Tabela de itens ───────────────────────────────────────
+    // ── Bloqueia edição se OP concluída ou cancelada ──
+    const bloqueada = ["CONCLUIDA", "CANCELADA"].includes((op.status || "").toUpperCase());
+    if (bloqueada) {
+      document.getElementById("status").disabled = true;
+      document.getElementById("responsavel").disabled = true;
+      document.getElementById("dataFinalizacao").disabled = true;
+      if (obsEl) obsEl.disabled = true;
+      const acoesEl = document.getElementById("acoesEditar");
+      if (acoesEl) {
+        acoesEl.innerHTML = `<button disabled style="opacity:0.5;cursor:not-allowed">OP ${op.status === "CONCLUIDA" ? "Concluída" : "Cancelada"} (somente leitura)</button>`;
+      }
+    }
+
+    // Tabela de itens
     const itensTabela = document.getElementById("itensTabela");
     itensTabela.innerHTML = "";
-    const row = document.createElement("tr");
-
-    const cols = [
+    const row = createTableRow([
       op.codigo_produto || "—",
       op.descricao_material || "—",
       `${quantidade} ${op.unidade_medida || ""}`,
       `R$ ${Number(op.custo_unitario || 0).toFixed(2)}`,
       `R$ ${Number(op.custo_total || 0).toFixed(2)}`,
-    ];
-
-    cols.forEach(text => {
-      const td = document.createElement("td");
-      td.textContent = text;
-      row.appendChild(td);
-    });
-
+    ]);
     itensTabela.appendChild(row);
-
-    // Se o backend retornar pedidos vinculados
-    if (op.pedidos && op.pedidos.length > 0) {
-      console.log("Pedidos vinculados:", op.pedidos);
-    }
 
     carregarLogs();
   } catch (err) {
@@ -148,35 +158,28 @@ async function carregarOP() {
   }
 }
 
-// ─── Logs ─────────────────────────────────────────────────────
+// ── Logs ─────────────────────────────────────────────────
 async function carregarLogs() {
   try {
     const res = await apiRequest(`/ordens_producao/${opId}/logs`);
-    const logs = res.data || [];
-    renderLogs(logs);
+    renderLogs(res.data || []);
   } catch (err) {
     console.warn("Logs indisponíveis:", err.message);
     const container = document.getElementById("listaLogs");
     if (!container) return;
-    container.innerHTML = "";
-    const msg = document.createElement("p");
-    msg.style.color = "#888";
-    msg.style.fontSize = "13px";
-    msg.textContent = "Logs indisponíveis.";
-    container.appendChild(msg);
+    container.innerHTML = `<p style="color:#888;font-size:13px">Logs indisponíveis.</p>`;
   }
 }
 
-// ─── Salvar edição ────────────────────────────────────────────
-async function salvarEdicao() {
+// ── Salvar edição ────────────────────────────────────────
+window.salvarEdicao = async function() {
   const status = document.getElementById("status").value;
   const responsavel = document.getElementById("responsavel").value.trim();
   const dataFinalizacao = document.getElementById("dataFinalizacao").value;
-  const unidadeMedida = document
-    .getElementById("unidadeMedida")
-    .value.trim();
+  const observacoes = document.getElementById("observacoes")?.value?.trim() || "";
 
-  const btnSalvar = document.querySelector(".actions button");
+  const btnSalvar = document.querySelector("#acoesEditar button");
+  if (!btnSalvar) return;
   btnSalvar.disabled = true;
   btnSalvar.textContent = "Salvando...";
 
@@ -187,7 +190,7 @@ async function salvarEdicao() {
         status,
         responsavel,
         data_finalizacao: dataFinalizacao || null,
-        unidade_medida: unidadeMedida,
+        observacoes,
       }),
     });
 
@@ -200,9 +203,7 @@ async function salvarEdicao() {
     btnSalvar.disabled = false;
     btnSalvar.textContent = "Salvar alterações";
   }
-}
+};
 
-window.salvarEdicao = salvarEdicao;
-
+// ── Init ──────────────────────────────────────────────────
 carregarOP();
-

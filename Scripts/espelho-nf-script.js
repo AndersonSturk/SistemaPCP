@@ -19,7 +19,7 @@ if (espelhoId) {
 
 // ── Mapeamento Natureza → CFOP ───────────────────────
 const NATUREZA_CFOP = {
-  "REMESSA PARA INDUSTRIALIZAÇÃO":                     "901",
+  "REMESSA PARA INDUSTRIALIZAÇÃO":                      "901",
   "REMESSA SIMBOLICA DE INDUSTRIALIZACAO":              "949",
   "DEVOLUCAO FORNECEDOR":                               "202",
   "COMPRA NAO CONTRIBUINTE":                            "102",
@@ -37,6 +37,7 @@ const NATUREZA_CFOP = {
   "COMPLEMENTO DE ICMS (CLIENTE)":                      "102",
   "EXPOSICAO EM FEIRAS":                                "914",
   "RETORNO EXPOSICAO EM FEIRA":                         "914",
+  "REMESSA DE AMOSTRA C":                               "911",
 };
 
 // ── CFOP automático ao trocar natureza ───────────────
@@ -348,28 +349,109 @@ async function carregarEspelho(id) {
 
 // ── Gerar PDF ─────────────────────────────────────────
 function gerarPDF() {
+  // Atualiza footer
   const footerData = document.getElementById("footerData");
   if (footerData) footerData.textContent = "Gerado em: " + new Date().toLocaleString("pt-BR");
 
+  // Formata data para exibição
   const dataInput = document.getElementById("data_doc").value;
   const dataFmt   = dataInput ? new Date(dataInput + "T12:00:00").toLocaleDateString("pt-BR") : "";
   const refNF     = document.getElementById("ref_nf").value.trim();
-  const tituloOriginal = document.title;
-  document.title = `Espelho_NF${refNF ? "_" + refNF : ""}${dataFmt ? "_" + dataFmt.replace(/\//g, "-") : ""}`;
 
-  const inpData  = document.getElementById("data_doc");
-  const spanData = document.createElement("span");
-  spanData.textContent = dataFmt;
-  spanData.className   = "campo-doc";
-  inpData.parentNode.replaceChild(spanData, inpData);
+  // Clona o documento para manipular sem afetar a tela
+  const docOriginal = document.getElementById("documentoNF");
+  const clone = docOriginal.cloneNode(true);
 
-  setTimeout(() => {
-    window.print();
-    setTimeout(() => {
-      spanData.parentNode.replaceChild(inpData, spanData);
-      document.title = tituloOriginal;
-    }, 600);
-  }, 80);
+  // No clone: substitui inputs/selects/textareas por texto estático
+  clone.querySelectorAll("input, select, textarea").forEach(el => {
+    const span = document.createElement("span");
+    span.style.cssText = el.style.cssText;
+    span.style.display = "inline-block";
+    span.style.width = "100%";
+    span.style.fontSize = getComputedStyle(el).fontSize;
+    span.style.fontFamily = "inherit";
+    span.style.textAlign = getComputedStyle(el).textAlign;
+    span.style.padding = "1px 2px";
+
+    if (el.tagName === "SELECT") {
+      span.textContent = el.options[el.selectedIndex]?.text || el.value;
+    } else if (el.type === "date") {
+      span.textContent = dataFmt;
+    } else {
+      span.textContent = el.value;
+    }
+    el.parentNode.replaceChild(span, el);
+  });
+
+  // Remove botões de deletar e linhas vazias
+  clone.querySelectorAll(".col-acao, .btn-del-row, .no-print").forEach(el => el.remove());
+  clone.querySelectorAll(".linha-material").forEach(tr => {
+    if (!tr.classList.contains("tem-dados")) tr.remove();
+  });
+
+  // Pega o CSS do documento
+  const cssLink = document.querySelector('link[href*="espelho-nf.css"]');
+  let cssText = "";
+  try {
+    for (const sheet of document.styleSheets) {
+      if (sheet.href && sheet.href.includes("espelho-nf")) {
+        for (const rule of sheet.cssRules) {
+          // Pula regras de @media print e responsive
+          if (rule.type === CSSRule.MEDIA_RULE) continue;
+          cssText += rule.cssText + "\n";
+        }
+      }
+    }
+  } catch { /* cross-origin */ }
+
+  // Abre janela de impressão
+  const titulo = `Espelho_NF${refNF ? "_" + refNF : ""}${dataFmt ? "_" + dataFmt.replace(/\//g, "-") : ""}`;
+  const janela = window.open("", "_blank", "width=1100,height=800");
+  janela.document.write(`<!DOCTYPE html>
+<html><head><title>${titulo}</title>
+<style>
+  @page { size: A4 portrait; margin: 8mm 10mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: white; color: #111827;
+    padding: 0; margin: 0;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  ${cssText}
+  /* Override para impressão */
+  .documento {
+    max-width: 100% !important;
+    border: 1.5px solid #374151;
+    padding: 0;
+    box-shadow: none;
+    font-size: 11px;
+  }
+  .doc-topo { padding: 6px 10px; }
+  .doc-topo img { height: 40px; width: auto; }
+  .campo-grupo { padding: 3px 5px; }
+  .campo-grupo label { font-size: 7.5px; }
+  .tabela-material { min-width: unset; }
+  .tabela-material th { font-size: 7.5px; padding: 3px 2px; }
+  .tabela-material td { font-size: 9px; padding: 2px 2px; }
+  .total-label { font-size: 7px; padding: 2px; }
+  .total-valor, .campo-total { font-size: 9px; }
+  .secao-titulo { font-size: 9px; padding: 3px; }
+  .doc-footer { margin-top: 6px; }
+  .footer-content { font-size: 7px; }
+  .col-acao { display: none; }
+  span { font-size: inherit; color: inherit; }
+</style>
+</head><body>
+${clone.outerHTML}
+<script>
+  window.onload = function() {
+    setTimeout(function() { window.print(); window.close(); }, 300);
+  };
+<\/script>
+</body></html>`);
+  janela.document.close();
 }
 
 // ── Limpar formulário ─────────────────────────────────

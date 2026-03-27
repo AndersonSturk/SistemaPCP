@@ -33,6 +33,7 @@ form.addEventListener("submit", async (e) => {
 
     localStorage.setItem("token", data.token);
     localStorage.setItem("user", JSON.stringify(data.user));
+    if (data.csrfToken) localStorage.setItem("csrfToken", data.csrfToken);
 
     window.location.href = "index.html";
   } catch (err) {

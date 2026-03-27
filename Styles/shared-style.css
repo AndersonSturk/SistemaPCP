@@ -380,11 +380,111 @@ tfoot td {
 .toast-warning { background: rgba(245,158,11,.15); color: #fbbf24; border-color: rgba(245,158,11,.3); }
 @keyframes slideIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
 
-/* ══════ RESPONSIVO ══════ */
-@media (max-width: 640px) {
-  body { padding: 14px; }
-  .header { top: 8px; padding: 12px 16px; }
+/* ══════════════════════════════════════════════════════
+   RESPONSIVO — Mobile-first Professional Layout
+══════════════════════════════════════════════════════ */
+
+/* ── Tablet (≤ 1024px) ── */
+@media (max-width: 1024px) {
+  .page, .container { max-width: 100%; }
+  .modal, .modal-pedido, .modal-box { max-width: 95vw; }
+  .nf-grid, .info-grid { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)) !important; }
+}
+
+/* ── Mobile (≤ 768px) ── */
+@media (max-width: 768px) {
+  body { padding: 12px; }
+  .header { top: 6px; padding: 10px 14px; border-radius: 12px; margin-bottom: 18px; }
+  .header-content { flex-wrap: wrap; gap: 8px; }
+  .header-left { flex: 1; min-width: 0; }
+  .header-right { width: 100%; justify-content: flex-end; flex-wrap: wrap; gap: 6px; }
+  .header-text, .header-title { font-size: 14px; }
+  .logo { width: 34px; height: 34px; font-size: 11px; }
+  #userInfo { font-size: 10px; padding: 4px 10px; }
+  .btn-voltar, .btn-logout { padding: 7px 12px; font-size: 12px; }
+
+  /* Cards */
+  .card, .document, .container-card { border-radius: 12px; }
+
+  /* Formulários */
   .form-row { flex-direction: column !important; }
+  .field, .form-group { margin-bottom: 10px; }
+  input, select, textarea { font-size: 16px; padding: 10px 12px; }
+
+  /* Tabelas — scroll horizontal */
+  .table-card, .table-scroll, .table-wrapper, .tabela-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  table { min-width: 600px; }
+  th, td { padding: 9px 10px; font-size: 12px; }
+
+  /* Modais — full width */
+  .modal-overlay { padding: 12px 8px; align-items: flex-start; }
+  .modal, .modal-pedido, .modal-box {
+    max-width: 100%; border-radius: 14px;
+    max-height: 92vh;
+  }
+  .modal-pedido-body, .modal-body { padding: 16px; max-height: 70vh; }
+  .modal-pedido-header, .modal-header { padding: 14px 16px; }
+  .modal-pedido-footer, .modal-footer { padding: 12px 16px; flex-wrap: wrap; }
+
+  /* Grids genéricos */
+  .nf-grid, .info-grid, .stats { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)) !important; gap: 8px !important; }
+
+  /* Filtros */
+  .filtros { flex-direction: column; gap: 8px; }
+  .filtros input, .filtros select { width: 100%; }
+
+  /* Dropdowns */
+  .dropdown { max-height: 180px; }
+
+  /* Badges */
+  .badge { font-size: 10px; padding: 2px 8px; }
+
+  /* Blocos */
+  .bloco { padding: 12px; }
+  .blocos { flex-direction: column !important; }
+
+  /* Toasts */
+  .toast { left: 12px; right: 12px; bottom: 12px; max-width: none; }
+
+  /* Info cards */
+  .info, .info-material-card { flex-direction: column; gap: 6px; }
+  .info span { font-size: 12px; }
+
+  /* Paginação */
+  .paginacao, .pagination { flex-wrap: wrap; gap: 8px; justify-content: center; }
+
+  /* Top bars genéricos */
+  .top-bar, .toolbar { flex-direction: column !important; gap: 10px !important; align-items: stretch !important; }
+  .top-bar input, .toolbar input, .top-bar select, .toolbar select { width: 100% !important; }
+
+  /* Títulos */
+  h1 { font-size: 18px; }
+  h2 { font-size: 16px; }
+  h3 { font-size: 14px; }
+}
+
+/* ── Small Mobile (≤ 480px) ── */
+@media (max-width: 480px) {
+  body { padding: 8px; }
+  .header { top: 4px; padding: 8px 10px; margin-bottom: 12px; }
+  .header-text, .header-title { font-size: 13px; }
+  .logo { width: 30px; height: 30px; font-size: 10px; border-radius: 8px; }
+  #userInfo { display: none; }
+
+  .card, .document, .container-card { border-radius: 10px; }
+  .modal, .modal-pedido, .modal-box { border-radius: 12px; }
+  .modal-pedido-body, .modal-body { padding: 12px; }
+
+  table { min-width: 500px; }
+  th, td { padding: 7px 8px; font-size: 11px; }
+
+  .btn, button { padding: 8px 12px; font-size: 12px; }
+  .btn-voltar, .btn-logout { padding: 6px 10px; font-size: 11px; }
+
+  .nf-grid, .info-grid, .stats { grid-template-columns: 1fr !important; }
+
+  .nf-campo-valor { font-size: 12px !important; }
+  .nf-titulo { font-size: 15px !important; }
 }
 
 /* ============================= */

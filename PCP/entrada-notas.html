@@ -102,6 +102,7 @@
     }
     .badge-ok { background: rgba(34,197,94,.15); color: #22c55e; }
     .badge-warn { background: rgba(245,158,11,.15); color: #f59e0b; }
+    .badge-info { background: rgba(6,182,212,.15); color: #06b6d4; }
 
     /* Botoes */
     .btn-confirmar {
@@ -154,6 +155,143 @@
     .resultado-titulo { font-size: 16px; font-weight: 800; color: var(--success); margin-bottom: 10px; }
     .resultado-resumo { font-size: 13px; color: var(--muted); line-height: 1.6; }
     .resultado-resumo strong { color: var(--text); }
+
+    /* Badge vinculado */
+    .badge-link { background: rgba(59,130,246,.15); color: #3b82f6; }
+
+    /* Botoes inline na tabela */
+    .btn-acao-nf {
+      padding: 3px 8px; border-radius: 5px; border: 1px solid var(--border-2);
+      background: var(--surface-2); color: var(--muted); font-size: 10px;
+      font-weight: 700; cursor: pointer; transition: all .15s; margin-top: 4px;
+      display: inline-block;
+    }
+    .btn-acao-nf:hover { color: var(--text); border-color: var(--primary); background: rgba(59,130,246,.1); }
+
+    /* ── Modal resolver item ─────────── */
+    .modal-resolver-overlay {
+      position: fixed; inset: 0; z-index: 999;
+      background: rgba(0,0,0,.6); backdrop-filter: blur(4px);
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none; transition: opacity .25s;
+    }
+    .modal-resolver-overlay.show { opacity: 1; pointer-events: auto; }
+
+    .modal-resolver {
+      background: var(--surface); border: 1px solid var(--border-2);
+      border-radius: 16px; width: 680px; max-width: 95vw;
+      max-height: 85vh; overflow: hidden; display: flex; flex-direction: column;
+      box-shadow: 0 24px 64px rgba(0,0,0,.5);
+      transform: translateY(20px); transition: transform .25s;
+    }
+    .modal-resolver-overlay.show .modal-resolver { transform: translateY(0); }
+
+    .modal-resolver-header {
+      padding: 18px 22px; border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .modal-resolver-header h3 { font-size: 15px; font-weight: 800; color: var(--text); margin: 0; }
+    .modal-resolver-close {
+      background: none; border: none; color: var(--muted); font-size: 20px;
+      cursor: pointer; padding: 4px 8px; line-height: 1;
+    }
+    .modal-resolver-close:hover { color: var(--text); }
+
+    .modal-resolver-body { padding: 18px 22px; overflow-y: auto; flex: 1; }
+
+    /* Item info dentro do modal */
+    .resolver-item-info {
+      background: var(--surface-2); border-radius: 10px; padding: 12px 14px;
+      margin-bottom: 16px; font-size: 12px; line-height: 1.6;
+    }
+    .resolver-item-info strong { color: var(--text); }
+    .resolver-item-info span { color: var(--muted); }
+
+    /* Tabs do modal */
+    .resolver-tabs {
+      display: flex; gap: 0; border-bottom: 1px solid var(--border);
+      margin-bottom: 16px;
+    }
+    .resolver-tab {
+      padding: 9px 18px; font-size: 12px; font-weight: 700;
+      color: var(--muted); background: none; border: none;
+      cursor: pointer; border-bottom: 2px solid transparent; transition: all .15s;
+    }
+    .resolver-tab:hover { color: var(--text); }
+    .resolver-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+    .resolver-pane { display: none; }
+    .resolver-pane.active { display: block; }
+
+    /* Lista de similares */
+    .similares-loading { text-align: center; color: var(--muted); padding: 20px; font-size: 13px; }
+    .similar-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border);
+      margin-bottom: 8px; transition: border-color .15s;
+    }
+    .similar-item:hover { border-color: var(--primary); }
+    .similar-info { flex: 1; }
+    .similar-codigo { font-weight: 800; font-size: 13px; color: var(--primary); }
+    .similar-desc { font-size: 12px; color: var(--text); margin-top: 2px; }
+    .similar-meta { font-size: 10px; color: var(--muted); margin-top: 2px; }
+    .btn-vincular {
+      padding: 6px 14px; border-radius: 8px; border: none;
+      background: var(--primary); color: #fff; font-size: 11px;
+      font-weight: 700; cursor: pointer; white-space: nowrap; transition: filter .15s;
+    }
+    .btn-vincular:hover { filter: brightness(1.15); }
+    .similares-vazio { text-align: center; color: var(--muted); padding: 20px; font-size: 13px; }
+
+    /* Form cadastro rápido */
+    .form-rapido { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .form-rapido .campo-full { grid-column: 1 / -1; }
+    .form-rapido label {
+      font-size: 10px; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .5px; display: block; margin-bottom: 4px;
+    }
+    .form-rapido input, .form-rapido select {
+      width: 100%; padding: 9px 12px; border-radius: 8px;
+      border: 1px solid var(--border-2); background: var(--surface-2);
+      color: var(--text); font-size: 13px; outline: none; transition: border-color .15s;
+    }
+    .form-rapido input:focus, .form-rapido select:focus { border-color: var(--primary); }
+    .btn-cadastrar-rapido {
+      padding: 10px 22px; border-radius: 8px; border: none;
+      background: var(--success); color: #fff; font-size: 13px;
+      font-weight: 700; cursor: pointer; margin-top: 8px; transition: filter .15s;
+    }
+    .btn-cadastrar-rapido:hover { filter: brightness(1.1); }
+    .btn-cadastrar-rapido:disabled { opacity: .5; cursor: not-allowed; }
+
+    /* ── Tablet (max-width: 768px) ── */
+    @media (max-width: 768px) {
+      .drop-zone { padding: 32px 16px; }
+      .drop-zone-icon { font-size: 32px; }
+      .drop-zone-text { font-size: 13px; }
+      .nf-grid { grid-template-columns: 1fr 1fr; }
+      .nf-header { flex-direction: column; }
+      .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      .modal-resolver { width: 100%; max-width: 95vw; }
+      .form-rapido { grid-template-columns: 1fr; }
+      .form-rapido .campo-full { grid-column: span 1; }
+      .resolver-tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      .resolver-tab { white-space: nowrap; }
+    }
+
+    /* ── Small Mobile (max-width: 480px) ── */
+    @media (max-width: 480px) {
+      .drop-zone { padding: 24px 12px; margin-bottom: 16px; }
+      .drop-zone-icon { font-size: 28px; margin-bottom: 6px; }
+      .drop-zone-text { font-size: 12px; }
+      .nf-card { padding: 14px; }
+      .nf-grid { grid-template-columns: 1fr; }
+      .nf-titulo { font-size: 15px; }
+      .modal-resolver-body { padding: 14px 16px; }
+      .modal-resolver-header { padding: 14px 16px; }
+      .similar-item { flex-direction: column; align-items: flex-start; gap: 8px; }
+      .btn-confirmar, .btn-limpar { padding: 10px 20px; font-size: 13px; }
+    }
   </style>
 </head>
 <body>
@@ -202,8 +340,9 @@
         <thead>
           <tr>
             <th>#</th>
-            <th>Cod. Produto</th>
-            <th>Descricao</th>
+            <th>Cod. NF</th>
+            <th>Descricao NF</th>
+            <th>Material Destino</th>
             <th>NCM</th>
             <th>CFOP</th>
             <th>Unidade</th>
@@ -230,6 +369,73 @@
     <div class="resultado-resumo" id="resultadoResumo"></div>
   </div>
 
+  <!-- MODAL RESOLVER ITEM -->
+  <div class="modal-resolver-overlay" id="modalResolver">
+    <div class="modal-resolver">
+      <div class="modal-resolver-header">
+        <h3 id="modalResolverTitulo">Resolver item</h3>
+        <button class="modal-resolver-close" id="btnFecharResolver">&times;</button>
+      </div>
+      <div class="modal-resolver-body">
+        <div class="resolver-item-info" id="resolverItemInfo"></div>
+
+        <div class="resolver-tabs">
+          <button class="resolver-tab active" data-resolver-tab="similares">Materiais Similares</button>
+          <button class="resolver-tab" data-resolver-tab="cadastro">Cadastrar Novo</button>
+        </div>
+
+        <!-- Tab: Similares -->
+        <div class="resolver-pane active" id="paneSimilares">
+          <div id="listaSimilares"></div>
+        </div>
+
+        <!-- Tab: Cadastro rapido -->
+        <div class="resolver-pane" id="paneCadastro">
+          <div class="form-rapido" id="formRapido">
+            <div>
+              <label>Codigo Produto *</label>
+              <input id="rCodigo" type="text">
+            </div>
+            <div>
+              <label>Unidade Medida</label>
+              <input id="rUnidade" type="text" value="un">
+            </div>
+            <div class="campo-full">
+              <label>Descricao *</label>
+              <input id="rDescricao" type="text">
+            </div>
+            <div>
+              <label>Tipo</label>
+              <select id="rTipo">
+                <option value="">-- Selecione --</option>
+                <option value="revenda">Revenda</option>
+                <option value="insumo">Insumo</option>
+                <option value="material">Material</option>
+                <option value="produzido">Produzido</option>
+                <option value="em_processo">Em processo</option>
+              </select>
+            </div>
+            <div>
+              <label>Custo Fornecedor</label>
+              <input id="rCusto" type="number" step="0.01">
+            </div>
+            <div>
+              <label>Unidade Compra</label>
+              <input id="rUnidadeCompra" type="text" placeholder="ex: rolo, caixa">
+            </div>
+            <div>
+              <label>Fator Conversao</label>
+              <input id="rFator" type="number" step="0.01" value="1">
+            </div>
+            <div class="campo-full" style="text-align:right;">
+              <button class="btn-cadastrar-rapido" id="btnCadastrarRapido">Cadastrar e Vincular</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- HISTORICO -->
   <div class="historico-titulo">Entradas Recentes</div>
   <div class="table-card show" id="historicoCard">
@@ -245,6 +451,7 @@
             <th>Itens</th>
             <th>Data Entrada</th>
             <th>Registrado por</th>
+            <th>Acao</th>
           </tr>
         </thead>
         <tbody id="corpoHistorico"></tbody>

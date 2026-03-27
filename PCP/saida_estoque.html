@@ -27,33 +27,15 @@
   <!-- ══ Coluna esquerda: formulário ══ -->
   <div>
 
-    <!-- 1. Adicionar itens -->
+    <!-- 1. Selecionar material -->
     <div class="card" style="margin-bottom:20px">
-      <div class="card-title">📦 1. Adicionar Material</div>
+      <div class="card-title">📦 1. Selecionar Material</div>
 
-      <!-- Busca de material -->
-      <div class="add-item-row">
-        <div class="field" style="flex:2;position:relative">
-          <label>Material (código ou descrição)</label>
-          <div class="search-wrap">
-            <input type="text" id="materialSearch" placeholder="Digite para buscar...">
-            <div class="dropdown" id="materialDropdown"></div>
-          </div>
-        </div>
-        <div class="field" style="width:100px">
-          <label>Quantidade</label>
-          <input type="number" id="itemQtde" min="0.01" step="0.01" placeholder="0">
-        </div>
-        <div class="field" style="width:80px">
-          <label>Unidade</label>
-          <select id="itemUnidade">
-            <option value="un">un</option>
-            <option value="kg">kg</option>
-            <option value="m">m</option>
-            <option value="l">l</option>
-            <option value="m²">m²</option>
-            <option value="pç">pç</option>
-          </select>
+      <div class="field" style="position:relative">
+        <label>Material (código ou descrição)</label>
+        <div class="search-wrap">
+          <input type="text" id="materialSearch" placeholder="Digite para buscar...">
+          <div class="dropdown" id="materialDropdown"></div>
         </div>
       </div>
 
@@ -65,33 +47,16 @@
         <span>Estoque: <b id="matEstoque" class="estoque-ok">—</b></span>
       </div>
 
-      <!-- Vincular pedido (opcional) -->
-      <div class="pedido-vinculo-section">
-        <div class="field" style="position:relative;flex:1">
-          <label>Vincular pedido <span class="label-auto">(opcional)</span></label>
-          <div class="search-wrap">
-            <input type="text" id="pedidoSearch" placeholder="Buscar pedido por cliente, OC ou PV...">
-            <div class="dropdown" id="pedidoDropdown"></div>
-          </div>
-        </div>
-        <button class="btn-limpar-pedido" id="btnLimparPedido" title="Remover vínculo" style="display:none">✕</button>
+      <!-- Pedidos disponíveis para o material -->
+      <div id="pedidosSection" style="display:none;margin-top:14px">
+        <label style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;display:block">
+          Pedidos disponíveis para este material
+        </label>
+        <div id="pedidosLista" style="display:flex;flex-direction:column;gap:6px;max-height:260px;overflow-y:auto"></div>
+        <div id="semPedidos" style="display:none;font-size:12px;color:var(--muted);padding:10px 0">Nenhum pedido encontrado para este material.</div>
       </div>
 
-      <!-- Card do pedido vinculado ao item atual -->
-      <div class="pedido-vinculo-card" id="pedidoVinculoCard">
-        <div class="pedido-vinculo-info">
-          <span class="pv-label">Pedido:</span>
-          <span id="pvPedido">—</span>
-          <span class="pv-label">Cliente:</span>
-          <span id="pvCliente">—</span>
-          <span class="pv-label">OC:</span>
-          <span id="pvOC">—</span>
-          <span class="pv-label">Qtde Sol.:</span>
-          <span id="pvQtde">—</span>
-        </div>
-      </div>
-
-      <button class="btn-add-item" id="btnAddItem">+ Adicionar à Ordem de Saída</button>
+      <button class="btn-add-item" id="btnAddItem" style="margin-top:14px">+ Adicionar à Ordem de Saída</button>
     </div>
 
     <!-- 2. Itens da ordem -->
@@ -124,7 +89,6 @@
         </table>
       </div>
 
-      <!-- Observações -->
       <div class="field" style="margin-top:16px">
         <label>Observações</label>
         <textarea id="obsTexto" rows="2" placeholder="Motivo da saída, número de referência, etc."
@@ -135,31 +99,22 @@
 
   <!-- ══ Coluna direita: resumo + ação + histórico ══ -->
   <div>
-
-    <!-- Resumo -->
     <div class="card" style="margin-bottom:20px">
       <div class="card-title">📊 Resumo da Ordem</div>
       <div class="resumo-linha"><span>Itens</span><span id="rsItens">0</span></div>
       <div class="resumo-linha"><span>Materiais distintos</span><span id="rsMateriais">0</span></div>
       <div class="resumo-linha"><span>Pedidos vinculados</span><span id="rsPedidos">0</span></div>
       <div class="resumo-linha total"><span>Custo total</span><span id="rsCusto">R$ 0,00</span></div>
-
-      <!-- Lista de pedidos vinculados -->
       <div id="pedidosVinculados" class="pedidos-vinculados-list"></div>
-
-      <button class="btn-gerar" id="btnGerar" disabled>
-        ✔ Confirmar Saída de Estoque
-      </button>
+      <button class="btn-gerar" id="btnGerar" disabled>✔ Confirmar Saída de Estoque</button>
     </div>
 
-    <!-- Histórico -->
     <div class="card">
       <div class="card-title">🕓 Histórico recente</div>
       <div id="historicoLista">
         <div style="text-align:center;color:var(--muted);font-size:13px;padding:16px">Carregando...</div>
       </div>
     </div>
-
   </div>
 </div>
 
@@ -173,10 +128,56 @@
     <div class="modal-body" id="comprovanteConteudo"></div>
     <div class="modal-footer">
       <button class="btn-cancel-modal" onclick="fecharComprovante()">Fechar</button>
-      <button class="btn-print" onclick="window.print()">🖨️ Imprimir</button>
+      <button class="btn-print" id="btnImprimirComp">🖨️ Imprimir</button>
     </div>
   </div>
 </div>
+
+<style>
+  /* Pedido card na lista */
+  .pedido-card {
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 14px;
+    display: flex; align-items: center; gap: 12px;
+    transition: border-color .15s; cursor: pointer;
+  }
+  .pedido-card:hover { border-color: var(--primary); }
+  .pedido-card.selecionado { border-color: var(--success); background: rgba(34,197,94,.06); }
+  .pedido-card .pc-check {
+    width: 20px; height: 20px; border-radius: 6px;
+    border: 2px solid var(--border-2); display: flex;
+    align-items: center; justify-content: center; flex-shrink: 0;
+    font-size: 12px; color: transparent; transition: all .15s;
+  }
+  .pedido-card.selecionado .pc-check {
+    border-color: var(--success); background: var(--success); color: #fff;
+  }
+  .pedido-card .pc-info { flex: 1; min-width: 0; }
+  .pedido-card .pc-cliente { font-size: 13px; font-weight: 700; color: var(--text); }
+  .pedido-card .pc-detalhe { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .pedido-card .pc-qtde { font-size: 12px; font-weight: 700; color: var(--primary); white-space: nowrap; }
+
+  /* Parcial */
+  .parcial-row {
+    display: none; align-items: center; gap: 8px;
+    margin-top: 6px; padding: 6px 10px;
+    background: rgba(245,158,11,.06); border-radius: 8px; border: 1px solid rgba(245,158,11,.15);
+  }
+  .pedido-card.parcial .parcial-row { display: flex; }
+  .parcial-row label { font-size: 11px; color: #f59e0b; font-weight: 700; margin: 0; text-transform: none; letter-spacing: 0; }
+  .parcial-row input[type="number"] {
+    width: 90px; padding: 5px 8px; font-size: 13px;
+    border-radius: 6px; border: 1px solid rgba(245,158,11,.3);
+    background: var(--surface); color: var(--text);
+  }
+  .parcial-check { display: flex; align-items: center; gap: 4px; cursor: pointer; }
+  .parcial-check input[type="checkbox"] { accent-color: #f59e0b; width: 14px; height: 14px; }
+
+  @media (max-width: 768px) {
+    .pedido-card { flex-wrap: wrap; }
+    .pedido-card .pc-qtde { width: 100%; text-align: right; }
+  }
+</style>
 
 <script type="module" src="../Scripts/saida-estoque-script.js" defer></script>
 </body>

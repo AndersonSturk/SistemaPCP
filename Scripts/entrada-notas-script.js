@@ -24,6 +24,10 @@ const resultadoResumo = document.getElementById("resultadoResumo");
 
 let dadosNF = null;
 
+// ── Vinculações manuais: { cProd: { material_id, descricao } }
+const vinculacoes = {};
+let itemResolvendoIdx = null; // índice do item sendo resolvido no modal
+
 // ── Drop zone ─────────────────────────────────────────
 dropZone.addEventListener("click", () => inputXML.click());
 inputXML.addEventListener("change", (e) => {
@@ -75,12 +79,13 @@ async function processarPDF(file) {
       let lastY = null;
       for (const item of content.items) {
         const y = Math.round(item.transform[5]);
-        if (lastY !== null && Math.abs(y - lastY) > 3) linhas.push("\n");
+        if (lastY !== null && Math.abs(y - lastY) > 5) linhas.push("\n");
         linhas.push(item.str);
         lastY = y;
       }
       textoCompleto += linhas.join(" ") + "\n";
     }
+    console.log("[PDF] Texto extraído:\n", textoCompleto.substring(0, 3000));
     parsearPDFTexto(textoCompleto);
   } catch (err) {
     console.error("Erro ao ler PDF:", err);
@@ -94,15 +99,31 @@ function parsearPDFTexto(texto) {
   const t = texto.replace(/\r/g, "");
 
   // ── NF number e serie ──
-  const mNF = t.match(/N[°º.]?\s*\.?\s*([\d.]+)/i);
   let numero_nf = "";
-  if (mNF) numero_nf = mNF[1].replace(/\./g, "").replace(/^0+/, "") || mNF[1].replace(/\./g, "");
-  // Fallback: procura "Nº. 000.000.144" pattern
-  const mNF2 = t.match(/N[°º]\.\s*([\d.]+)/);
-  if (mNF2 && !numero_nf) numero_nf = mNF2[1].replace(/\./g, "");
+  // Padrões para capturar "Nº 000.000.144", "Nº. 000.001.465", etc.
+  const nfPatterns = [
+    /N[°º]\.?\s*([\d.]{7,})/,                         // Nº 000.000.144 ou Nº. 000.001.465
+    /N[°º]\.?\s*(\d[\d.]+\d)/,                        // Nº 000001465
+    /NF-?e?\s*\n?\s*N[°º]\.?\s*([\d.]+)/i,            // NF-e\nNº 000.000.144
+  ];
+  for (const p of nfPatterns) {
+    const m = t.match(p);
+    if (m) {
+      numero_nf = m[1].replace(/\./g, "").replace(/^0+/, "") || m[1].replace(/\./g, "");
+      if (numero_nf) break;
+    }
+  }
 
-  const mSerie = t.match(/S[ée]rie\s+(\d+)/i);
-  const serie = mSerie ? mSerie[1] : "";
+  // Serie: "SÉRIE: 1", "Série 001", "Serie: 1"
+  let serie = "";
+  const seriePatterns = [
+    /S[EÉée]RIE:?\s*(\d+)/i,                          // SÉRIE: 1 ou SERIE: 001
+    /S[ée]rie\s+(\d+)/i,                               // Série 001
+  ];
+  for (const p of seriePatterns) {
+    const m = t.match(p);
+    if (m) { serie = m[1]; break; }
+  }
 
   // ── Chave de acesso ──
   const mChave = t.match(/(\d{4}\s*\d{4}\s*\d{4}\s*\d{4}\s*\d{4}\s*\d{4}\s*\d{4}\s*\d{4}\s*\d{4}\s*\d{4}\s*\d{4})/);
@@ -127,6 +148,9 @@ function parsearPDFTexto(texto) {
     if (/^(DANFE|DOCUMENTO|N[°º]|S[ée]rie|Folha|Consulta|CHAVE|PROTOCOLO|INSCRI|NATUREZA|0\s*-|1\s*-|ENTRADA|SA[IÍ]DA|\d+$)/i.test(linha)) continue;
     if (/^[\d.\-\/\s]+$/.test(linha)) continue;
     if (/www\.|\.gov\.|\.com\./i.test(linha)) continue;
+    // Ignora textos do DANFE que podem aparecer misturados
+    if (/fiscal\s*eletr[oô]nica|documento\s*auxiliar|nota\s*fiscal|autenticidade|portal\s*nacional|sefaz|autorizadora/i.test(linha)) continue;
+    if (/^(RUA|AV\b|AVENIDA|RODOVIA|ESTRADA|TRAVESSA|ALAMEDA|PARQUE)\s/i.test(linha)) continue;
     // Candidato a nome: tem letras e mais de 5 chars
     if (/[A-Za-zÀ-ú]{3,}/.test(linha) && linha.length > 5) {
       emit_nome = linha;
@@ -166,18 +190,34 @@ function parsearPDFTexto(texto) {
   }
 
   // ── Valor total ──
-  const mValTotal = t.match(/V\.\s*TOTAL\s*DA\s*NOTA\s*\n?\s*([\d.,]+)/i);
+  // O valor pode estar na mesma linha ou na próxima, separado por espaço ou \n
   let valor_total = 0;
-  if (mValTotal) valor_total = parseFloat(mValTotal[1].replace(/\./g, "").replace(",", "."));
-  // Fallback
-  if (!valor_total) {
-    const mVT2 = t.match(/TOTAL\s*(?:DA\s*NOTA|PRODUTOS)\s*\n?\s*([\d.,]+)/i);
-    if (mVT2) valor_total = parseFloat(mVT2[1].replace(/\./g, "").replace(",", "."));
+  const valTotalPatterns = [
+    /V\.\s*TOTAL\s*DA\s*NOTA\s*[\n\s]+([\d.,]+)/i,
+    /TOTAL\s*DA\s*NOTA\s*[\n\s]+([\d.,]+)/i,
+    /V\.\s*TOTAL\s*DA\s*NOTA\s*([\d.,]+)/i,
+  ];
+  for (const p of valTotalPatterns) {
+    const m = t.match(p);
+    if (m) {
+      valor_total = parseFloat(m[1].replace(/\./g, "").replace(",", "."));
+      if (valor_total > 0) break;
+    }
   }
 
-  const mValProd = t.match(/V\.\s*TOTAL\s*PRODUTOS\s*\n?\s*([\d.,]+)/i);
   let valor_produtos = 0;
-  if (mValProd) valor_produtos = parseFloat(mValProd[1].replace(/\./g, "").replace(",", "."));
+  const valProdPatterns = [
+    /V\.\s*TOTAL\s*PRODUTOS\s*[\n\s]+([\d.,]+)/i,
+    /TOTAL\s*PRODUTOS\s*[\n\s]+([\d.,]+)/i,
+    /V\.\s*TOTAL\s*PRODUTOS\s*([\d.,]+)/i,
+  ];
+  for (const p of valProdPatterns) {
+    const m = t.match(p);
+    if (m) {
+      valor_produtos = parseFloat(m[1].replace(/\./g, "").replace(",", "."));
+      if (valor_produtos > 0) break;
+    }
+  }
 
   // ── Itens (DADOS DOS PRODUTOS) ──
   const itens = extrairItensPDF(t);
@@ -213,76 +253,157 @@ function parsearPDFTexto(texto) {
   exibirItens(itens);
 }
 
+// ── Regex de valores da linha de produto (NCM 8dig + CSOSN + CFOP + UN + qtde + vUnit + vTotal) ──
+const RE_VALORES = /(\d{8})\s+(\d{2,4})\s+(\d{4})\s+(\w{1,5})\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)/;
+
+function limparDescricao(desc) {
+  // Remove "Numero Pedido de compra: ..." e similares que ficam colados na descrição
+  return desc
+    .replace(/Numero\s+Pedido.*$/i, "")
+    .replace(/Pedido\s+\d+.*$/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function parseNumBR(v) {
+  return v.replace(/\./g, "").replace(",", ".");
+}
+
 // ── Extrair itens da tabela de produtos do DANFE ─────
 function extrairItensPDF(texto) {
-  const itens = [];
+  let itens = [];
 
   // Procura o bloco após "DADOS DOS PRODUTOS" ou "CÓDIGO PRODUTO"
   const blocoMatch = texto.match(/(?:DADOS DOS PRODUTOS|C[OÓ]DIGO\s*PRODUTO)[\s\S]*/i);
-  if (!blocoMatch) return itens;
+  if (!blocoMatch) {
+    console.warn("[PDF Parser] Bloco de produtos não encontrado no texto extraído.");
+    console.log("[PDF Parser] Texto completo:", texto.substring(0, 2000));
+    return itens;
+  }
   let bloco = blocoMatch[0];
 
   // Remove tudo após "DADOS ADICIONAIS" ou "INFORMAÇÕES COMPLEMENTARES"
   bloco = bloco.replace(/(?:DADOS ADICIONAIS|INFORMA[ÇC][ÕO]ES COMPLEMENTARES)[\s\S]*/i, "");
 
-  // Pattern: código numérico seguido de descrição, depois NCM, CFOP, UN, QUANT, VALOR
-  // A linha de produto tipicamente tem: CÓDIGO | DESCRIÇÃO | NCM | O/CSOSN | CFOP | UN | QUANT | V.UNIT | V.TOTAL ...
-  // No texto extraído do PDF, os campos ficam separados por espaços
-  const linhas = bloco.split("\n");
+  // Normaliza espaços em números: "0, 00" → "0,00", "1. 425" → "1.425"
+  bloco = bloco.replace(/(\d),\s+(\d)/g, "$1,$2");
+  bloco = bloco.replace(/(\d)\.\s+(\d)/g, "$1.$2");
 
-  let i = 0;
-  while (i < linhas.length) {
-    const linha = linhas[i].trim();
+  console.log("[PDF Parser] Bloco de produtos:\n", bloco);
 
-    // Tenta encontrar uma linha que começa com um código de produto (número)
-    // Pattern: código | descrição | ncm(8dig) | csosn | cfop(4dig) | un | qtde | vUnit | vTotal
-    const match = linha.match(
-      /^\s*(\d{1,10})\s+(.+?)\s+(\d{8})\s+(\d{2,4})\s+(\d{4})\s+(\w{1,5})\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)/
-    );
+  const linhas = bloco.split("\n").map(l => l.trim()).filter(l => l.length > 0);
 
+  // Regex para código de produto: aceita alfanumérico (ex: M00000733, 1480, 94, ABC123)
+  const RE_CODIGO = /^\s*([A-Za-z0-9]{1,15})\s+(.+?)\s+(\d{8})\s+(\d{2,4})\s+(\d{4})\s+(\w{1,5})\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)/;
+  const RE_CODIGO_INICIO = /^\s*([A-Za-z0-9]{1,15})\s+(.+)/;
+
+  // ── Estratégia 1: linha única (código + desc + NCM + valores tudo junto) ──
+  for (let i = 0; i < linhas.length; i++) {
+    const linha = linhas[i];
+    const match = linha.match(RE_CODIGO);
     if (match) {
+      // Ignora se o "código" parece ser um header (CODIGO, DESCRICAO, etc.)
+      if (/^(CODIGO|DESCRI|NCM|CST|CFOP|UNID|QUANT|VALOR|DADOS)/i.test(match[1])) continue;
       itens.push({
         nItem:  String(itens.length + 1),
         cProd:  match[1],
-        xProd:  match[2].trim(),
+        xProd:  limparDescricao(match[2]),
         NCM:    match[3],
         CFOP:   match[5],
         uCom:   match[6],
-        qCom:   match[7].replace(/\./g, "").replace(",", "."),
-        vUnCom: match[8].replace(/\./g, "").replace(",", "."),
-        vProd:  match[9].replace(/\./g, "").replace(",", "."),
+        qCom:   parseNumBR(match[7]),
+        vUnCom: parseNumBR(match[8]),
+        vProd:  parseNumBR(match[9]),
       });
-      i++;
-      continue;
     }
+  }
 
-    // Pattern alternativo: código e descrição numa linha, valores na próxima
-    const matchCod = linha.match(/^\s*(\d{1,10})\s+(.+)/);
-    if (matchCod && i + 1 < linhas.length) {
-      const proxLinha = linhas[i + 1].trim();
-      const matchVals = proxLinha.match(
-        /(\d{8})\s+(\d{2,4})\s+(\d{4})\s+(\w{1,5})\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)/
-      );
-      if (matchVals) {
-        itens.push({
-          nItem:  String(itens.length + 1),
-          cProd:  matchCod[1],
-          xProd:  matchCod[2].trim(),
-          NCM:    matchVals[1],
-          CFOP:   matchVals[3],
-          uCom:   matchVals[4],
-          qCom:   matchVals[5].replace(/\./g, "").replace(",", "."),
-          vUnCom: matchVals[6].replace(/\./g, "").replace(",", "."),
-          vProd:  matchVals[7].replace(/\./g, "").replace(",", "."),
-        });
-        i += 2;
-        continue;
+  if (itens.length) {
+    console.log("[PDF Parser] Itens encontrados (estratégia 1 - linha única):", itens.length);
+    return itens;
+  }
+
+  // ── Estratégia 2: multi-linha (código numa linha, valores até 6 linhas adiante) ──
+  let i = 0;
+  while (i < linhas.length) {
+    const linha = linhas[i];
+
+    // Linha começa com código de produto (alfanumérico) seguido de texto
+    const matchCod = linha.match(RE_CODIGO_INICIO);
+    // Ignora headers
+    if (matchCod && /^(CODIGO|DESCRI|NCM|CST|CFOP|UNID|QUANT|VALOR|DADOS)/i.test(matchCod[1])) { i++; continue; }
+    if (matchCod) {
+      const codigo = matchCod[1];
+      let descParts = [matchCod[2].trim()];
+      let found = false;
+
+      // Procura a linha com NCM+valores nas próximas 6 linhas
+      for (let j = i + 1; j < Math.min(i + 7, linhas.length); j++) {
+        const proxLinha = linhas[j];
+        const matchVals = proxLinha.match(RE_VALORES);
+
+        if (matchVals) {
+          // Encontrou os valores! Monta o item
+          itens.push({
+            nItem:  String(itens.length + 1),
+            cProd:  codigo,
+            xProd:  limparDescricao(descParts.join(" ")),
+            NCM:    matchVals[1],
+            CFOP:   matchVals[3],
+            uCom:   matchVals[4],
+            qCom:   parseNumBR(matchVals[5]),
+            vUnCom: parseNumBR(matchVals[6]),
+            vProd:  parseNumBR(matchVals[7]),
+          });
+          i = j + 1;
+          found = true;
+          break;
+        }
+
+        // Se a linha parece continuação de descrição (não é um novo código, não é header)
+        if (!/^\d{1,10}\s/.test(proxLinha) && !/^(DADOS|INFORMA|C[OÓ]DIGO|VALOR|ALIQ)/i.test(proxLinha)) {
+          descParts.push(proxLinha);
+        }
       }
+
+      if (found) continue;
     }
 
     i++;
   }
 
+  if (itens.length) {
+    console.log("[PDF Parser] Itens encontrados (estratégia 2 - multi-linha):", itens.length);
+    return itens;
+  }
+
+  // ── Estratégia 3 (fallback): achata todo o texto e busca padrões ──
+  const textoFlat = bloco
+    .replace(/\n/g, " ")
+    .replace(/\s+/g, " ");
+
+  console.log("[PDF Parser] Tentando estratégia 3 (texto achatado)...");
+
+  const reFull = /\b([A-Za-z0-9]{1,15})\s+(.+?)\s+(\d{8})\s+(\d{2,4})\s+(\d{4})\s+(\w{1,5})\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)/g;
+  let m;
+  while ((m = reFull.exec(textoFlat)) !== null) {
+    // Ignora se o "código" parece ser um NCM (8 dígitos) ou header
+    if (m[1].length === 8 && /^\d+$/.test(m[1])) continue;
+    if (/^(CODIGO|DESCRI|NCM|CST|CFOP|UNID|QUANT|VALOR|DADOS)/i.test(m[1])) continue;
+    itens.push({
+      nItem:  String(itens.length + 1),
+      cProd:  m[1],
+      xProd:  limparDescricao(m[2]),
+      NCM:    m[3],
+      CFOP:   m[5],
+      uCom:   m[6],
+      qCom:   parseNumBR(m[7]),
+      vUnCom: parseNumBR(m[8]),
+      vProd:  parseNumBR(m[9]),
+    });
+  }
+
+  console.log("[PDF Parser] Itens encontrados (estratégia 3 - fallback):", itens.length);
   return itens;
 }
 
@@ -421,14 +542,42 @@ function exibirNF(nf) {
 async function exibirItens(itens) {
   corpoTabela.innerHTML = "";
 
-  for (const item of itens) {
+  for (let idx = 0; idx < itens.length; idx++) {
+    const item = itens[idx];
     let status = "NAO_ENCONTRADO";
     let conversaoInfo = "";
-    try {
-      const res = await apiRequest(`/materiais/busca-codigo/${encodeURIComponent(item.cProd)}`);
-      if (res.success && res.data) {
-        status = "ENCONTRADO";
-        const mat = res.data;
+    let vinculadoInfo = "";
+    let codigoDestino = "";  // código do material que receberá o estoque
+    let descDestino = "";
+
+    // Checa se já tem vinculação manual
+    if (vinculacoes[item.cProd]) {
+      status = "VINCULADO";
+      const v = vinculacoes[item.cProd];
+      vinculadoInfo = v.descricao;
+      codigoDestino = v.codigo_produto || "";
+      descDestino = v.descricao;
+    } else {
+      let mat = null;
+
+      // 1) Tenta busca exata por código do produto da NF
+      try {
+        const res = await apiRequest(`/materiais/busca-codigo/${encodeURIComponent(item.cProd)}`);
+        if (res.success && res.data) mat = res.data;
+      } catch { /* não encontrado por código */ }
+
+      // 2) Fallback: busca por descrição similar
+      if (!mat) {
+        try {
+          const res2 = await apiRequest(`/materiais/busca-similares?termo=${encodeURIComponent(item.xProd)}`);
+          if (res2.success && res2.data?.length) mat = res2.data[0];
+        } catch { /* sem similar */ }
+      }
+
+      if (mat) {
+        status = "SIMILAR";
+        codigoDestino = mat.codigo_produto;
+        descDestino = mat.descricao;
         const fator = Number(mat.fator_conversao) || 1;
         const unCompra = (mat.unidade_compra || "").toLowerCase();
         const unEstoque = (mat.unidade_medida || "").toLowerCase();
@@ -440,34 +589,227 @@ async function exibirItens(itens) {
             `${qtdeNF} ${item.uCom} × ${fator} = ${qtdeConv.toLocaleString("pt-BR")} ${unEstoque}</div>`;
         }
       }
-    } catch { /* nao encontrado */ }
+    }
+
+    // Coluna "Cod. Material" — mostra o código do material destino no sistema
+    let codDestinoHTML = "";
+    if (codigoDestino) {
+      codDestinoHTML = `<strong style="color:#22c55e;">${codigoDestino}</strong>`;
+      if (descDestino && descDestino !== item.xProd) {
+        codDestinoHTML += `<div style="font-size:10px;color:var(--muted);margin-top:2px;line-height:1.3;">${descDestino}</div>`;
+      }
+    } else {
+      codDestinoHTML = `<span style="color:var(--muted);">—</span>`;
+    }
+
+    let statusHTML = "";
+    if (status === "VINCULADO") {
+      statusHTML = '<span class="badge badge-ok">Vinculado</span>';
+    } else if (status === "SIMILAR") {
+      statusHTML = `<span class="badge badge-info">Sugestao</span><br>` +
+        `<button class="btn-acao-nf btn-resolver-item" data-idx="${idx}">Confirmar / Alterar</button>`;
+    } else {
+      statusHTML = `<span class="badge badge-warn">Nao cadastrado</span><br>` +
+        `<button class="btn-acao-nf btn-resolver-item" data-idx="${idx}">Resolver</button>`;
+    }
 
     const tr = document.createElement("tr");
+    tr.setAttribute("data-cprod", item.cProd);
     tr.innerHTML = `
       <td>${item.nItem}</td>
       <td><strong>${item.cProd}</strong></td>
       <td>${item.xProd}</td>
+      <td>${codDestinoHTML}</td>
       <td>${item.NCM || "—"}</td>
       <td>${item.CFOP}</td>
       <td>${item.uCom}</td>
       <td style="font-weight:700;">${parseFloat(item.qCom).toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 4 })}${conversaoInfo}</td>
       <td>${fmtBRL(item.vUnCom)}</td>
       <td style="font-weight:600;">${fmtBRL(item.vProd)}</td>
-      <td>
-        ${status === "ENCONTRADO"
-          ? '<span class="badge badge-ok">Encontrado</span>'
-          : '<span class="badge badge-warn">Nao cadastrado</span>'
-        }
-      </td>
+      <td>${statusHTML}</td>
     `;
     corpoTabela.appendChild(tr);
   }
+
+  // Bind dos botões "Resolver"
+  corpoTabela.querySelectorAll(".btn-resolver-item").forEach(btn => {
+    btn.addEventListener("click", () => abrirModalResolver(parseInt(btn.dataset.idx)));
+  });
 
   tabelaCard.classList.add("show");
   btnConfirmar.classList.add("show");
   btnLimpar.classList.add("show");
   resultadoCard.classList.remove("show");
 }
+
+// ── Modal Resolver ──────────────────────────────────────
+const modalResolver      = document.getElementById("modalResolver");
+const modalResolverTitulo = document.getElementById("modalResolverTitulo");
+const resolverItemInfo   = document.getElementById("resolverItemInfo");
+const listaSimilares     = document.getElementById("listaSimilares");
+const btnFecharResolver  = document.getElementById("btnFecharResolver");
+
+// Tabs do modal resolver
+document.querySelectorAll(".resolver-tab").forEach(tab => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".resolver-tab").forEach(t => t.classList.remove("active"));
+    document.querySelectorAll(".resolver-pane").forEach(p => p.classList.remove("active"));
+    tab.classList.add("active");
+    document.getElementById(
+      tab.dataset.resolverTab === "similares" ? "paneSimilares" : "paneCadastro"
+    ).classList.add("active");
+  });
+});
+
+btnFecharResolver.addEventListener("click", fecharModalResolver);
+modalResolver.addEventListener("click", (e) => {
+  if (e.target === modalResolver) fecharModalResolver();
+});
+
+function fecharModalResolver() {
+  modalResolver.classList.remove("show");
+  itemResolvendoIdx = null;
+}
+
+async function abrirModalResolver(idx) {
+  const item = dadosNF.itens[idx];
+  if (!item) return;
+  itemResolvendoIdx = idx;
+
+  modalResolverTitulo.textContent = `Resolver: ${item.cProd}`;
+  resolverItemInfo.innerHTML = `
+    <strong>Codigo NF:</strong> ${item.cProd} &nbsp;|&nbsp;
+    <strong>Descricao:</strong> ${item.xProd} &nbsp;|&nbsp;
+    <strong>NCM:</strong> ${item.NCM || "—"} &nbsp;|&nbsp;
+    <strong>Qtde:</strong> ${parseFloat(item.qCom).toLocaleString("pt-BR")} ${item.uCom} &nbsp;|&nbsp;
+    <strong>Valor:</strong> ${fmtBRL(item.vProd)}
+  `;
+
+  // Preenche form de cadastro rápido com dados da NF
+  document.getElementById("rCodigo").value = item.cProd;
+  document.getElementById("rDescricao").value = item.xProd;
+  document.getElementById("rUnidade").value = item.uCom || "un";
+  document.getElementById("rCusto").value = parseFloat(item.vUnCom) || "";
+  document.getElementById("rTipo").value = "";
+  document.getElementById("rUnidadeCompra").value = "";
+  document.getElementById("rFator").value = "1";
+
+  // Volta para aba similares
+  document.querySelectorAll(".resolver-tab").forEach(t => t.classList.remove("active"));
+  document.querySelectorAll(".resolver-pane").forEach(p => p.classList.remove("active"));
+  document.querySelector("[data-resolver-tab='similares']").classList.add("active");
+  document.getElementById("paneSimilares").classList.add("active");
+
+  // Busca similares
+  listaSimilares.innerHTML = '<div class="similares-loading">Buscando materiais similares...</div>';
+  modalResolver.classList.add("show");
+
+  try {
+    const res = await apiRequest(`/materiais/busca-similares?termo=${encodeURIComponent(item.xProd)}`);
+    if (res.success && res.data.length) {
+      listaSimilares.innerHTML = "";
+      for (const mat of res.data) {
+        const div = document.createElement("div");
+        div.className = "similar-item";
+        div.innerHTML = `
+          <div class="similar-info">
+            <div class="similar-codigo">${mat.codigo_produto}</div>
+            <div class="similar-desc">${mat.descricao}</div>
+            <div class="similar-meta">
+              Unidade: ${mat.unidade_medida || "un"} | Estoque: ${Number(mat.estoque || 0).toLocaleString("pt-BR")} |
+              Tipo: ${mat.tipo || "—"}
+              ${mat.unidade_compra ? ` | Unid. Compra: ${mat.unidade_compra} (fator: ${mat.fator_conversao || 1})` : ""}
+            </div>
+          </div>
+          <button class="btn-vincular" data-mat-id="${mat.id}" data-mat-desc="${mat.descricao}" data-mat-cod="${mat.codigo_produto}">
+            Vincular
+          </button>
+        `;
+        listaSimilares.appendChild(div);
+      }
+      // Bind vincular
+      listaSimilares.querySelectorAll(".btn-vincular").forEach(btn => {
+        btn.addEventListener("click", () => {
+          vincularItem(
+            dadosNF.itens[itemResolvendoIdx].cProd,
+            parseInt(btn.dataset.matId),
+            btn.dataset.matDesc,
+            btn.dataset.matCod
+          );
+        });
+      });
+    } else {
+      listaSimilares.innerHTML = `<div class="similares-vazio">
+        Nenhum material similar encontrado.<br>
+        <span style="font-size:11px;color:var(--muted)">Use a aba "Cadastrar Novo" para criar o material.</span>
+      </div>`;
+    }
+  } catch (err) {
+    listaSimilares.innerHTML = `<div class="similares-vazio">Erro ao buscar: ${err.message}</div>`;
+  }
+}
+
+function vincularItem(cProd, materialId, descricao, codigoProduto) {
+  vinculacoes[cProd] = { material_id: materialId, descricao, codigo_produto: codigoProduto };
+  fecharModalResolver();
+  showToast(`Item ${cProd} vinculado ao material ${codigoProduto} — "${descricao}"`, "success");
+  // Re-renderiza tabela para atualizar status
+  exibirItens(dadosNF.itens);
+}
+
+// ── Cadastro rápido ─────────────────────────────────────
+document.getElementById("btnCadastrarRapido").addEventListener("click", async () => {
+  const codigo = document.getElementById("rCodigo").value.trim();
+  const descricao = document.getElementById("rDescricao").value.trim();
+  const unidade = document.getElementById("rUnidade").value.trim() || "un";
+  const tipo = document.getElementById("rTipo").value;
+  const custo = document.getElementById("rCusto").value;
+  const unidadeCompra = document.getElementById("rUnidadeCompra").value.trim();
+  const fator = document.getElementById("rFator").value;
+
+  if (!codigo || !descricao) {
+    showToast("Codigo e descricao sao obrigatorios.", "error");
+    return;
+  }
+
+  const btn = document.getElementById("btnCadastrarRapido");
+  btn.disabled = true;
+  btn.textContent = "Cadastrando...";
+
+  try {
+    const res = await apiRequest("/materiais", {
+      method: "POST",
+      body: JSON.stringify({
+        codigo_produto: codigo,
+        descricao,
+        unidade_medida: unidade,
+        tipo: tipo || null,
+        custo_fornecedor: custo ? Number(custo) : 0,
+        unidade_compra: unidadeCompra || null,
+        fator_conversao: fator ? Number(fator) : 1,
+        estoque: 0,
+        situacao: "ativo",
+      }),
+    });
+
+    if (!res.success) {
+      showToast(res.message || "Erro ao cadastrar.", "error");
+      return;
+    }
+
+    // Vincula automaticamente o item da NF ao material recém-criado
+    const cProd = dadosNF.itens[itemResolvendoIdx].cProd;
+    vinculacoes[cProd] = { material_id: res.id, descricao, codigo_produto: codigo };
+    fecharModalResolver();
+    showToast(`Material "${codigo}" cadastrado e vinculado!`, "success");
+    exibirItens(dadosNF.itens);
+  } catch (err) {
+    showToast(err.message || "Erro ao cadastrar.", "error");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Cadastrar e Vincular";
+  }
+});
 
 // ── Confirmar entrada ─────────────────────────────────
 btnConfirmar.addEventListener("click", async () => {
@@ -478,9 +820,15 @@ btnConfirmar.addEventListener("click", async () => {
   btnConfirmar.textContent = "Processando...";
 
   try {
+    // Monta mapa de vinculações: { cProd: material_id }
+    const vinculacoesMap = {};
+    for (const [cProd, v] of Object.entries(vinculacoes)) {
+      vinculacoesMap[cProd] = v.material_id;
+    }
+
     const res = await apiRequest("/entrada-notas", {
       method: "POST",
-      body: JSON.stringify(dadosNF),
+      body: JSON.stringify({ ...dadosNF, vinculacoes: vinculacoesMap }),
     });
 
     if (!res.success) {
@@ -524,6 +872,7 @@ btnConfirmar.addEventListener("click", async () => {
     // Esconde botao e limpa
     btnConfirmar.classList.remove("show");
     dadosNF = null;
+    for (const k of Object.keys(vinculacoes)) delete vinculacoes[k];
 
     carregarHistorico();
 
@@ -538,6 +887,8 @@ btnConfirmar.addEventListener("click", async () => {
 // ── Limpar ────────────────────────────────────────────
 btnLimpar.addEventListener("click", () => {
   dadosNF = null;
+  // Limpa vinculações
+  for (const k of Object.keys(vinculacoes)) delete vinculacoes[k];
   nfCard.classList.remove("show");
   tabelaCard.classList.remove("show");
   btnConfirmar.classList.remove("show");
@@ -556,11 +907,12 @@ async function carregarHistorico() {
     tbody.innerHTML = "";
 
     if (!res.data?.length) {
-      tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:24px;">Nenhuma entrada registrada.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:24px;">Nenhuma entrada registrada.</td></tr>`;
       return;
     }
 
     res.data.forEach(e => {
+      const temPendentes = (e.qtde_atualizado ?? 0) < (e.qtde_itens ?? 0);
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td>${e.id}</td>
@@ -568,14 +920,46 @@ async function carregarHistorico() {
         <td>${e.emit_nome || "—"}</td>
         <td>${fmtCNPJ(e.emit_cnpj) || "—"}</td>
         <td>${e.valor_total ? fmtBRL(e.valor_total) : "—"}</td>
-        <td>${e.qtde_atualizado ?? "—"} / ${e.qtde_itens ?? "—"}</td>
+        <td>
+          ${e.qtde_atualizado ?? "—"} / ${e.qtde_itens ?? "—"}
+          ${temPendentes ? `<span style="color:#f59e0b;font-size:10px;font-weight:700;margin-left:4px;">PENDENTE</span>` : ""}
+        </td>
         <td>${fmtData(e.data_entrada || e.criado_em)}</td>
         <td>${e.criado_por_nome || "—"}</td>
+        <td>
+          ${temPendentes
+            ? `<button class="btn-acao-nf btn-reprocessar" data-id="${e.id}" data-nf="${e.numero_nf || ''}">Reprocessar</button>`
+            : `<span style="color:var(--success);font-size:11px;font-weight:700;">OK</span>`
+          }
+        </td>
       `;
       tbody.appendChild(tr);
     });
+
+    // Bind dos botões "Reprocessar"
+    tbody.querySelectorAll(".btn-reprocessar").forEach(btn => {
+      btn.addEventListener("click", () => reprocessarEntrada(parseInt(btn.dataset.id), btn.dataset.nf));
+    });
   } catch {
     // silencia erro se tabela nao existe ainda
+  }
+}
+
+async function reprocessarEntrada(id, nf) {
+  if (!confirm(`Reprocessar itens pendentes da NF ${nf || id}?\nIsto vai tentar vincular novamente os itens não encontrados e atualizar o estoque.`)) return;
+
+  try {
+    const res = await apiRequest(`/entrada-notas/${id}/reprocessar`, { method: "PUT" });
+
+    if (!res.success) {
+      showToast(res.message || "Erro ao reprocessar.", "error");
+      return;
+    }
+
+    showToast(res.message, res.atualizados > 0 ? "success" : "warning");
+    carregarHistorico();
+  } catch (err) {
+    showToast(err.message || "Erro ao reprocessar.", "error");
   }
 }
 

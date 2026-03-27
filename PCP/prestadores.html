@@ -18,6 +18,22 @@
     .modal-box input { width: 100%; padding: 9px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,.1); background: #0f172a; color: #f1f5f9; font-size: 13px; }
     .modal-box input:focus { outline: none; border-color: #3b82f6; }
     .modal-footer-btns { display: flex; gap: 10px; justify-content: flex-end; margin-top: 4px; }
+
+    /* ── Tablet (max-width: 768px) ── */
+    @media (max-width: 768px) {
+      .filtros { flex-direction: column; }
+      .filtros input { min-width: 100%; }
+      .modal-box { max-width: 95vw; }
+      table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    }
+
+    /* ── Small Mobile (max-width: 480px) ── */
+    @media (max-width: 480px) {
+      .modal-box { padding: 20px; border-radius: 12px; }
+      .modal-box h3 { font-size: 14px; }
+      .modal-footer-btns { flex-direction: column; }
+      .modal-footer-btns button { width: 100%; }
+    }
   </style>
 </head>
 <body>

@@ -6,7 +6,30 @@
   <title>PCP — Logs do Sistema</title>
         <link rel="stylesheet" href="../Styles/logs-style.css">
         <link rel="stylesheet" href="../Styles/shared-style.css">
-  
+  <style>
+    /* ── Tablet (max-width: 768px) ── */
+    @media (max-width: 768px) {
+      .stats { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+      .filtros { flex-direction: column; }
+      .filtro-group { width: 100%; }
+      .filtro-group input, .filtro-group select { width: 100%; }
+      .btn-filtrar, .btn-limpar { width: 100%; }
+      .tabela-wrap table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      .tabela-header { flex-direction: column; align-items: flex-start; gap: 6px; }
+      .paginacao { flex-wrap: wrap; gap: 8px; }
+    }
+
+    /* ── Small Mobile (max-width: 480px) ── */
+    @media (max-width: 480px) {
+      .stats { grid-template-columns: 1fr 1fr; gap: 8px; }
+      .stat-card { padding: 12px; gap: 10px; }
+      .stat-icon { width: 36px; height: 36px; font-size: 16px; }
+      .stat-valor { font-size: 16px; }
+      .stat-label { font-size: 11px; }
+      .pag-btns { display: flex; flex-wrap: wrap; gap: 4px; }
+      .btn-pag { padding: 4px 8px; font-size: 11px; }
+    }
+  </style>
 </head>
 <body>
 
@@ -59,7 +82,7 @@
         <option value="">Todos</option>
         <option value="OP">Ordem de Produção</option>
         <option value="MATERIAL">Material</option>
-        <option value="ESTOQUE">Saída de Estoque</option>
+        <option value="ESTOQUE">Estoque</option>
         <option value="PEDIDO">Pedido</option>
         <option value="USUARIO">Usuário</option>
         <option value="PRESTADOR">Prestador</option>
@@ -108,7 +131,7 @@ let totalRegistros = 0;
 
 const MODULO_LABEL = {
   OP: "Ordem de Produção", MATERIAL: "Material",
-  ESTOQUE: "Saída de Estoque", PEDIDO: "Pedido",
+  ESTOQUE: "Estoque", PEDIDO: "Pedido",
   USUARIO: "Usuário", SISTEMA: "Sistema", PRESTADOR: "Prestador",
 };
 
@@ -121,8 +144,20 @@ const ACAO_CLASSE = {
   "Saída":    "acao-saida",
 };
 
-function badgeModulo(m) {
-  return `<span class="badge badge-${m}">${MODULO_LABEL[m] || m}</span>`;
+function badgeModulo(m, acao) {
+  let label = MODULO_LABEL[m] || m;
+  let cls = m;
+  // Diferencia entrada e saída de estoque pela ação
+  if (m === "ESTOQUE") {
+    if (acao && (acao.includes("Entrada") || acao.includes("Reprocessar"))) {
+      label = "Entrada de Estoque";
+      cls = "ESTOQUE-ENTRADA";
+    } else if (acao && (acao.includes("Saída") || acao.includes("Espelho"))) {
+      label = "Saída de Estoque";
+      cls = "ESTOQUE-SAIDA";
+    }
+  }
+  return `<span class="badge badge-${cls}">${label}</span>`;
 }
 
 function badgeAcao(acao) {
@@ -224,7 +259,7 @@ async function buscar(pagina = 0) {
               </div>
             </div>
           </td>
-          <td>${badgeModulo(l.modulo)}</td>
+          <td>${badgeModulo(l.modulo, l.acao)}</td>
           <td>${badgeAcao(l.acao)}</td>
           <td class="descricao" style="line-height:1.5">${l.descricao || "—"}</td>
           <td>${l.referencia_label ? `<span class="ref">${l.referencia_label}</span>` : l.referencia_id ? `<span class="ref">#${l.referencia_id}</span>` : "—"}</td>

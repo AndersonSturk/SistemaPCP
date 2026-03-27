@@ -211,11 +211,28 @@
     @media (max-width: 900px) {
       .report-selector { grid-template-columns: repeat(2,1fr); }
     }
-    @media (max-width: 600px) {
-      .report-selector { grid-template-columns: 1fr 1fr; }
+
+    /* ── Tablet (max-width: 768px) ── */
+    @media (max-width: 768px) {
+      .report-selector { grid-template-columns: repeat(2, 1fr); }
       .filters-panel { flex-direction: column; }
       .filter-actions { margin-left: 0; width: 100%; }
       .btn-gerar, .btn-export { flex: 1; justify-content: center; }
+      .stats-row { grid-template-columns: repeat(2, 1fr); }
+      .sub-tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; }
+      .sub-tab { white-space: nowrap; }
+      .table-header { flex-direction: column; align-items: flex-start; gap: 6px; }
+    }
+
+    /* ── Small Mobile (max-width: 480px) ── */
+    @media (max-width: 480px) {
+      .report-selector { grid-template-columns: 1fr; gap: 8px; }
+      .report-card { padding: 12px 14px; }
+      .report-card-icon { width: 34px; height: 34px; font-size: 16px; }
+      .stats-row { grid-template-columns: 1fr; }
+      .stat-card { padding: 10px 12px; }
+      .stat-value { font-size: 18px; }
+      .filter-group input, .filter-group select { min-width: 100%; }
     }
   </style>
 </head>

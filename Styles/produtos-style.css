@@ -362,3 +362,121 @@ tbody tr:hover {
   font-size: 14px;
   background: white;
 }
+
+/* ═══════ RESPONSIVE ═══════ */
+@media (max-width: 768px) {
+  body {
+    padding: 16px;
+  }
+
+  .header-content {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .header-right {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .dock-bar {
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+  }
+
+  .dock-item {
+    flex: 0 0 auto;
+  }
+
+  .top-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .modal {
+    width: 95%;
+    max-width: 100%;
+    padding: 18px;
+  }
+
+  table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@media (max-width: 480px) {
+  body {
+    padding: 10px;
+  }
+
+  .header {
+    padding: 12px 14px;
+    border-radius: 12px;
+    top: 8px;
+  }
+
+  .header-title {
+    font-size: 14px;
+  }
+
+  #userInfo {
+    font-size: 11px;
+    padding: 6px 8px;
+  }
+
+  .dock-container {
+    padding: 0 8px;
+  }
+
+  .dock-bar {
+    border-radius: 12px;
+    padding: 8px 10px;
+  }
+
+  .dock-item {
+    font-size: 18px;
+  }
+
+  .dock-label {
+    font-size: 11px;
+  }
+
+  .modal {
+    width: 100%;
+    border-radius: 12px;
+    padding: 14px;
+  }
+
+  .modal-overlay {
+    padding: 8px;
+  }
+
+  form label {
+    font-size: 12px;
+  }
+
+  form input {
+    padding: 8px 10px;
+    font-size: 14px;
+  }
+
+  .form-actions {
+    flex-direction: column;
+  }
+
+  .form-actions .btn {
+    width: 100%;
+    text-align: center;
+  }
+
+  th, td {
+    padding: 8px 6px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+}

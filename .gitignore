@@ -28,6 +28,7 @@ desktop.ini
 *.sql
 *.sql.bak
 *.sql.backup
+API/backups/
 
 # Logs
 logs/

@@ -72,6 +72,29 @@
 
     /* Loading */
     .loading { text-align: center; padding: 48px; color: var(--muted); font-size: 14px; }
+
+    /* ── Tablet (max-width: 768px) ── */
+    @media (max-width: 768px) {
+      .header { padding: 14px 18px; flex-wrap: wrap; gap: 10px; }
+      .header-left { flex: 1; min-width: 0; }
+      .header-right { width: 100%; justify-content: flex-end; flex-wrap: wrap; gap: 6px; }
+      .toolbar { flex-wrap: wrap; }
+      .search-input { max-width: 100%; flex: 1 1 100%; }
+      .table-card { overflow: hidden; }
+      table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      .page { padding: 20px 14px; }
+    }
+
+    /* ── Small Mobile (max-width: 480px) ── */
+    @media (max-width: 480px) {
+      .header { padding: 10px 12px; }
+      .header-title { font-size: 14px; }
+      .page { padding: 14px 8px; }
+      .toolbar { gap: 8px; }
+      .search-input { padding: 8px 12px; font-size: 12px; }
+      .acoes { flex-wrap: wrap; }
+      .btn-act { padding: 4px 8px; font-size: 10px; }
+    }
   </style>
 </head>
 <body>

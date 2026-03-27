@@ -7,6 +7,20 @@ if (!user) window.location.href = "login.html";
 const userInfoEl = document.getElementById("userInfo");
 if (userInfoEl) userInfoEl.innerText = user.nome;
 
+// ── Dados dinâmicos do setor ────────────────────────────
+const VIZ_PERFIL = {
+  admin:    { centro: "ADM - Lucabe",        projeto: "Gestão de Produção" },
+  pcp:      { centro: "PCP - Lucabe",        projeto: "Planejamento e Controle da Produção" },
+  producao: { centro: "Produção - Lucabe",   projeto: "Montagem e Produção" },
+  ped:      { centro: "P&D - Lucabe",        projeto: "Desenvolvimento de Produtos" },
+  logistica:{ centro: "Logística - Lucabe",  projeto: "Controle de Estoque e Expedição" },
+};
+const vizCfg = VIZ_PERFIL[user.perfil] || VIZ_PERFIL.pcp;
+const vizCentro = document.getElementById("vizCentroCusto");
+const vizProjeto = document.getElementById("vizProjeto");
+if (vizCentro) vizCentro.textContent = vizCfg.centro;
+if (vizProjeto) vizProjeto.textContent = vizCfg.projeto;
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const fmt         = (v) => (v != null && v !== "") ? v : "—";
 const fmtData     = (v) => v ? new Date(v).toLocaleDateString("pt-BR")  : "—";

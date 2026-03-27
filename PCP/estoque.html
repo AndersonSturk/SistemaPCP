@@ -234,6 +234,35 @@
       padding: 5px 12px; border-radius: 7px; font-size: 12px;
     }
     #extratoPageInfo { font-size: 11px; color: var(--muted); }
+
+    /* ── Tablet (max-width: 768px) ── */
+    @media (max-width: 768px) {
+      .top-bar { flex-direction: column; }
+      .top-bar input { min-width: 100%; }
+      .top-bar select { width: 100%; }
+      .info-grid { grid-template-columns: 1fr; }
+      .info-grid .span2 { grid-column: span 1; }
+      .modal-box { max-width: 100%; border-radius: 14px; }
+      .modal-tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      .modal-tab { white-space: nowrap; }
+      .ft-doc-topo { flex-direction: column; }
+      .ft-doc-titulo { text-align: left; margin-top: 8px; }
+      .ft-doc-blocos { grid-template-columns: 1fr; }
+      .ft-doc-bloco-full { grid-column: span 1; }
+      .extrato-table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    }
+
+    /* ── Small Mobile (max-width: 480px) ── */
+    @media (max-width: 480px) {
+      .modal-overlay { padding: 12px 8px; }
+      .modal-header { padding: 14px 16px; }
+      .modal-body { padding: 16px; }
+      .modal-tabs { padding: 0 12px; }
+      .paginacao { gap: 8px; padding: 10px; }
+      .ft-doc { padding: 16px; }
+      .ft-doc-empresa h3 { font-size: 14px; }
+      .extrato-paginacao { flex-wrap: wrap; }
+    }
   </style>
 </head>
 <body>

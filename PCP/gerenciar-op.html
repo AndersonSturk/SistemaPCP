@@ -2,17 +2,17 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PCP - Gerenciar OP</title>
-      <link rel="stylesheet" href="../Styles/shared-style.css">
+  <link rel="stylesheet" href="../Styles/gerenciar-op-style.css">
+  <link rel="stylesheet" href="../Styles/shared-style.css">
 </head>
 <body>
 
-
-
-<header class="header">
+<header class="header no-print">
   <div class="header-left">
     <div class="logo">PCP</div>
-    <h2 class="header-text">Controle de Pedidos</h2>
+    <h2 class="header-text">Gerenciar OP</h2>
   </div>
   <button class="btn btn-voltar" onclick="voltarHub()">← Voltar</button>
 </header>
@@ -21,23 +21,23 @@
   <div class="topo">
     <div class="empresa">
       <h2>Lucabe Energy</h2>
-      <p>CNPJ: 12.345.678/0001-90</p>
-      <p>Rua das Indústrias, 1234 - Distrito Industrial</p>
-      <p>São Paulo - SP | CEP: 01234-567</p>
-      <p>Telefone: (11) 4000-1234 | Email: <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="32515d5c4653465d725e4751535057575c5740554b1c515d5f">[email&#160;protected]</a></p>
-      <p>Site: www.lucabeenergy.com</p>
+      <p>CNPJ: 01.272.361/0001-50</p>
+      <p>Avenida Comandante Sampaio, N° 781 - KM 18</p>
+      <p>Osasco - SP | CEP: 06192-010</p>
+      <p>Telefone: (11) 4506-4700</p>
     </div>
 
     <div class="nfe">
       <div class="titulo">ORDEM DE PRODUÇÃO (OP)</div>
       <div class="info">
-        <b>Modelo:</b> '001_2(em desenvolvimento)'<br>
-        <b>Tipo:</b> Produção Interna<br>
-        <b>Ambiente:</b> Homologação (fake)
+        <b>Setor:</b> <span id="setorLabel">PCP</span><br>
+        <b>Tipo:</b> <span id="tipoLabel">Produção Interna</span><br>
+        <b>Centro de Custo:</b> <span id="centroCustoLabel">PCP - Lucabe</span>
       </div>
     </div>
   </div>
 
+  <!-- Dados da OP (somente leitura) -->
   <div class="blocos">
     <div class="bloco">
       <h4>Dados da OP</h4>
@@ -50,57 +50,60 @@
     <div class="bloco">
       <h4>Responsável e Controle</h4>
       <p><b>Responsável:</b> <span id="responsavelTxt"></span></p>
-      <p><b>Centro de custo:</b> PCP - Lucabe</p>
-      <p><b>Projeto:</b> Montagem e produção</p>
-      <p><b>Observações:</b> Documento gerado para teste (dados fictícios).</p>
+      <p><b>Centro de custo:</b> <span id="centroCustoTxt">PCP - Lucabe</span></p>
+      <p><b>Projeto:</b> <span id="projetoTxt">Montagem e produção</span></p>
     </div>
   </div>
 
+  <!-- Produto / Item (somente leitura) -->
   <div class="blocos" style="margin-top: 18px;">
     <div class="bloco">
       <h4>Produto / Item</h4>
       <p><b>Código:</b> <span id="codigoItem"></span></p>
       <p><b>Descrição:</b> <span id="descricao"></span></p>
-      <p><b>Quantidade:</b> <span id="quantidade"></span> <span id="unidade"></span></p>
+      <p><b>Quantidade:</b> <span id="quantidade"></span></p>
+      <p><b>Unidade:</b> <span id="unidadeTxt"></span></p>
       <p><b>Custo Unitário:</b> R$ <span id="custoUnitario"></span></p>
       <p><b>Custo Total:</b> R$ <span id="custoTotal"></span></p>
     </div>
 
-    <div class="bloco">
-  <h4>Editar OP</h4>
+    <!-- Editar OP (campos editáveis) -->
+    <div class="bloco" id="blocoEditar">
+      <h4>Editar OP</h4>
 
-  <div class="flex">
-    <label>Status</label>
-    <select id="status">
-      <option value="Aberta">Aberta</option>
-      <option value="EmProducao">Em Produção</option>
-      <option value="Concluida">Concluída</option>
-    </select>
+      <div class="flex">
+        <label>Status</label>
+        <select id="status">
+          <option value="ABERTA">Aberta</option>
+          <option value="EM_PRODUCAO">Em Produção</option>
+          <option value="CONCLUIDA">Concluída</option>
+        </select>
+      </div>
+
+      <div class="flex" style="margin-top: 12px;">
+        <label>Responsável</label>
+        <input type="text" id="responsavel" placeholder="Responsável">
+      </div>
+
+      <div class="flex" style="margin-top: 12px;">
+        <label>Data Finalização</label>
+        <input type="date" id="dataFinalizacao">
+      </div>
+
+      <div class="flex" style="margin-top: 12px;">
+        <label>Observações</label>
+        <textarea id="observacoes" rows="2" placeholder="Observações sobre a OP" style="resize:vertical"></textarea>
+      </div>
+
+      <div class="actions" id="acoesEditar">
+        <button onclick="salvarEdicao()">Salvar alterações</button>
+      </div>
+    </div>
   </div>
 
-  <div class="flex" style="margin-top: 12px;">
-    <label>Responsável</label>
-    <input type="text" id="responsavel" placeholder="Responsável" value="Anderson">
-  </div>
-
-  <div class="flex" style="margin-top: 12px;">
-    <label>Data Finalização</label>
-    <input type="date" id="dataFinalizacao">
-  </div>
-
-  <div class="flex" style="margin-top: 12px;">
-    <label>Unidade de medida</label>
-    <input type="text" id="unidadeMedida" placeholder="Ex: kg, m, litros">
-  </div>
-
-  <div class="actions">
-    <button onclick="salvarEdicao()">Salvar alterações</button>
-  </div>
-</div>
-
-
+  <!-- Tabela de itens/materiais -->
   <div class="bloco" style="margin-top: 18px;">
-    <h4>Itens / Materiais (BOM - provisório)</h4>
+    <h4>Insumos / Materiais (BOM)</h4>
     <table>
       <thead>
         <tr>
@@ -115,6 +118,16 @@
     </table>
   </div>
 
+  <!-- Logs -->
   <div class="logs">
     <h4>Logs de edição</h4>
-    <div id="lista
+    <div id="listaLogs"><p style="color:#888;font-size:13px">Carregando...</p></div>
+  </div>
+</div>
+
+<script>
+  function voltarHub() { window.location.href = "processos.html"; }
+</script>
+<script type="module" src="../Scripts/gerenciar-op-script.js" defer></script>
+</body>
+</html>

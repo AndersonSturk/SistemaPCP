@@ -229,6 +229,33 @@
       padding: 14px 22px; border-top: 1px solid var(--border);
       background: rgba(255,255,255,.02); border-radius: 0 0 20px 20px;
     }
+
+    /* ── Tablet (max-width: 768px) ── */
+    @media (max-width: 768px) {
+      .top-bar { flex-direction: column; }
+      .top-bar input { min-width: 100%; }
+      .form-grid { grid-template-columns: 1fr; }
+      .form-grid .span2 { grid-column: span 1; }
+      .modal-box { max-width: 100%; border-radius: 14px; }
+      .modal-tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      .modal-tab { white-space: nowrap; }
+      .ft-add-form { grid-template-columns: 1fr; }
+      .ft-item { grid-template-columns: 1fr auto auto auto; }
+    }
+
+    /* ── Small Mobile (max-width: 480px) ── */
+    @media (max-width: 480px) {
+      .modal-overlay { padding: 12px 8px; }
+      .modal-header { padding: 14px 16px; }
+      .modal-body { padding: 16px; }
+      .modal-tabs { padding: 0 12px; }
+      .modal-footer { padding: 12px 16px; }
+      .ft-toolbar { flex-direction: column; }
+      .ft-toolbar input { min-width: 100%; }
+      .ft-item { grid-template-columns: 1fr; gap: 6px; }
+      .ft-item-qty input { width: 100%; }
+      .paginacao { gap: 8px; padding: 10px; }
+    }
   </style>
 </head>
 <body>
@@ -432,6 +459,13 @@
                 <input type="number" id="fator_conversao" value="1" min="0.0001" step="any" placeholder="Ex: 25">
               </div>
               <div id="conversaoPreview" style="font-size:11px;color:#93c5fd;font-weight:600;padding-bottom:10px;white-space:nowrap"></div>
+            </div>
+            <div style="display:flex;gap:12px;flex-wrap:wrap;">
+              <div class="field" style="margin:0;flex:1;min-width:140px">
+                <label>% Perda Estimada</label>
+                <input type="number" id="percentual_perda" value="0" min="0" max="100" step="0.01" placeholder="Ex: 5">
+              </div>
+              <div style="font-size:11px;color:#f59e0b;padding-top:18px;flex:2;min-width:140px" id="perdaPreview"></div>
             </div>
           </div>
         </div>

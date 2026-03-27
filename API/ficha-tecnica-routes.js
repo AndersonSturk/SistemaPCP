@@ -26,6 +26,7 @@ router.get('/:material_id', async (req, res) => {
        ORDER BY ft.id ASC`,
       [req.params.material_id]
     );
+    // percentual_perda já vem de ft.* (coluna da ficha_tecnica, não do material)
     res.json({ success: true, data: rows });
   } catch (e) {
     console.error('[ficha-tecnica GET]', e.message);
@@ -63,8 +64,8 @@ router.post('/:material_id', async (req, res) => {
     for (const it of itens) {
       await db.promise().query(
         `INSERT INTO ficha_tecnica
-           (material_id, insumo_material_id, insumo_codigo, insumo_descricao, quantidade_por_unidade, unidade_medida)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+           (material_id, insumo_material_id, insumo_codigo, insumo_descricao, quantidade_por_unidade, unidade_medida, percentual_perda)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [
           material_id,
           it.insumo_material_id || null,
@@ -72,6 +73,7 @@ router.post('/:material_id', async (req, res) => {
           it.insumo_descricao,
           Number(it.quantidade_por_unidade) || 1,
           it.unidade_medida || 'un',
+          Number(it.percentual_perda) || 0,
         ]
       );
     }

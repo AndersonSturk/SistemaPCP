@@ -5,6 +5,24 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Gerenciar Usuários — PCP</title>
   <link rel="stylesheet" href="../Styles/shared-style.css">
+  <style>
+    /* ── Tablet (max-width: 768px) ── */
+    @media (max-width: 768px) {
+      .modal-pedido { max-width: 95vw; }
+      .modal-pedido-body { padding: 16px; }
+      .form-row { flex-direction: column; gap: 12px; }
+      .form-group { width: 100%; }
+      table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    }
+
+    /* ── Small Mobile (max-width: 480px) ── */
+    @media (max-width: 480px) {
+      .modal-pedido-header { padding: 14px 16px; }
+      .modal-pedido-body { padding: 12px; }
+      .modal-pedido-footer { padding: 12px 16px; }
+      .form-divider { margin: 12px 0; }
+    }
+  </style>
 </head>
 <body>
 
@@ -69,6 +87,7 @@
               <option value="admin">Admin — Acesso total</option>
               <option value="pcp">PCP — Planejamento e Controle</option>
               <option value="producao">Produção — Gerar e gerenciar OPs</option>
+              <option value="ped">P&D — Pesquisa e Desenvolvimento</option>
               <option value="logistica">Logística — Estoque e expedição</option>
               <option value="vendas">Vendas — Pedidos e dashboard</option>
             </select>

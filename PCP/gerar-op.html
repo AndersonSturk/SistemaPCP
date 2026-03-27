@@ -28,6 +28,23 @@
       font-size: 13px; font-weight: 700; color: #93c5fd; }
     .field { position: relative; }
     .dropdown { position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 200; }
+
+    /* ── Tablet (max-width: 768px) ── */
+    @media (max-width: 768px) {
+      .card { padding: 20px; max-width: 100%; }
+      .quantidade-row { flex-direction: column; gap: 12px; }
+      #insumosPreview th, #insumosPreview td { padding: 6px 8px; font-size: 11px; }
+    }
+
+    /* ── Small Mobile (max-width: 480px) ── */
+    @media (max-width: 480px) {
+      .card { padding: 16px; }
+      .total { padding: 12px 14px; }
+      .total h3 { font-size: 15px; }
+      .form-actions { justify-content: stretch; }
+      .form-actions .btn-primary { width: 100%; }
+      #insumosPreview { padding: 12px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    }
   </style>
 </head>
 <body>
@@ -46,7 +63,13 @@
   </header>
 
   <div class="card">
-    <h3>Nova OP</h3>
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+      <h3 style="margin:0">Nova OP</h3>
+      <div style="font-size:11px;color:var(--muted);text-align:right">
+        <span>Setor: <b id="setorGerarOP" style="color:var(--primary)">PCP</b></span> &nbsp;|&nbsp;
+        <span>Centro: <b id="centroGerarOP" style="color:var(--text)">PCP - Lucabe</b></span>
+      </div>
+    </div>
 
     <form id="formOp">
 

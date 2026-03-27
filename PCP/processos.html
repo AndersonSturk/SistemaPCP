@@ -85,44 +85,40 @@
 
     <form id="formGerenciarOP" class="modal-body">
 
-      <!-- GRID 2 COLUNAS -->
-      <div class="modal-cols">
+      <!-- DADOS DA OP (somente leitura) -->
+      <div class="modal-section">
+        <h3>Dados da OP</h3>
+        <div class="modal-cols">
+          <div>
+            <label>Número OP</label>
+            <input id="numero_op" disabled readonly>
 
-        <div class="modal-section">
-          <h3>Dados Editáveis</h3>
+            <label>Material</label>
+            <input id="material_id" disabled readonly>
 
-          <label>Material</label>
-          <input id="material_id">
+            <label>Status</label>
+            <input id="status" disabled readonly>
 
-          <label>Quantidade</label>
-          <input type="number" id="quantidade">
+            <label>Data Criação</label>
+            <input id="data_criacao" disabled readonly>
+          </div>
+          <div>
+            <label>Quantidade</label>
+            <input type="number" id="quantidade" min="0.01" step="0.01">
 
-          <label>Unidade</label>
-          <input id="unidade_medida">
+            <label>Unidade</label>
+            <input id="unidade_medida" disabled readonly>
 
-          <label>Observações</label>
-          <textarea id="observacoes"></textarea>
+            <label>Custo Unitário</label>
+            <input id="custo_unitario" disabled readonly>
+
+            <label>Custo Total</label>
+            <input id="custo_total" disabled readonly>
+          </div>
         </div>
 
-        <div class="modal-section">
-          <h3>Informações</h3>
-
-          <label>Número OP</label>
-          <input id="numero_op" disabled>
-
-          <label>Status</label>
-          <input id="status" disabled>
-
-          <label>Custo Unitário</label>
-          <input id="custo_unitario" disabled>
-
-          <label>Custo Total</label>
-          <input id="custo_total" disabled>
-
-          <label>Data Criação</label>
-          <input id="data_criacao" disabled>
-        </div>
-
+        <label style="margin-top:10px">Observações</label>
+        <textarea id="observacoes" rows="2" placeholder="Observações sobre a OP"></textarea>
       </div>
 
       <!-- ================= INSUMOS ================= -->

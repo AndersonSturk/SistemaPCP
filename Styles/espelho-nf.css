@@ -435,6 +435,131 @@ select.campo-doc:focus {
 .no-print { }
 .print-only { display: none; }
 
+/* ═══════ RESPONSIVE ═══════ */
+@media (max-width: 768px) {
+  body {
+    padding: 12px;
+  }
+
+  .header-content {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .header-left {
+    justify-content: center;
+  }
+
+  .header-right {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  .documento {
+    max-width: 100%;
+    padding: 10px;
+  }
+
+  .doc-topo {
+    flex-direction: column;
+    gap: 8px;
+    text-align: center;
+  }
+
+  .doc-logo-dir {
+    text-align: center;
+  }
+
+  .secao {
+    flex-direction: column;
+  }
+
+  .campo-grupo {
+    border-right: none;
+    border-bottom: 1px solid var(--cor-borda);
+  }
+
+  .campo-grupo:last-child {
+    border-bottom: none;
+  }
+
+  .secao-totais {
+    flex-wrap: wrap;
+  }
+
+  .total-item {
+    flex: 1 1 33%;
+    border-bottom: 1px solid var(--cor-borda);
+  }
+
+  .footer-content {
+    flex-direction: column;
+    gap: 4px;
+    text-align: center;
+  }
+}
+
+@media (max-width: 480px) {
+  body {
+    padding: 8px;
+  }
+
+  .header {
+    padding: 10px 12px;
+    border-radius: 10px;
+  }
+
+  .header-title {
+    font-size: 14px;
+  }
+
+  .btn-voltar, .btn-pdf, .btn-add-row, .btn-limpar {
+    padding: 6px 10px;
+    font-size: 11px;
+  }
+
+  .documento {
+    padding: 6px;
+    font-size: 10px;
+  }
+
+  .doc-titulo {
+    font-size: 12px;
+  }
+
+  .doc-subtitulo {
+    font-size: 9px;
+  }
+
+  .campo-grupo label {
+    font-size: 7px;
+  }
+
+  .campo-doc {
+    font-size: 9px;
+  }
+
+  .secao-totais {
+    flex-direction: column;
+  }
+
+  .total-item {
+    flex: 1 1 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--cor-borda);
+  }
+
+  .total-item:last-child {
+    border-bottom: none;
+  }
+
+  .tabela-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
 /* ═══════════════════════════════════════════════════════
    @MEDIA PRINT — A4 sem cabeçalho/rodapé do browser
 ═══════════════════════════════════════════════════════ */

@@ -143,10 +143,30 @@
     @keyframes toastIn  { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
     @keyframes toastOut { from { opacity: 1; } to { opacity: 0; transform: translateY(20px); } }
 
-    @media (max-width: 640px) {
+    /* ── Tablet (max-width: 768px) ── */
+    @media (max-width: 768px) {
       .info-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
       .info-card .numero { font-size: 22px; }
       .backup-item { flex-direction: column; gap: 10px; align-items: flex-start; }
+      .links-grid { flex-direction: column; }
+      .link-card { width: 100%; }
+      .abas-preview { gap: 4px; }
+      .aba-tag { font-size: 10px; padding: 4px 10px; }
+    }
+
+    /* ── Small Mobile (max-width: 480px) ── */
+    @media (max-width: 480px) {
+      body { padding: 12px; }
+      .info-grid { grid-template-columns: repeat(2, 1fr); gap: 6px; }
+      .info-card { padding: 14px 10px; }
+      .info-card .numero { font-size: 20px; }
+      .info-card .label { font-size: 10px; }
+      .section { padding: 16px; border-radius: 12px; }
+      .section h2 { font-size: 14px; }
+      .btn-acao { padding: 8px 16px; font-size: 12px; width: 100%; justify-content: center; }
+      .backup-actions { width: 100%; }
+      .backup-actions .btn-mini { flex: 1; text-align: center; }
+      .modal-box { width: 95%; padding: 20px; }
     }
   </style>
 </head>

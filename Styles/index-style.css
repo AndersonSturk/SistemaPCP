@@ -174,6 +174,32 @@ a { text-decoration: none; color: inherit; }
 }
 
 /* ══════ RESPONSIVO ══════ */
+@media (max-width: 768px) {
+  body { padding: 16px; }
+
+  .header-content {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .header-right {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .welcome-section h1 { font-size: 22px; }
+  .welcome-section p { font-size: 14px; }
+
+  .hub { gap: 14px; }
+
+  .card {
+    width: calc(50% - 7px);
+    height: 180px;
+    padding: 24px 16px 22px;
+  }
+}
+
 @media (max-width: 600px) {
   body { padding: 14px; }
 
@@ -193,4 +219,43 @@ a { text-decoration: none; color: inherit; }
   .card-icon svg { width: 22px; height: 22px; }
   .card h2 { font-size: 13px; }
   .card p { font-size: 11px; }
+}
+
+@media (max-width: 480px) {
+  body { padding: 10px; }
+
+  .header {
+    padding: 12px 14px;
+    border-radius: 12px;
+    top: 8px;
+    margin-bottom: 24px;
+  }
+
+  .header-text { font-size: 15px; }
+
+  #userInfo {
+    font-size: 11px;
+    padding: 6px 8px;
+  }
+
+  .welcome-section {
+    margin-bottom: 20px;
+  }
+
+  .welcome-section h1 { font-size: 18px; }
+  .welcome-section p { font-size: 12px; }
+
+  .hub { gap: 8px; }
+
+  .card {
+    width: calc(50% - 4px);
+    height: 155px;
+    padding: 18px 10px 16px;
+    border-radius: 14px;
+  }
+
+  .card-icon { width: 38px; height: 38px; border-radius: 10px; }
+  .card-icon svg { width: 20px; height: 20px; }
+  .card h2 { font-size: 12px; margin-bottom: 4px; }
+  .card p { font-size: 10px; }
 }
