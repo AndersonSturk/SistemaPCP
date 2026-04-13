@@ -4,14 +4,14 @@
 ═══════════════════════════════════════════════════════ */
 
 :root {
-  --cor-primaria:   #2563eb;
-  --cor-titulo-bg:  #1e3a8a;
-  --cor-fundo:      #f1f5f9;
-  --cor-card:       #ffffff;
-  --cor-borda:      #374151;
-  --cor-texto:      #111827;
-  --header-bg:      #1f2a6f;
-  --header-text:    #f8fafc;
+  --cor-primaria:   #22c55e;
+  --cor-titulo-bg:  #dc2626;
+  --cor-fundo:      #081118;
+  --cor-card:       #0f172a;
+  --cor-borda:      rgba(255,255,255,.12);
+  --cor-texto:      #e2e8f0;
+  --header-bg:      #0f172a;
+  --header-text:    #e2e8f0;
 }
 
 * { box-sizing: border-box; }
@@ -68,7 +68,7 @@ body {
 }
 .btn-voltar  { background: rgba(255,255,255,.12); color: #fff; border: 1px solid rgba(255,255,255,.16); }
 .btn-pdf     { background: #16a34a; color: #fff; }
-.btn-add-row { background: #2563eb; color: #fff; }
+.btn-add-row { background: var(--cor-primaria); color: #fff; }
 .btn-limpar  { background: #64748b; color: #fff; }
 .btn-salvar  { background: #7c3aed; color: #fff; }
 .btn-voltar:hover, .btn-pdf:hover, .btn-add-row:hover, .btn-limpar:hover {
@@ -79,7 +79,7 @@ body {
 .documento {
   max-width: 1050px;
   margin: 0 auto;
-  background: #fff;
+  background: var(--cor-card);
   border: 1.5px solid var(--cor-borda);
   padding: 16px 18px 12px;
   font-size: 11px;
@@ -147,7 +147,7 @@ body {
 }
 
 .secao-titulo {
-  background: #e5e7eb;
+  background: rgba(255,255,255,.04);
   border: 1.5px solid var(--cor-borda);
   border-top: none;
   font-weight: 800;
@@ -177,7 +177,7 @@ body {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: .3px;
-  color: #4b5563;
+  color: var(--muted);
   margin-bottom: 2px;
   white-space: nowrap;
 }
@@ -194,7 +194,7 @@ body {
   outline: none;
 }
 
-.campo-doc:focus { border-bottom-color: var(--cor-primaria); background: #eff6ff; }
+.campo-doc:focus { border-bottom-color: var(--cor-primaria); background: rgba(34,197,94,.08); }
 
 .maiusculo { text-transform: uppercase; }
 
@@ -208,7 +208,7 @@ body {
   line-height: 1.4;
 }
 
-.campo-obs:focus { border-color: var(--cor-primaria); background: #eff6ff; outline: none; }
+.campo-obs:focus { border-color: var(--cor-primaria); background: rgba(34,197,94,.08); outline: none; }
 
 /* ── Tabela de Material ── */
 .tabela-wrapper {
@@ -224,7 +224,7 @@ body {
 }
 
 .tabela-material th {
-  background: #e5e7eb;
+  background: rgba(255,255,255,.06);
   border: 1px solid var(--cor-borda);
   padding: 4px 3px;
   font-size: 8.5px;
@@ -236,7 +236,7 @@ body {
 }
 
 .tabela-material td {
-  border: 1px solid #9ca3af;
+  border: 1px solid rgba(255,255,255,.12);
   padding: 1px 2px;
   font-size: 10px;
   vertical-align: middle;
@@ -254,7 +254,7 @@ body {
   outline: none;
 }
 
-.tabela-material td input:focus { background: #eff6ff; }
+.tabela-material td input:focus { background: rgba(34,197,94,.08); }
 
 .tabela-material td.td-desc input { text-align: left; }
 .tabela-material td.td-val { text-align: right; }
@@ -347,7 +347,7 @@ body {
   outline: none;
 }
 
-.campo-total:focus { background: #eff6ff; }
+.campo-total:focus { background: rgba(34,197,94,.08); }
 
 /* ── Transporte ── */
 .secao-transporte { }
@@ -366,7 +366,7 @@ body {
 
 .footer-line {
   height: 1px;
-  background: linear-gradient(to right, var(--cor-primaria), #d1d5db);
+  background: linear-gradient(to right, var(--cor-primaria), rgba(255,255,255,.12));
   margin-bottom: 4px;
 }
 
@@ -399,8 +399,8 @@ select.campo-doc {
 
 select.campo-doc:focus {
   border-bottom-color: var(--cor-primaria);
-  background-color: #eff6ff;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%232563eb'/%3E%3C/svg%3E");
+  background-color: rgba(34,197,94,.08);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2322c55e'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 4px center;
 }
@@ -411,8 +411,8 @@ select.campo-doc:focus {
   top: 100%;
   left: 0;
   right: 0;
-  background: #fff;
-  border: 1px solid #d1d5db;
+  background: var(--cor-card);
+  border: 1px solid var(--cor-borda);
   border-radius: 6px;
   box-shadow: 0 8px 24px rgba(0,0,0,.15);
   max-height: 200px;
@@ -424,12 +424,12 @@ select.campo-doc:focus {
   padding: 8px 10px;
   cursor: pointer;
   font-size: 11px;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid rgba(255,255,255,.08);
   transition: background .1s;
 }
 
 .autocomplete-item:last-child { border-bottom: none; }
-.autocomplete-item:hover { background: #eff6ff; }
+.autocomplete-item:hover { background: rgba(34,197,94,.08); }
 
 /* ═══════ HELPERS ═══════ */
 .no-print { }
@@ -567,7 +567,18 @@ select.campo-doc:focus {
 
   @page {
     size: A4 portrait;
-    margin: 0;
+    margin: 10mm;
+  }
+
+  html, body {
+    width: 100% !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    color: #111 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
   .no-print { display: none !important; }
@@ -575,20 +586,17 @@ select.campo-doc:focus {
 
   body {
     background: white !important;
-    padding: 9mm 10mm 7mm 10mm !important;
+    padding: 0 !important;
     margin: 0 !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-    color-adjust: exact !important;
   }
 
   .documento {
     max-width: 100% !important;
+    width: auto !important;
+    margin: 0 auto !important;
     border: 1.5px solid #374151 !important;
     padding: 0 !important;
     box-shadow: none !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
   }
 
   /* Inputs viram texto limpo */

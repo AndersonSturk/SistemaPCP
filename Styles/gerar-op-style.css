@@ -3,12 +3,12 @@
 ═══════════════════════════════════════════════════════ */
 
 :root {
-  --cor-primaria: #2563eb;
-  --cor-secundaria: #1e40af;
-  --cor-fundo: #f8fafc;
-  --cor-card: #ffffff;
-  --cor-texto: #0f172a;
-  --cor-borda: #cbd5e1;
+  --cor-primaria: #22c55e;
+  --cor-secundaria: #dc2626;
+  --cor-fundo: #081118;
+  --cor-card: #0f172a;
+  --cor-texto: #e2e8f0;
+  --cor-borda: rgba(255,255,255,.12);
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -77,7 +77,7 @@ input, select {
   border-radius: 8px;
   font-size: 16px;
   width: 100%;
-  background: white;
+  background: var(--cor-card);
   transition: border-color 0.2s;
 }
 
@@ -94,7 +94,7 @@ input:focus {
   top: 100%; 
   left: 0;
   width: 100%;
-  background: white;
+  background: var(--cor-card);
   border: 1px solid var(--cor-borda);
   border-top: none;
   border-radius: 0 0 8px 8px;
@@ -107,12 +107,12 @@ input:focus {
 .suggestion-item {
   padding: 12px 16px;
   cursor: pointer;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid rgba(255,255,255,.08);
   font-size: 14px;
 }
 
 .suggestion-item:hover {
-  background-color: #f1f5f9;
+  background-color: rgba(34,197,94,.08);
   color: var(--cor-primaria);
 }
 
@@ -126,7 +126,7 @@ input:focus {
 .quantidade-row .field { flex: 1; }
 
 .info {
-  background: #f0f9ff;
+  background: rgba(255,255,255,.04);
   padding: 16px;
   border-radius: 8px;
   border-left: 4px solid var(--cor-primaria);
@@ -137,7 +137,7 @@ input:focus {
 .total {
   margin: 24px 0;
   padding: 20px;
-  background: #f8fafc;
+  background: rgba(255,255,255,.04);
   border-radius: 12px;
   text-align: right;
   border: 1px solid var(--cor-borda);
@@ -171,8 +171,8 @@ input:focus {
   top: 100%; /* Cola exatamente abaixo do input */
   left: 0;
   width: 100%;
-  background: white;
-  border: 1px solid #cbd5e1;
+  background: var(--cor-card);
+  border: 1px solid var(--cor-borda);
   border-radius: 0 0 8px 8px;
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
   z-index: 9999 !important; /* Força ficar por cima de tudo */
@@ -189,13 +189,13 @@ input:focus {
 .suggestion-item {
   padding: 10px 15px;
   cursor: pointer;
-  border-bottom: 1px solid #f1f5f9;
-  color: #1f2937;
-  background: white;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+  color: var(--cor-texto);
+  background: var(--cor-card);
 }
 
 .suggestion-item:hover {
-  background-color: #2563eb;
+  background-color: var(--cor-primaria);
   color: white;
 }
 

@@ -9,11 +9,11 @@ if (userInfoEl) userInfoEl.innerText = user.nome;
 
 // ── Dados dinâmicos do setor ────────────────────────────
 const VIZ_PERFIL = {
-  admin:    { centro: "ADM - Lucabe",        projeto: "Gestão de Produção" },
-  pcp:      { centro: "PCP - Lucabe",        projeto: "Planejamento e Controle da Produção" },
-  producao: { centro: "Produção - Lucabe",   projeto: "Montagem e Produção" },
-  ped:      { centro: "P&D - Lucabe",        projeto: "Desenvolvimento de Produtos" },
-  logistica:{ centro: "Logística - Lucabe",  projeto: "Controle de Estoque e Expedição" },
+  admin:    { centro: "ADM",        projeto: "Gestão de Produção" },
+  pcp:      { centro: "PCP",        projeto: "Planejamento e Controle da Produção" },
+  producao: { centro: "Produção",   projeto: "Montagem e Produção" },
+  ped:      { centro: "P&D",        projeto: "Desenvolvimento de Produtos" },
+  logistica:{ centro: "Logística",  projeto: "Controle de Estoque e Expedição" },
 };
 const vizCfg = VIZ_PERFIL[user.perfil] || VIZ_PERFIL.pcp;
 const vizCentro = document.getElementById("vizCentroCusto");
@@ -53,35 +53,19 @@ function gerarPDF() {
 
   const doc = document.getElementById("documentoOP");
 
-  // ── Mede a altura real do conteúdo vs altura disponível no A4 ──
-  // A4 = 297mm, margem 8mm topo + 8mm baixo = 281mm útil ≈ 1062px @ 96dpi
-  const A4_HEIGHT_PX = 1062;
-  const contentHeight = doc.scrollHeight;
-
-  let scale = 1;
-  if (contentHeight > A4_HEIGHT_PX) {
-    // Calcula escala para caber — com margem de segurança de 2%
-    scale = Math.floor((A4_HEIGHT_PX / contentHeight) * 98) / 100;
-    // Limite mínimo de escala para manter legível
-    scale = Math.max(scale, 0.55);
+  if (doc) {
+    doc.style.width = "100%";
+    doc.style.transform = "";
+    doc.style.transformOrigin = "";
   }
 
-  // Aplica escala via CSS transform se necessário
-  if (scale < 1) {
-    doc.style.transformOrigin = "top left";
-    doc.style.transform = `scale(${scale})`;
-    doc.style.width = `${100 / scale}%`;
-  }
-
-  // Imprime
   setTimeout(() => {
     window.print();
 
-    // Remove escala após imprimir
     setTimeout(() => {
-      doc.style.transform = "";
-      doc.style.width = "";
-      doc.style.transformOrigin = "";
+      if (doc) {
+        doc.style.width = "";
+      }
       document.title = tituloOriginal;
     }, 500);
   }, 100);

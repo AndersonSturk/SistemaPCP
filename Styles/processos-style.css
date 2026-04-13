@@ -104,9 +104,9 @@
 }
 
 .step.active .step-circle {
-  border-color: #3b82f6;
-  color: #93c5fd;
-  box-shadow: 0 0 0 4px rgba(59,130,246,.2);
+  border-color: #22c55e;
+  color: #a7f3d0;
+  box-shadow: 0 0 0 4px rgba(34,197,94,.2);
 }
 
 .step.done .step-circle {
@@ -175,14 +175,14 @@
   border-radius: 10px;
   border: 1px solid rgba(255,255,255,.12);
   background: rgba(255,255,255,.05);
-  color: #f1f5f9;
+  color: var(--text);
 }
 
 .modal-gerenciar input:focus,
 .modal-gerenciar textarea:focus,
 .modal-gerenciar select:focus {
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59,130,246,.2);
+  border-color: #22c55e;
+  box-shadow: 0 0 0 3px rgba(34,197,94,.2);
   outline: none;
 }
 
@@ -234,7 +234,7 @@
 }
 
 .btn-save {
-  background: #2563eb;
+  background: #22c55e;
   color: #fff;
 }
 
@@ -368,8 +368,8 @@
 }
 
 .confirm-box {
-  background: #1e293b;
-  color: #f1f5f9;
+  background: #0f172a;
+  color: #e2e8f0;
   padding: 28px 32px;
   border-radius: 14px;
   min-width: 320px;

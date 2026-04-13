@@ -3,11 +3,11 @@ import { apiRequest, showToast, getUser } from "./auth.js";
 // ── Dados dinâmicos do setor por perfil ─────────────────
 const _user = getUser();
 const PERFIL_SETOR = {
-  admin:    { setor: "Administração", centro: "ADM - Lucabe" },
-  pcp:      { setor: "PCP",           centro: "PCP - Lucabe" },
-  producao: { setor: "Produção",      centro: "Produção - Lucabe" },
-  ped:      { setor: "P&D",           centro: "P&D - Lucabe" },
-  logistica:{ setor: "Logística",     centro: "Logística - Lucabe" },
+  admin:    { setor: "Administração", centro: "ADM" },
+  pcp:      { setor: "PCP",           centro: "PCP" },
+  producao: { setor: "Produção",      centro: "Produção" },
+  ped:      { setor: "P&D",           centro: "P&D" },
+  logistica:{ setor: "Logística",     centro: "Logística" },
 };
 if (_user) {
   const cfg = PERFIL_SETOR[_user.perfil] || PERFIL_SETOR.pcp;

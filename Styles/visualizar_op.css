@@ -4,22 +4,22 @@
 ═══════════════════════════════════════════════════════ */
 
 :root {
-  --cor-primaria: #2563eb;
-  --cor-secundaria: #1e40af;
-  --cor-fundo: #f1f5f9;
-  --cor-card: #ffffff;
-  --cor-texto: #1f2933;
-  --cor-borda: #e5e7eb;
-  --header-bg: #1f2a6f;
-  --header-text: #f8fafc;
-  --header-shadow: rgba(15, 23, 42, 0.18);
+  --cor-primaria: #22c55e;
+  --cor-secundaria: #dc2626;
+  --cor-fundo: #081118;
+  --cor-card: #0f172a;
+  --cor-texto: #e2e8f0;
+  --cor-borda: rgba(255,255,255,.1);
+  --header-bg: #0f172a;
+  --header-text: #e2e8f0;
+  --header-shadow: rgba(255,255,255,.06);
 }
 
 * { box-sizing: border-box; }
 
 body {
   margin: 0;
-  padding: 30px;
+  padding: 28px;
   font-family: 'Segoe UI', Tahoma, sans-serif;
   background: var(--cor-fundo);
   color: var(--cor-texto);
@@ -28,17 +28,17 @@ body {
 /* ═══════ HEADER ═══════ */
 .header {
   background: var(--header-bg);
-  padding: 16px 24px;
-  border-radius: 16px;
-  margin-bottom: 30px;
-  box-shadow: 0 12px 30px var(--header-shadow);
+  padding: 18px 24px;
+  border-radius: 18px;
+  margin-bottom: 28px;
+  box-shadow: 0 15px 40px var(--header-shadow);
   position: sticky;
-  top: 16px;
+  top: 18px;
   z-index: 10;
 }
 
 .header-content {
-  max-width: 1200px;
+  max-width: 1180px;
   margin: 0 auto;
   display: flex;
   justify-content: space-between;
@@ -49,7 +49,7 @@ body {
 .header-left {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
 }
 
 .header-right {
@@ -59,23 +59,22 @@ body {
 }
 
 .header-text {
-  color: var(--header-text);
+  color: var(--cor-texto);
   font-size: 18px;
   font-weight: 700;
   margin: 0;
 }
 
 .logo {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.18);
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--cor-primaria), var(--cor-secundaria));
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 800;
-  color: var(--header-text);
+  font-weight: 900;
+  color: #ffffff;
   font-size: 13px;
   letter-spacing: 0.5px;
 }
@@ -104,9 +103,9 @@ body {
 }
 
 .btn-pdf {
-  background: #16a34a;
+  background: var(--cor-primaria);
   color: #fff;
-  box-shadow: 0 2px 8px rgba(22, 163, 74, 0.3);
+  box-shadow: 0 2px 8px rgba(34,197,94,.3);
 }
 
 .btn-pdf:hover {
@@ -118,10 +117,11 @@ body {
 .document {
   max-width: 1100px;
   margin: 0 auto;
-  background: var(--cor-card);
-  padding: 25px;
-  border-radius: 14px;
-  box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+  background: #0f172a;
+  padding: 28px;
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,.08);
+  box-shadow: 0 18px 40px rgba(0,0,0,0.25);
 }
 
 .topo {
@@ -135,12 +135,12 @@ body {
 }
 
 .empresa { max-width: 70%; }
-.empresa h2 { margin: 0; font-size: 22px; }
-.empresa p { margin: 4px 0; font-size: 14px; color: #374151; }
+.empresa h2 { margin: 0; font-size: 22px; color: var(--cor-texto); }
+.empresa p { margin: 4px 0; font-size: 14px; color: var(--muted); }
 
 .nfe { text-align: right; }
 .nfe .titulo { font-weight: 700; font-size: 16px; color: var(--cor-secundaria); }
-.nfe .info { font-size: 13px; margin-top: 6px; }
+.nfe .info { font-size: 13px; margin-top: 6px; color: var(--cor-texto); }
 
 .blocos {
   display: grid;
@@ -149,21 +149,24 @@ body {
 }
 
 .bloco {
-  background: #f8fafc;
-  padding: 14px;
-  border-radius: 12px;
-  border: 1px solid var(--cor-borda);
+  background: rgba(255,255,255,.04);
+  padding: 18px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,.08);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.03);
 }
 
 .bloco h4 {
-  margin: 0 0 10px 0;
+  margin: 0 0 12px 0;
   font-size: 14px;
-  color: var(--cor-secundaria);
+  color: var(--cor-primaria);
 }
 
 .bloco p {
-  margin: 4px 0;
+  margin: 6px 0;
   font-size: 13px;
+  color: var(--cor-texto);
+  line-height: 1.55;
 }
 
 /* ═══════ TABELAS ═══════ */
@@ -171,17 +174,18 @@ table {
   width: 100%;
   border-collapse: collapse;
   margin-top: 10px;
+  color: var(--cor-texto);
 }
 
 th, td {
-  padding: 8px 10px;
-  border: 1px solid var(--cor-borda);
+  padding: 10px 12px;
+  border: 1px solid rgba(255,255,255,.08);
   font-size: 12px;
   text-align: center;
 }
 
 thead {
-  background: var(--cor-primaria);
+  background: linear-gradient(135deg, var(--cor-primaria), var(--cor-secundaria));
   color: white;
 }
 
@@ -190,6 +194,22 @@ thead th {
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.3px;
+}
+
+tbody tr:nth-child(even) {
+  background: rgba(255,255,255,.02);
+}
+
+tbody tr:hover {
+  background: rgba(34,197,94,.08);
+}
+
+tfoot tr {
+  background: rgba(255,255,255,.06);
+}
+
+tfoot td {
+  color: var(--cor-texto);
 }
 
 /* ═══════ RODAPÉ DO DOCUMENTO ═══════ */
@@ -320,10 +340,39 @@ thead th {
 ═══════════════════════════════════════════════════════ */
 @media print {
 
-  /* ── Remove cabeçalho/rodapé do browser (URL, data/hora) ── */
   @page {
     size: A4 portrait;
     margin: 0;
+  }
+
+  html, body {
+    width: 100% !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: var(--cor-fundo) !important;
+    color: var(--cor-texto) !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  body {
+    padding: 0 !important;
+    margin: 0 !important;
+    font-size: 11px !important;
+    background: var(--cor-fundo) !important;
+    color: var(--cor-texto) !important;
+  }
+
+  .document {
+    max-width: 100% !important;
+    width: auto !important;
+    margin: 0 !important;
+    padding: 12mm 10mm 10mm 10mm !important;
+    background: var(--cor-card) !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    border: 1px solid rgba(255,255,255,.08) !important;
   }
 
   /* ── Esconde o que não vai no PDF ── */
@@ -336,25 +385,24 @@ thead th {
     display: block !important;
   }
 
-  /* ── Body: padding compensa a margem zero do @page ── */
-  body {
-    background: white !important;
-    padding: 10mm 11mm 8mm 11mm !important;
-    margin: 0 !important;
-    font-size: 11px !important;
+  /* ── Mantém o documento legível em impressão colorida ── */
+  .bloco,
+  .topo,
+  .document-footer,
+  .footer-content,
+  table,
+  th,
+  td {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
-    color-adjust: exact !important;
   }
 
-  /* ── Documento ocupa tudo ── */
+  .empresa p:last-child {
+    display: none !important;
+  }
+
   .document {
-    max-width: 100% !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
-    background: white !important;
+    border: 1px solid rgba(255,255,255,.08) !important;
   }
 
   /* ── Topo compacto ── */
@@ -376,7 +424,9 @@ thead th {
   .bloco {
     padding: 7px 9px !important;
     border-radius: 5px !important;
-    background: #f8fafc !important;
+    background: rgba(15,23,42,.95) !important;
+    border: 1px solid rgba(255,255,255,.08) !important;
+    color: var(--cor-texto) !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
@@ -384,7 +434,7 @@ thead th {
   .bloco h4 {
     font-size: 11px !important;
     margin: 0 0 5px 0 !important;
-    color: var(--cor-secundaria) !important;
+    color: var(--cor-primaria) !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
@@ -461,6 +511,11 @@ thead th {
   .footer-content {
     font-size: 9px !important;
     color: #64748b !important;
+  }
+
+  /* ── Esconde o site no print ── */
+  .empresa p:last-child {
+    display: none !important;
   }
 
   /* ── Links sem decoração ── */

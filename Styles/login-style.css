@@ -1,11 +1,11 @@
 :root{
-  --bg: #0b1020;
+  --bg: #081118;
   --card: rgba(255,255,255,0.08);
   --card2: rgba(255,255,255,0.12);
   --text: #e7e7ff;
-  --soft: rgba(255,255,255,0.65);
-  --primary: #6a5cff;
-  --primary2: #21d4fd;
+  --soft: #94a3b8;
+  --primary: #22c55e;
+  --primary2: #dc2626;
   --shadow: rgba(0,0,0,0.45);
 }
 

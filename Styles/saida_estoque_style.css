@@ -32,7 +32,7 @@
   border-bottom: 1px solid var(--border); transition: background .12s;
 }
 .dropdown-item:last-child { border-bottom: none; }
-.dropdown-item:hover { background: rgba(59,130,246,.1); }
+.dropdown-item:hover { background: rgba(34,197,94,.1); }
 .dropdown-item .cliente { font-weight: 600; color: var(--text); }
 .dropdown-item .detalhe { font-size: 11px; color: var(--muted); margin-top: 2px; }
 
@@ -45,12 +45,12 @@
 
 .btn-add-item {
   width: 100%; padding: 11px;
-  background: rgba(59,130,246,.12); color: #93c5fd;
-  border: 1.5px dashed rgba(59,130,246,.3); border-radius: 10px;
+  background: rgba(34,197,94,.12); color: #a7f3d0;
+  border: 1.5px dashed rgba(34,197,94,.3); border-radius: 10px;
   font-size: 14px; font-weight: 600; cursor: pointer;
   margin-top: 12px; transition: all .15s;
 }
-.btn-add-item:hover { background: rgba(59,130,246,.2); border-color: rgba(59,130,246,.5); }
+.btn-add-item:hover { background: rgba(34,197,94,.2); border-color: rgba(34,197,94,.5); }
 
 /* Vínculo com pedido */
 .pedido-vinculo-section {
@@ -66,8 +66,8 @@
 .btn-limpar-pedido:hover { color: var(--danger); border-color: var(--danger); }
 
 .pedido-vinculo-card {
-  display: none; background: rgba(59,130,246,.06);
-  border: 1px solid rgba(59,130,246,.15);
+  display: none; background: rgba(34,197,94,.06);
+  border: 1px solid rgba(34,197,94,.15);
   border-radius: 8px; padding: 8px 12px; margin-top: 8px;
 }
 .pedido-vinculo-card.show { display: block; }
@@ -79,16 +79,16 @@
 
 /* Tag de pedido na tabela de itens */
 .item-pedido-tag {
-  display: inline-block; background: rgba(59,130,246,.1);
-  border: 1px solid rgba(59,130,246,.2); border-radius: 6px;
+  display: inline-block; background: rgba(34,197,94,.1);
+  border: 1px solid rgba(34,197,94,.2); border-radius: 6px;
   padding: 3px 8px; font-size: 11px; color: #93c5fd; line-height: 1.4;
 }
 .item-pedido-tag small { color: var(--muted); }
 
 /* Info material */
 .mat-info {
-  display: none; background: rgba(59,130,246,.08);
-  border: 1px solid rgba(59,130,246,.2);
+  display: none; background: rgba(34,197,94,.08);
+  border: 1px solid rgba(34,197,94,.2);
   border-radius: 8px; padding: 8px 12px; font-size: 12px;
   gap: 16px; flex-wrap: wrap; margin-bottom: 10px; color: #cbd5e1;
 }
@@ -231,7 +231,7 @@
 /* Comprovante — total geral */
 .comp-total-section {
   display: flex; justify-content: space-between; align-items: center;
-  background: rgba(59,130,246,.08); border: 1px solid rgba(59,130,246,.15);
+  background: rgba(34,197,94,.08); border: 1px solid rgba(34,197,94,.15);
   border-radius: 10px; padding: 14px 18px; margin-top: 16px;
 }
 .comp-total-label {
@@ -326,20 +326,31 @@
 }
 
 @media print {
+  @page { size: A4 portrait; margin: 10mm; }
+  html, body {
+    width: 100% !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    color: #111 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
   body * { visibility: hidden; }
   #comprovanteConteudo, #comprovanteConteudo * { visibility: visible; }
-  #comprovanteConteudo { position: fixed; inset: 0; padding: 32px; background: white; color: #1f2937; }
-  .comp-total-section { background: #f0f4ff; border-color: #bfdbfe; }
-  .comp-total-label { color: #475569; }
-  .comp-total-valor { color: #1d4ed8; }
-  .comp-obs { background: #f8fafc; border-color: #e2e8f0; color: #334155; }
-  .comp-footer { border-color: #e2e8f0; color: #94a3b8; }
-  .comp-header { border-color: #e2e8f0; }
-  .comp-empresa p { color: #64748b; }
-  .comp-doc p { color: #64748b; }
-  .comp-doc .titulo { background: #1d4ed8; }
-  .comp-section h4 { color: #64748b; }
-  .comp-table th { background: #1e40af; }
+  #comprovanteConteudo { position: fixed; inset: 0; padding: 24px; background: white; color: #1f2937; }
+  .comp-total-section { background: #ecfdf5; border-color: #bbf7d0; }
+  .comp-total-label { color: #164e63; }
+  .comp-total-valor { color: #16a34a; }
+  .comp-obs { background: rgba(255,255,255,.04); border-color: rgba(255,255,255,.12); color: #1f2937; }
+  .comp-footer { border-color: #e2e8f0; color: #64748b; }
+  .comp-header { border-color: #d1d5db; }
+  .comp-empresa p { color: #475569; }
+  .comp-doc p { color: #475569; }
+  .comp-doc .titulo { background: #22c55e; }
+  .comp-section h4 { color: #334155; }
+  .comp-table th { background: linear-gradient(135deg,#22c55e,#dc2626); }
   .comp-table td { color: #334155; border-color: #e2e8f0; }
   .comp-table tfoot td { background: #f8fafc; color: #1f2937; border-color: #e2e8f0; }
   .comprovante { color: #1f2937; }

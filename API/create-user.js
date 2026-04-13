@@ -6,14 +6,15 @@ const db = mysql.createConnection({
   user: "root",
   password: "4618",
   database: "pcp",
-  port: 3000,
+  port: 3306,
 });
 
 async function criarUsuario() {
-  const nome = "Luana";
-  const email = "Luana@lucabe.com";
-  const senha = "Luana123";
-  const perfil = "vendas";
+
+  const nome = "Anderson";
+  const email = "Anderson@gmail.com";
+  const senha = "Admin123";
+  const perfil = "admin";
 
   const senha_hash = await bcrypt.hash(senha, 10);
 
@@ -26,7 +27,7 @@ async function criarUsuario() {
     if (err) {
       console.error("Erro:", err);
     } else {
-      console.log("Usuário " + $[perfil] + " criado com sucesso!") ;
+      console.log(`Usuário ${perfil} criado com sucesso!`);
     }
     db.end();
   });

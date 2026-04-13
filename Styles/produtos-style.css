@@ -1,24 +1,24 @@
 /* ===== VARIÁVEIS ===== */
 :root {
-  --cor-primaria: #2563eb;
-  --cor-secundaria: #1e40af;
-  --cor-fundo: #f1f5f9;
-  --cor-card: #ffffff;
-  --cor-texto: #1f2933;
-  --cor-borda: #e5e7eb;
+  --cor-primaria: #22c55e;
+  --cor-secundaria: #dc2626;
+  --cor-fundo: #081118;
+  --cor-card: #0f172a;
+  --cor-texto: #e2e8f0;
+  --cor-borda: rgba(255,255,255,.1);
 }
 
 :root {
-  --cor-primaria: #2563eb;
-  --cor-secundaria: #1e40af;
-  --cor-fundo: #f1f5f9;
-  --cor-card: #ffffff;
-  --cor-texto: #1f2933;
-  --cor-borda: #e5e7eb;
+  --cor-primaria: #22c55e;
+  --cor-secundaria: #dc2626;
+  --cor-fundo: #081118;
+  --cor-card: #0f172a;
+  --cor-texto: #e2e8f0;
+  --cor-borda: rgba(255,255,255,.1);
 
-  --header-bg: #1f2a6f;
-  --header-text: #ffffff;
-  --header-shadow: rgba(15, 23, 42, 0.18);
+  --header-bg: #0f172a;
+  --header-text: #e2e8f0;
+  --header-shadow: rgba(255,255,255,.06);
 }
 
 
@@ -150,7 +150,7 @@ body {
   align-items: flex-end;
   justify-content: space-between;
 
-  background: #1e40af;
+  background: linear-gradient(135deg,#22c55e,#dc2626);
   border-radius: 18px;
   padding: 10px 16px 12px;
   transition: padding-bottom 0.25s ease;

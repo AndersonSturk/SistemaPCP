@@ -26,7 +26,7 @@
  * Execução: node corrigir-custos.js
  */
 const mysql = require("mysql2");
-const db = mysql.createPool({ host: "127.0.0.1", user: "root", password: "4618", database: "pcp", port: 3000 });
+const db = mysql.createPool({ host: "127.0.0.1", user: "root", password: "4618", database: "pcp", port: 3306 });
 const p = db.promise();
 
 // Preços realistas por família (R$ unitário)

@@ -8,6 +8,7 @@ const { exec } = require("child_process");
 const fs = require("fs");
 const rateLimit = require("express-rate-limit");
 const crypto = require("crypto");
+require("dotenv").config();
 
 // ── Carrega variáveis de ambiente (.env) ────────────
 require("dotenv").config();
@@ -21,7 +22,7 @@ app.use(cors({
 }));
 
 app.use(express.json());
-app.use(express.static(path.join(__dirname, "../paginas")));
+app.use(express.static(path.join(__dirname, "../PCP")));
 
 // ── CSRF Token — proteção contra requisições forjadas ──
 // Gera token CSRF por sessão, enviado no header X-CSRF-Token
@@ -61,11 +62,14 @@ if (!JWT_SECRET || JWT_SECRET === "MUDE_ESSE_SEGREDO_EM_PRODUCAO") {
 }
 
 // ── Banco de dados via .env ─────────────────────────
+const DATABASE_NAME = process.env.DB_NAME || "pcp";
+let ordensProducaoSeqField = "seq";
+
 const db = mysql.createPool({
   host: process.env.DB_HOST || "127.0.0.1",
   user: process.env.DB_USER || "root",
   password: process.env.DB_PASSWORD || "",
-  database: process.env.DB_NAME || "pcp",
+  database: DATABASE_NAME,
   port: Number(process.env.DB_PORT) || 3306,
   waitForConnections: true,
   connectionLimit: 10,
@@ -89,11 +93,17 @@ const apiLimiter = rateLimit({
   legacyHeaders: false,
 });
 app.use("/api", apiLimiter);
+
+const LOG_VERBOSE = process.env.NODE_ENV !== "production";
+function info(...args) {
+  if (LOG_VERBOSE) console.log(...args);
+}
+
 db.getConnection((err, connection) => {
   if (err) {
     console.error("❌ ERRO AO CONECTAR NO MYSQL:", err.message);
   } else {
-    console.log("✅ Conectado ao MySQL (pcp)");
+    info("✅ Conectado ao MySQL (pcp)");
     // Auto-migrações seguras
     const migrations = [
       {
@@ -128,17 +138,67 @@ db.getConnection((err, connection) => {
       `ALTER TABLE usuarios MODIFY COLUMN perfil ENUM('admin','pcp','producao','logistica','vendas','ped') NOT NULL DEFAULT 'pcp'`,
     ];
 
-    // Índice UNIQUE para evitar OPs duplicadas por concorrência
+    // Verifica se a tabela ordens_producao tem seq ou seq_ano para gerar números de OP.
     connection.query(
-      `SELECT COUNT(*) AS cnt FROM INFORMATION_SCHEMA.STATISTICS
-       WHERE TABLE_SCHEMA = 'pcp' AND TABLE_NAME = 'ordens_producao' AND INDEX_NAME = 'uq_op_seq_ano'`,
-      (e, rows) => {
-        if (!e && rows[0].cnt === 0) {
-          connection.query(
-            `ALTER TABLE ordens_producao ADD UNIQUE INDEX uq_op_seq_ano (seq_ano, ano)`,
-            (e2) => { if (!e2) console.log("✅ UNIQUE INDEX uq_op_seq_ano criado em ordens_producao"); }
-          );
+      `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'ordens_producao'
+         AND COLUMN_NAME IN ('seq','seq_ano')`,
+      [DATABASE_NAME],
+      (err, columns) => {
+        if (!err) {
+          const names = columns.map(c => c.COLUMN_NAME);
+          const hasSeq = names.includes("seq");
+          const hasSeqAno = names.includes("seq_ano");
+
+          if (!hasSeq && hasSeqAno) {
+            connection.query(
+              `ALTER TABLE ordens_producao ADD COLUMN seq INT DEFAULT NULL AFTER is_deleted`,
+              (e) => {
+                if (!e) {
+                  connection.query(
+                    `UPDATE ordens_producao SET seq = seq_ano WHERE seq IS NULL`,
+                    (e2) => {
+                      if (!e2) info("✅ Coluna seq criada e copiada a partir de seq_ano em ordens_producao");
+                    }
+                  );
+                }
+              }
+            );
+          }
+
+          if (hasSeq && !hasSeqAno) {
+            connection.query(
+              `ALTER TABLE ordens_producao ADD COLUMN seq_ano INT DEFAULT NULL AFTER seq`,
+              (e) => {
+                if (!e) {
+                  connection.query(
+                    `UPDATE ordens_producao SET seq_ano = seq WHERE seq_ano IS NULL`,
+                    (e2) => {
+                      if (!e2) info("✅ Coluna seq_ano criada e copiada a partir de seq em ordens_producao");
+                    }
+                  );
+                }
+              }
+            );
+          }
+
+          if (hasSeq) ordensProducaoSeqField = "seq";
+          else if (hasSeqAno) ordensProducaoSeqField = "seq_ano";
         }
+
+        connection.query(
+          `SELECT COUNT(*) AS cnt FROM INFORMATION_SCHEMA.STATISTICS
+           WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'ordens_producao' AND INDEX_NAME = 'uq_op_seq_ano'`,
+          [DATABASE_NAME],
+          (e, rows) => {
+            if (!e && rows[0].cnt === 0) {
+              connection.query(
+                `ALTER TABLE ordens_producao ADD UNIQUE INDEX uq_op_seq_ano (${ordensProducaoSeqField}, ano)`,
+                (e2) => { if (!e2) info("✅ UNIQUE INDEX uq_op_seq_ano criado em ordens_producao"); }
+              );
+            }
+          }
+        );
       }
     );
 
@@ -153,7 +213,7 @@ db.getConnection((err, connection) => {
         (e, rows) => {
           if (!e && rows.length === 0) {
             connection.query(m.sql, (e2) => {
-              if (!e2) console.log(`✅ Coluna ${m.column} adicionada à ${m.table}`);
+              if (!e2) info(`Coluna ${m.column} adicionada à ${m.table}`);
               done();
             });
           } else done();
@@ -163,7 +223,7 @@ db.getConnection((err, connection) => {
 
     for (const sql of typeFixes) {
       connection.query(sql, (e) => {
-        if (!e) console.log("✅ Tipo de coluna corrigido (INT→DECIMAL)");
+        if (!e) info("✅ Tipo de coluna corrigido (INT→DECIMAL)");
         done();
       });
     }
@@ -175,6 +235,30 @@ db.getConnection((err, connection) => {
 function serverError(res, err) {
   console.error(err);
   return res.status(500).json({ success: false, message: "Erro interno do servidor" });
+}
+
+async function getOrdensProducaoSeqColumn() {
+  try {
+    const [columns] = await db.promise().query(
+      `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'ordens_producao'
+         AND COLUMN_NAME IN ('seq','seq_ano')`,
+      [DATABASE_NAME]
+    );
+    const names = columns.map(c => c.COLUMN_NAME);
+    if (names.includes("seq")) {
+      ordensProducaoSeqField = "seq";
+      return "seq";
+    }
+    if (names.includes("seq_ano")) {
+      ordensProducaoSeqField = "seq_ano";
+      return "seq_ano";
+    }
+  } catch (e) {
+    console.error("Erro ao detectar coluna de sequência de OP:", e.message);
+  }
+  ordensProducaoSeqField = "seq";
+  return "seq";
 }
 
 function normalizeDateToSql(dateValue) {
@@ -1017,9 +1101,10 @@ app.post("/ordens_producao", authMiddleware, roleMiddleware(["admin", "pcp", "pr
     for (let tentativa = 1; tentativa <= MAX_RETRIES; tentativa++) {
       try {
         const { seq, ano, numero_op } = await getNextNumeroOP_Real_Async();
+        const seqColumn = await getOrdensProducaoSeqColumn();
         const sql = `
           INSERT INTO ordens_producao (
-            numero_op, seq_ano, ano, processo_id,
+            numero_op, ${seqColumn}, ano, processo_id,
             material_id, codigo_produto, descricao_material,
             qtde_total, quantidade, unidade_medida,
             custo_unitario, custo_total, status,
@@ -1161,6 +1246,7 @@ async function getNumeroOP(opId) {
 async function getNextNumeroOP_Real_Async() {
   const ano = new Date().getFullYear();
   const MAX_RETRIES = 5;
+  const seqColumn = await getOrdensProducaoSeqColumn();
 
   for (let tentativa = 1; tentativa <= MAX_RETRIES; tentativa++) {
     const conn = await db.promise().getConnection();
@@ -1169,7 +1255,7 @@ async function getNextNumeroOP_Real_Async() {
 
       // Lock de leitura: garante que ninguém mais lê o MAX enquanto estamos inserindo
       const [rows] = await conn.query(
-        `SELECT MAX(seq_ano) AS max_seq FROM ordens_producao WHERE ano = ? FOR UPDATE`,
+        `SELECT MAX(${seqColumn}) AS max_seq FROM ordens_producao WHERE ano = ? FOR UPDATE`,
         [ano]
       );
       const seq = (rows[0].max_seq || 0) + 1;
@@ -1285,9 +1371,10 @@ app.post(
       for (let tentativa = 1; tentativa <= MAX_RETRIES; tentativa++) {
         try {
           const { seq, ano, numero_op } = await getNextNumeroOP_Real_Async();
+          const seqColumn = await getOrdensProducaoSeqColumn();
           const [result] = await db.promise().query(
             `INSERT INTO ordens_producao
-               (numero_op, seq_ano, ano, material_id, codigo_produto,
+               (numero_op, ${seqColumn}, ano, material_id, codigo_produto,
                 descricao_material, qtde_total, unidade_medida,
                 custo_unitario, custo_total, status,
                 observacoes, responsavel, criado_por)
@@ -3665,11 +3752,11 @@ async function executarBackupAutomatico() {
     const arquivos = fs.readdirSync(BACKUP_DIR).filter(f => f.endsWith(".sql"));
     const backupHoje = arquivos.find(f => f.includes(hoje));
     if (backupHoje) {
-      console.log(`📋 Backup de hoje já existe: ${backupHoje}`);
+      info(`📋 Backup de hoje já existe: ${backupHoje}`);
       return;
     }
 
-    console.log(`💾 Iniciando backup automático: ${filename}...`);
+    info(`💾 Iniciando backup automático: ${filename}...`);
 
     // Pega todas as tabelas
     const [tables] = await db.promise().query("SHOW TABLES");
@@ -3710,7 +3797,7 @@ async function executarBackupAutomatico() {
     fs.writeFileSync(filepath, parts.join("\n"), "utf8");
 
     const sizeKB = (fs.statSync(filepath).size / 1024).toFixed(1);
-    console.log(`✅ Backup automático salvo: ${filename} (${sizeKB} KB, ${tableNames.length} tabelas)`);
+    info(`✅ Backup automático salvo: ${filename} (${sizeKB} KB, ${tableNames.length} tabelas)`);
 
     // Também cria cópia no MySQL (se possível)
     try {
@@ -3720,7 +3807,7 @@ async function executarBackupAutomatico() {
         await db.promise().query(`CREATE TABLE \`${backupDb}\`.\`${table}\` LIKE \`pcp\`.\`${table}\``);
         await db.promise().query(`INSERT INTO \`${backupDb}\`.\`${table}\` SELECT * FROM \`pcp\`.\`${table}\``);
       }
-      console.log(`✅ Cópia no MySQL: ${backupDb}`);
+      info(`✅ Cópia no MySQL: ${backupDb}`);
     } catch (e) {
       console.warn(`⚠️  Cópia MySQL falhou (sem privilégios?): ${e.message}`);
     }
@@ -3735,7 +3822,7 @@ async function executarBackupAutomatico() {
       const remover = todosBackups.slice(BACKUP_KEEP);
       for (const old of remover) {
         fs.unlinkSync(path.join(BACKUP_DIR, old));
-        console.log(`🗑️  Backup antigo removido: ${old}`);
+        info(`🗑️  Backup antigo removido: ${old}`);
         // Remove também do MySQL
         try {
           await db.promise().query(`DROP DATABASE IF EXISTS \`${old.replace(".sql", "")}\``);
@@ -3764,7 +3851,7 @@ function agendarBackupDiario() {
 
   const msAteProximo = proxima - agora;
   const horasAte = (msAteProximo / 3600000).toFixed(1);
-  console.log(`⏰ Próximo backup automático em ${horasAte}h (${proxima.toLocaleString("pt-BR")})`);
+  info(`⏰ Próximo backup automático em ${horasAte}h (${proxima.toLocaleString("pt-BR")})`);
 
   setTimeout(() => {
     executarBackupAutomatico();
@@ -3792,17 +3879,11 @@ if (sslKey && sslCert && fs.existsSync(sslKey) && fs.existsSync(sslCert)) {
     cert: fs.readFileSync(sslCert),
   };
   https.createServer(httpsOptions, app).listen(PORTA_SERVER, "0.0.0.0", () => {
-    console.log(`🔒 Servidor HTTPS rodando!`);
-    console.log(`🏠 Local: https://localhost:${PORTA_SERVER}`);
-    console.log(`📡 Rede:  https://192.168.1.190:${PORTA_SERVER}`);
+    console.log(`Servidor rodando em https://localhost:${PORTA_SERVER}`);
   });
 } else {
   app.listen(PORTA_SERVER, "0.0.0.0", () => {
-    console.log(`🚀 Servidor HTTP rodando!`);
-    console.log(`🏠 Local: http://localhost:${PORTA_SERVER}`);
-    console.log(`📡 Rede:  http://192.168.1.190:${PORTA_SERVER}`);
-    if (!sslKey || !sslCert) {
-      console.log(`⚠️  HTTPS desativado — configure SSL_KEY e SSL_CERT no .env para ativar`);
-    }
+    console.log(`Servidor rodando em http://localhost:${PORTA_SERVER}`);
+    info("⚠️  HTTPS desativado — configure SSL_KEY e SSL_CERT no .env para ativar");
   });
 }

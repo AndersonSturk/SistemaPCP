@@ -458,11 +458,11 @@ function abrirComprovante(saida) {
     <div class="comprovante" id="comprovantePrint">
       <div class="comp-header">
         <div class="comp-empresa">
-          <h3>Lucabe Energy</h3>
-          <p>CNPJ: 01.272.361/0001-50<br>
-          Avenida Comandante Sampaio, N° 781 - KM 18<br>
-          Osasco - SP | CEP: 06192-010<br>
-          Telefone: (11) 4506-4700</p>
+          <h3>Empresa Fictícia</h3>
+          <p>CNPJ: 12.345.678/0001-90<br>
+          Avenida Fictícia, 123 - Centro<br>
+          São Paulo - SP | CEP: 01234-567<br>
+          Telefone: (11) 1234-5678</p>
         </div>
         <div class="comp-doc">
           <div class="titulo">COMPROVANTE DE SAÍDA</div>
@@ -482,7 +482,7 @@ function abrirComprovante(saida) {
           <p class="comp-obs">${saida.observacoes}</p>
         </div>` : ""}
       <div class="comp-footer">
-        <span>PCP - Lucabe Energy</span>
+        <span>PCP - Empresa Fictícia</span>
         <span>Gerado em ${new Date().toLocaleString("pt-BR")} por ${saida.usuario || saida.criado_por_nome || "Sistema"}</span>
       </div>
     </div>

@@ -10,11 +10,11 @@ if (!["admin", "pcp", "logistica", "producao", "ped"].includes(user.perfil)) {
 
 // ── Configuração do setor por perfil ────────────────────
 const PERFIL_CONFIG = {
-  admin:    { setor: "Administração",  tipo: "Produção Interna",               centro: "ADM - Lucabe",        projeto: "Gestão de Produção" },
-  pcp:      { setor: "PCP",            tipo: "Produção Interna",               centro: "PCP - Lucabe",        projeto: "Planejamento e Controle da Produção" },
-  producao: { setor: "Produção",       tipo: "Produção Interna",               centro: "Produção - Lucabe",   projeto: "Montagem e Produção" },
-  ped:      { setor: "P&D",            tipo: "Pesquisa e Desenvolvimento",     centro: "P&D - Lucabe",        projeto: "Desenvolvimento de Produtos" },
-  logistica:{ setor: "Logística",      tipo: "Produção Interna",               centro: "Logística - Lucabe",  projeto: "Controle de Estoque e Expedição" },
+  admin:    { setor: "Administração",  tipo: "Produção Interna",               centro: "ADM",        projeto: "Gestão de Produção" },
+  pcp:      { setor: "PCP",            tipo: "Produção Interna",               centro: "PCP",        projeto: "Planejamento e Controle da Produção" },
+  producao: { setor: "Produção",       tipo: "Produção Interna",               centro: "Produção",   projeto: "Montagem e Produção" },
+  ped:      { setor: "P&D",            tipo: "Pesquisa e Desenvolvimento",     centro: "P&D",        projeto: "Desenvolvimento de Produtos" },
+  logistica:{ setor: "Logística",      tipo: "Produção Interna",               centro: "Logística",  projeto: "Controle de Estoque e Expedição" },
 };
 
 function aplicarDadosSetor() {

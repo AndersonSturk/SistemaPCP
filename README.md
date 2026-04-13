@@ -193,8 +193,7 @@ SistemaPCP/
 │   └── [pagina]-style.css            # Estilos específicos por página (responsivos + print)
 │
 ├── assets/                           # Recursos visuais
-│   ├── Logo Lucabe.png               # Logo da empresa
-│   └── logo-lucabe.svg               # Logo vetorial
+│   └── (imagens de logo removidas; o sistema usa texto e ícones em vez de marca)
 │
 ├── .gitignore                        # Arquivos ignorados (env, node_modules, backups SQL)
 └── README.md                         # Documentação do projeto

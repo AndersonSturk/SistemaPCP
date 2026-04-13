@@ -246,25 +246,25 @@ window.ftGerarPDF = function () {
       body { font-family: 'Segoe UI', sans-serif; margin: 0; padding: 0; color: #1f2933; font-size: 11px; }
       .ft-doc { padding: 0; }
       .ft-doc-topo { display: flex; justify-content: space-between; border-bottom: 2px solid #e5e7eb; padding-bottom: 10px; margin-bottom: 12px; }
-      .ft-doc-empresa h3 { margin: 0; font-size: 16px; color: #1e40af; }
-      .ft-doc-empresa p { margin: 1px 0; font-size: 9px; color: #6b7280; }
+      .ft-doc-empresa h3 { margin: 0; font-size: 16px; color: #16a34a; }
+      .ft-doc-empresa p { margin: 1px 0; font-size: 9px; color: #475569; }
       .ft-doc-titulo { text-align: right; }
-      .ft-doc-titulo h4 { margin: 0; font-size: 13px; color: #1e40af; }
-      .ft-doc-titulo p { margin: 1px 0; font-size: 9px; color: #6b7280; }
+      .ft-doc-titulo h4 { margin: 0; font-size: 13px; color: #dc2626; }
+      .ft-doc-titulo p { margin: 1px 0; font-size: 9px; color: #475569; }
       .ft-doc-blocos { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
       .ft-doc-bloco { background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 6px; padding: 10px 12px; }
-      .ft-doc-bloco h5 { margin: 0 0 6px; font-size: 10px; color: #1e40af; text-transform: uppercase; letter-spacing: .4px; }
+      .ft-doc-bloco h5 { margin: 0 0 6px; font-size: 10px; color: #16a34a; text-transform: uppercase; letter-spacing: .4px; }
       .ft-doc-bloco p { margin: 2px 0; font-size: 10px; }
       .ft-doc-bloco-full { grid-column: span 2; }
-      .ft-doc-desc { background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px; padding: 10px 12px; margin-bottom: 12px; }
-      .ft-doc-desc h5 { margin: 0 0 4px; font-size: 10px; color: #0369a1; text-transform: uppercase; }
+      .ft-doc-desc { background: #ecfdf5; border: 1px solid #bbf7d0; border-radius: 6px; padding: 10px 12px; margin-bottom: 12px; }
+      .ft-doc-desc h5 { margin: 0 0 4px; font-size: 10px; color: #15803d; text-transform: uppercase; }
       .ft-doc-desc p { margin: 0; font-size: 10px; line-height: 1.5; white-space: pre-wrap; }
       table { width: 100%; border-collapse: collapse; margin-top: 6px; }
-      th { background: #2563eb; color: #fff; padding: 5px 8px; font-size: 9px; font-weight: 700; text-transform: uppercase; text-align: center; border: 1px solid #1d4ed8; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      th { background: linear-gradient(135deg, #22c55e, #dc2626); color: #fff; padding: 5px 8px; font-size: 9px; font-weight: 700; text-transform: uppercase; text-align: center; border: 1px solid #15803d; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       td { padding: 4px 8px; font-size: 10px; border: 1px solid #e5e7eb; text-align: center; }
-      tbody tr:nth-child(even) { background: #f8fafc; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      tfoot td { background: #f1f5f9; font-weight: 700; border-top: 2px solid #cbd5e1; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      .ft-doc-footer { margin-top: 14px; padding-top: 6px; border-top: 2px solid #e5e7eb; display: flex; justify-content: space-between; font-size: 8px; color: #94a3b8; }
+      tbody tr:nth-child(even) { background: #f0fdf4; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      tfoot td { background: #dcfce7; font-weight: 700; border-top: 2px solid #bbf7d0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .ft-doc-footer { margin-top: 14px; padding-top: 6px; border-top: 2px solid #e5e7eb; display: flex; justify-content: space-between; font-size: 8px; color: #64748b; }
     </style></head><body>`);
   win.document.write(doc.outerHTML);
   win.document.write("</body></html>");
